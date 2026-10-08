@@ -17,6 +17,9 @@ export type MenuItem = {
   /** page slug, collection slug, or URL. Unused for "home". */
   value?: string;
   children?: MenuItem[];
+  /** Footer placement and optional visibility, edited in Studio. */
+  footerGroup?: "explore" | "connect";
+  hidden?: boolean;
   /** Header-only: render children as a full mega-menu panel instead of a dropdown. */
   mega?: boolean;
   /** Mega menu featured card (optional). */

@@ -121,6 +121,8 @@ export const COPY_SCHEMA: CopyGroup[] = [
           "An independent publishing house based in Toronto, specializing in contemporary photography and art books.",
         multiline: true,
       },
+      { key: "footerExploreHeading", label: "Explore group heading", default: "Explore" },
+      { key: "footerConnectHeading", label: "Participate & connect group heading", default: "Participate & connect" },
       { key: "footerNavHeading", label: "Navigation heading", default: "Navigate" },
       { key: "footerWordmark", label: "Footer wordmark (single-line style)", default: "LYRICALMYRICAL BOOKS" },
       { key: "footerLinkShop", label: "Link: Shop", default: "Shop" },

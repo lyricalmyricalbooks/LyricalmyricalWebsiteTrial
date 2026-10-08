@@ -8,18 +8,18 @@ import { resolveHref, isExternal, type MenuItem } from "../features/site/storeMe
 // keep explicit white text on their dark surfaces.
 const linkCls = "text-[10px] tracking-[0.2em] text-current opacity-50 hover:opacity-100 transition-opacity uppercase whitespace-nowrap";
 
-function MenuLink({ item, className }: { item: MenuItem; className?: string }) {
+function MenuLink({ item, className, copyKey }: { item: MenuItem; className?: string; copyKey?: string }) {
   const href = resolveHref(item);
   if (isExternal(item)) {
     return (
       <a href={href} target="_blank" rel="noopener noreferrer" className={className ?? linkCls}>
-        {item.label}
+        <span data-studio-copy={copyKey}>{item.label}</span>
       </a>
     );
   }
   return (
     <Link to={href} className={className ?? linkCls}>
-      {item.label}
+      <span data-studio-copy={copyKey}>{item.label}</span>
     </Link>
   );
 }
@@ -131,16 +131,15 @@ export function StoreMenu({ items }: { items: MenuItem[] }) {
 }
 
 /** Footer navigation: a heading column with its child links flattened. */
-export function FooterMenu({ items }: { items: MenuItem[] }) {
+export function FooterMenu({ items, copyKeys = {} }: { items: MenuItem[]; copyKeys?: Record<string, string> }) {
   if (!items || items.length === 0) return null;
   return (
     <>
-      {items.map((item) => (
-        <MenuLink
-          key={item.id}
-          item={item}
-          className="block hover:text-white transition-colors"
-        />
+      {items.filter(item => !item.hidden).map((item) => (
+        <div key={item.id}>
+          <MenuLink item={item} copyKey={copyKeys[item.id]} className="block hover:text-white transition-colors" />
+          {item.children?.length ? <div className="pl-3 mt-3 space-y-3"><FooterMenu items={item.children} /></div> : null}
+        </div>
       ))}
     </>
   );

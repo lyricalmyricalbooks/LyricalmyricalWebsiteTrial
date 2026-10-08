@@ -262,6 +262,11 @@ export const STYLE_GROUPS: StyleGroup[] = [
     fields: [
       { key: "hideNewsletter", label: "Hide the “Join the Archive” sign-up box", kind: "toggle" },
       { key: "hideRecentlyViewed", label: "Hide the “Recently viewed” row on the shop page", kind: "toggle" },
+      { key: "footerNavigationLayout", label: "Footer navigation layout", kind: "select", defaultValue: "grouped", options: [{ value: "grouped", label: "Grouped links + legal row" }, { value: "columns", label: "Classic columns" }] },
+      { key: "showFooterExplore", label: "Show Explore link group", kind: "toggle", defaultValue: true },
+      { key: "showFooterConnect", label: "Show Participate & connect link group", kind: "toggle", defaultValue: true },
+      { key: "showFooterLegalHeading", label: "Show legal row heading", kind: "toggle", defaultValue: true },
+      { key: "showFooterLocation", label: "Show footer location", kind: "toggle", defaultValue: true },
       { key: "footerColumns", label: "Multi-column footer", kind: "toggle" },
       { key: "footerLayout", label: "Footer columns", kind: "select", options: [{ value: "3col", label: "3 columns" }, { value: "4col", label: "4 columns (with location)" }] },
       { key: "footerBg", label: "Footer background", kind: "color" },

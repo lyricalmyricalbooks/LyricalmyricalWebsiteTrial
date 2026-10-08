@@ -28,6 +28,7 @@ import { contentMaxWidth, navLineProps, navLinkStyle, useNavBelow, useNavFit } f
 import { StorefrontThemeStyle } from "../features/site/StorefrontThemeStyle";
 import { StorefrontOverrides } from "../features/site/StorefrontOverrides";
 import { resolveFooterBadges } from "../features/site/paymentBadges";
+import { GroupedFooterNavigation } from "./GroupedFooterNavigation";
 import { StoreMenu, FooterMenu } from "./StoreMenu";
 import { LogoMark, wordmarkSecondaryStyle } from "./LogoMark";
 import { googleFontHref } from "../features/site/fonts";
@@ -282,6 +283,7 @@ export function SiteFooter({ settings, pages }: { settings: any; pages: any[] })
   // Never configured → the house default; cleared on purpose in Studio → hidden.
   const instagramUrl: string = (settings?.design?.social ?? DEFAULT_SOCIAL).instagram || "";
   const d = rawDesign;
+  const grouped = d.footerNavigationLayout !== "columns";
   const fourCol = d?.footerLayout === "4col";
   // "Multi-column footer" off → the columns stack into one.
   const multiColumn = d?.footerColumns !== false;
@@ -292,7 +294,7 @@ export function SiteFooter({ settings, pages }: { settings: any; pages: any[] })
       className="border-t-2 border-white/30 bg-black/40"
       style={d?.footerBg ? { backgroundColor: d.footerBg } : undefined}
     >
-      <div style={{ maxWidth: contentMaxWidth(d) }} className={`mx-auto px-6 py-12 grid grid-cols-1 ${!multiColumn ? "" : fourCol ? "md:grid-cols-4" : "md:grid-cols-3"} gap-10 text-[11px] text-white/70`}>
+      <div style={{ maxWidth: contentMaxWidth(d) }} className={`mx-auto px-6 py-12 grid grid-cols-1 ${!multiColumn ? "" : grouped ? "md:grid-cols-[minmax(0,1.5fr)_minmax(0,1fr)_minmax(0,1fr)]" : fourCol ? "md:grid-cols-4" : "md:grid-cols-3"} gap-10 text-[11px] text-white/70`}>
         {/* Col 1: Brand */}
         <div className="space-y-4" data-studio-target="copy:Footer|style:logo" data-studio-label="Footer brand">
           {d?.wordmarkStyle === "two-part" ? (
@@ -305,8 +307,10 @@ export function SiteFooter({ settings, pages }: { settings: any; pages: any[] })
           <p className="leading-relaxed max-w-xs">
             <span data-studio-copy="footerAbout">{settings?.design?.copy?.footerAbout != null ? getCopy(settings?.design, "footerAbout") : settings?.info?.description || getCopy(settings?.design, "footerAbout")}</span>
           </p>
+          {grouped && d.showFooterLocation !== false && <p data-studio-target="copy:Footer|style:footer" data-studio-label="Footer location"><span data-studio-copy="footerLocation">{getCopy(d, "footerLocation")}</span></p>}
         </div>
 
+        {grouped ? <GroupedFooterNavigation settings={settings} pages={pages} /> : <>
         {/* Col 2: Navigation */}
         <div className="space-y-3" data-studio-target="menus:footer|copy:Footer|pages" data-studio-label="Footer links">
           <p className="text-white/55 text-[9px] uppercase tracking-[0.4em] mb-4"><span data-studio-copy="footerNavHeading">{getCopy(settings?.design, "footerNavHeading")}</span></p>
@@ -338,15 +342,15 @@ export function SiteFooter({ settings, pages }: { settings: any; pages: any[] })
 
         {/* Col 3: Policies / Info */}
         <div className="space-y-3" data-studio-target="copy:Footer|style:footer" data-studio-label="Footer legal & location">
-          <p className="text-white/55 text-[9px] uppercase tracking-[0.4em] mb-4"><span data-studio-copy="footerLegalHeading">{getCopy(settings?.design, "footerLegalHeading")}</span></p>
+          {d.showFooterLegalHeading !== false && <p className="text-white/55 text-[9px] uppercase tracking-[0.4em] mb-4"><span data-studio-copy="footerLegalHeading">{getCopy(settings?.design, "footerLegalHeading")}</span></p>}
           {POLICY_KEYS.filter((k) => (settings?.policies as any)?.[k]?.trim()).map((k) => (
             <p key={k}><Link to={`/page/${policySlug(k)}`} className="hover:text-white transition-colors">{policyTitle(settings?.design, k)}</Link></p>
           ))}
-          {!fourCol && <p className="mt-6"><span data-studio-copy="footerLocation">{getCopy(settings?.design, "footerLocation")}</span></p>}
+          {!fourCol && d.showFooterLocation !== false && <p className="mt-6"><span data-studio-copy="footerLocation">{getCopy(settings?.design, "footerLocation")}</span></p>}
         </div>
 
         {/* Col 4: Location (4-column layout only) */}
-        {fourCol && (
+        {fourCol && d.showFooterLocation !== false && (
           <div className="space-y-3" data-studio-target="copy:Footer|style:footer" data-studio-label="Footer location">
             <p className="text-white/55 text-[9px] uppercase tracking-[0.4em] mb-4"><span data-studio-copy="footerLocationHeading">{getCopy(settings?.design, "footerLocationHeading")}</span></p>
             <p><span data-studio-copy="footerLocation">{getCopy(settings?.design, "footerLocation")}</span></p>
@@ -358,7 +362,13 @@ export function SiteFooter({ settings, pages }: { settings: any; pages: any[] })
             </a>
           </div>
         )}
+        </>}
       </div>
+
+      {grouped && <div style={{ maxWidth: contentMaxWidth(d) }} className="mx-auto px-6 py-4 border-t border-white/20 flex flex-wrap items-center gap-x-6 gap-y-3 text-[11px] text-white/70" data-studio-target="copy:Footer|style:footer" data-studio-label="Footer legal links">
+        {d.showFooterLegalHeading !== false && <span className="text-[9px] uppercase tracking-[0.3em] text-white/55" data-studio-copy="footerLegalHeading">{getCopy(d, "footerLegalHeading")}</span>}
+        {POLICY_KEYS.filter(k => (settings?.policies as any)?.[k]?.trim()).map(k => <Link key={k} to={"/page/" + policySlug(k)} className="hover:text-white transition-colors">{policyTitle(d, k)}</Link>)}
+      </div>}
 
       {/* Bottom bar */}
       <div style={{ maxWidth: contentMaxWidth(d) }} className="border-t border-white/20 mx-auto px-6 py-4 flex flex-col md:flex-row justify-between items-center gap-4">
@@ -381,7 +391,7 @@ export function SiteFooter({ settings, pages }: { settings: any; pages: any[] })
         )}
 
         <div className="flex gap-4">
-          {instagramUrl && (
+          {d.showSocialInFooter !== false && instagramUrl && (
           <a
             href={instagramUrl}
             target="_blank"

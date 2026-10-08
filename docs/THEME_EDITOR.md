@@ -780,3 +780,9 @@ Validation: handler tests cover authority, selective/idempotent restocking and p
 estimates; local desktop/phone browser fixtures cover forms/dialogs and customer progress.
 The actual checkout destination handoff was exercised without creating an order/payment.
 These checks do not prove deployed providers or live refunds.
+
+### Grouped footer navigation (8 October 2026)
+
+- [x] Replace long navigation/legal columns with two editable navigation groups and a wrapping legal row.
+
+Grouped footer navigation defaults to Explore and Participate & connect, with policies in a wrapping row above copyright. Studio > Style > Footer & social links selects grouped/classic layout and group/location/heading visibility; Text & labels > Footer owns headings. Menus > Footer menu can customize automatic links, assign groups, edit destinations/labels, reorder and hide links, preserving sub-links. Contact pages suppress the duplicate automatic email link. Preview click-to-edit and inline copy hooks remain available.
