@@ -3,10 +3,12 @@
 
 export type StudioLocation = {
   templateId?: string; showGlobal?: boolean; productSlug?: string; collectionSlug?: string;
-  leftTab?: "sections" | "shared" | "style" | "text" | "menus" | "pages"; device?: "desktop" | "tablet" | "mobile";
+  leftTab?: "sections" | "style" | "text" | "menus" | "pages"; device?: "desktop" | "tablet" | "mobile";
 };
 
-const TABS = new Set(["sections", "shared", "style", "text", "menus", "pages"]);
+const TABS = new Set(["sections", "style", "text", "menus", "pages"]);
+// The old Shared layout tab became Page layout's Header / Footer groups (Studio 2.0 · 1.5).
+const RETIRED_TABS: Record<string, StudioLocation["leftTab"]> = { shared: "sections" };
 const DEVICES = new Set(["desktop", "tablet", "mobile"]);
 const TEMPLATE = /^(heroPage|storefront|productPage|collectionPage|cartPage|page|page404|wishlistPage|accountPage|trackingPage|page:[\w-]{1,120})$/;
 const SLUG = /^[\w-]{1,160}$/;
@@ -21,7 +23,7 @@ export function parseStudioLocation(hashOrQuery: string): StudioLocation | null 
   if (q.get("g") === "1") loc.showGlobal = true;
   const b = q.get("b"); if (b && SLUG.test(b)) { loc.productSlug = b; loc.templateId ??= "productPage"; }
   const c = q.get("c"); if (c && SLUG.test(c)) { loc.collectionSlug = c; loc.templateId ??= "collectionPage"; }
-  const tab = q.get("tab"); if (tab && TABS.has(tab)) loc.leftTab = tab as StudioLocation["leftTab"];
+  const tab = q.get("tab"); if (tab && TABS.has(tab)) loc.leftTab = tab as StudioLocation["leftTab"]; else if (tab && RETIRED_TABS[tab]) loc.leftTab = RETIRED_TABS[tab];
   const d = q.get("d"); if (d && DEVICES.has(d)) loc.device = d as StudioLocation["device"];
   return loc;
 }

@@ -1,8 +1,10 @@
 import { StudioSpacingControls } from "./StudioSpacingControls";
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { ArrowLeft, Copy, Eye, EyeOff, Trash2, X } from "lucide-react";
 import { uploadStudioImage } from "./mediaUpload";
-import { BlockFieldEditor, BlockListFieldEditor, getBlockFields, getBlocksKey, getSectionFields, getSectionMeta, SectionFieldEditor, SectionSettingsPanel } from "../ThemeEditorExtensions";
+import { BlockFieldEditor, BlockListFieldEditor, getBlockFields, getBlocksKey, getSectionFields, getSectionMeta, SectionFieldEditor } from "../ThemeEditorExtensions";
+import { SECTION_TABS, sectionStyleFields, type SectionTab } from "./sectionStyleSchema";
+import { StudioSectionStyle } from "./StudioSectionStyle";
 import { IconButton, useFocusTrap, usePrompt } from "../riso/components";
 import { findBlock, freshBlockIds, mapBlock, removeBlock, resolveSharedBlocks, type Section, type SharedBlock } from "./studioModel";
 import { updateBlocks } from "./studioWorkflow";
@@ -18,7 +20,7 @@ export function StudioInspector({ section, blockId, colorSchemes, device, shared
   onDuplicate: () => void; onDelete: () => void; onToggle: () => void; onClose: () => void;
   onNotice?: (text: string) => void;
 }) {
-  const [tab, setTab] = useState("content");
+  const [tab, setTab] = useState<"content" | SectionTab>("content");
   const [askText, promptNode] = usePrompt();
   const [search, setSearch] = useState("");
   // Docked in its own resizable panel on tablets and desktops; a full-screen sheet on phones.
@@ -32,6 +34,7 @@ export function StudioInspector({ section, blockId, colorSchemes, device, shared
   }, []);
   useFocusTrap(ref, overlay, onClose);
   useEffect(() => { setTab("content"); setSearch(""); }, [section.id, blockId]);
+  const styleFields = useMemo(() => sectionStyleFields(colorSchemes), [colorSchemes]);
   const meta = getSectionMeta(section.type);
   const key = getBlocksKey(section.type);
   const blocks = section.settings[key] || section.settings.blocks || [];
@@ -83,12 +86,12 @@ export function StudioInspector({ section, blockId, colorSchemes, device, shared
       <small>{(block ? block.hidden : section.visible === false) ? "Hidden on storefront" : "Visible on storefront"}</small>
     </div>
     {!block && <div className="studio-tabs" role="tablist" aria-label="Section settings">
-      {["content", "design"].map(id => <button role="tab" aria-selected={tab === id} key={id} onClick={() => setTab(id)}>{id === "content" ? "Content" : "Layout & style"}</button>)}
+      {SECTION_TABS.map(t => <button role="tab" aria-selected={tab === t.id} key={t.id} onClick={() => { setTab(t.id); setSearch(""); }}>{t.label}</button>)}
     </div>}
     <div className="studio-inspector-body">
+      {(tab === "content" || tab === "style") && <input className="studio-search" aria-label={`Search ${tab} settings`} placeholder="Find a setting…" value={search} onChange={e => setSearch(e.target.value)} />}
       {tab === "content" && <>
-        <input className="studio-search" aria-label="Search content settings" placeholder="Find a setting…" value={search} onChange={e => setSearch(e.target.value)} />
-        {!fields.length && <p className="studio-hint">{search ? "No matching settings." : "Select a block in the outline or use Layout & style."}</p>}
+        {!fields.length && <p className="studio-hint">{search ? "No matching settings." : "Select a block in the outline, or use the Style and Layout tabs."}</p>}
         {fields.map(f => <div key={f.key} className="studio-field">
           {block ? f.kind === "list" ? <BlockListFieldEditor field={f as any} value={block[f.key]} onChange={v => patchBlock({ [f.key]: v })} /> :
             <BlockFieldEditor field={f as any} value={block[f.key]} onChange={v => patchBlock({ [f.key]: v })} uploadFile={uploadStudioImage} block={block} onPatchBlock={patchBlock} /> :
@@ -107,7 +110,16 @@ export function StudioInspector({ section, blockId, colorSchemes, device, shared
         </div>}
       </>}
       {!block && sharedBlocks.some(shared => !shared.sectionType || shared.sectionType === section.type) && <div className="studio-control-card"><strong>Shared blocks</strong><p className="studio-hint">Insert a compatible linked instance. Editing its source updates every placement.</p>{sharedBlocks.filter(shared => !shared.sectionType || shared.sectionType === section.type).map(shared => <button key={shared.id} className="studio-link-button" onClick={() => onInsertShared(shared)}>+ {shared.name}</button>)}</div>}
-      {tab === "design" && <>
+      {tab === "style" && <StudioSectionStyle fields={styleFields} tab="style" settings={section.settings} search={search} onPatch={onPatch} />}
+      {tab === "visibility" && <>
+        <div className="studio-control-card">
+          <strong>On the storefront</strong>
+          <p className="studio-hint">{section.visible === false ? "Hidden everywhere. Shoppers don't see this section." : "Shown. Use the switches below to hide it on some screen sizes or outside a date window."}</p>
+          <button className="studio-link-button" onClick={onToggle}>{section.visible === false ? "Show this section" : "Hide this section everywhere"}</button>
+        </div>
+        <StudioSectionStyle fields={styleFields} tab="visibility" settings={section.settings} search="" onPatch={onPatch} />
+      </>}
+      {tab === "layout" && <>
         <div className="studio-control-card" data-studio-panel="phone-layout">
           <strong>Phone &amp; tablet layout</strong>
           <p className="studio-hint">Works out phone spacing, heading size{section.type === "CompositionSection" ? ", and stacked block placement for phones and tablets" : " and columns"} from your desktop design. Values you set yourself are kept.</p>
@@ -116,7 +128,7 @@ export function StudioInspector({ section, blockId, colorSchemes, device, shared
           <button className="studio-link-button" onClick={resetPhone}>Reset phone layout</button>
         </div>
         <StudioSpacingControls section={section} device={device} onPatch={onPatch} />
-        <SectionSettingsPanel settings={section.settings} onUpdate={onPatch} colorSchemes={colorSchemes} />
+        <StudioSectionStyle fields={styleFields} tab="layout" settings={section.settings} search="" onPatch={onPatch} />
       </>}
     </div>
   </aside>;

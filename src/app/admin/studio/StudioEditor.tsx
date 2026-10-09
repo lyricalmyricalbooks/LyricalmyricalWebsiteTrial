@@ -37,8 +37,9 @@ import { applyThemeKeysToSurfaces } from "../themeScope";
 import { THEME_LIBRARY, PALETTES, THEME_APPLIED_KEYS } from "./themeLibrary";
 import { StudioOutline } from "./StudioOutline";
 import { StudioStructure } from "./StudioStructure";
-import { TARGET_LABELS } from "./targetLabels";
-import { buildPageStructure, primaryTarget, readStructure, type PageStructure, type StructureItem } from "./pageStructure";
+import { StudioElementInspector } from "./StudioElementInspector";
+import { elementTabs, type ElementRef } from "./elementCatalog";
+import { buildPageStructure, primaryTarget, readStructure, structurePath, type PageStructure, type StructureItem } from "./pageStructure";
 import { StudioInspector } from "./StudioInspector";
 import { StudioSearch } from "./StudioSearch.tsx";
 import { buildStudioIndex, type SearchEntry } from "./studioSearch";
@@ -47,7 +48,6 @@ import { applyCanvasAction, applyPageStyle, buildPreviewState, deliverPreviewSta
 import { useStudioPersistence } from "./useStudioPersistence";
 import { ActionMenu, Dialog, SecondaryButton, useConfirm, usePrompt } from "../riso/components";
 import { applyInlineText, INLINE_STYLE_KEYS } from "./inlineText";
-import { StudioSharedLayout } from "./StudioSharedLayout";
 import { filterSettingGroups } from "./studioNavigation";
 import { designChecks as buildDesignChecks, designSize } from "./studioChecks";
 import { EXTRA_STYLE_CATEGORIES, TEXT_BLURBS, TEXT_HEADINGS, THEME_HEADINGS, blurbFor, changedCopyCount, changedCounts, changedFields, defaultFor, isChanged, subsectionsFor } from "./settingsMap";
@@ -67,7 +67,7 @@ import { auth } from "../../../lib/firebase";
 import type { StudioLocation } from "../../lib/studioLocation";
 import "./studio.css";
 
-type LeftTab = "sections" | "style" | "text" | "menus" | "pages" | "shared";
+type LeftTab = "sections" | "style" | "text" | "menus" | "pages";
 type Toast = { kind: "ok" | "err"; text: string; action?: { label: string; run: () => void } } | null;
 type ThemeVersion = { id: string; kind: "draft" | "published"; label: string; createdAt: string; design: any };
 
@@ -403,6 +403,8 @@ export function StudioEditor({ settings, onExit, onPersisted, appearance = "ligh
   // What the preview actually rendered (Header · Page · Footer · Pop-overs) and the part under the pointer.
   const [structure, setStructure] = useState<PageStructure | null>(null);
   const [hoverKey, setHoverKey] = useState<string | null>(null);
+  // A built-in part of the page (header, buy card, bag…) open in the inspector, instead of a section.
+  const [selectedElement, setSelectedElement] = useState<ElementRef | null>(null);
 
   const [toast, setToast] = useState<Toast>(null);
   const [askConfirm, confirmNode] = useConfirm();
@@ -699,9 +701,11 @@ export function StudioEditor({ settings, onExit, onPersisted, appearance = "ligh
   }, [blockId]);
   // Re-highlight right away when the selection changes, but only after edits settle when the design changes.
   useEffect(() => { canvasSelectionRef.current = null; highlight(selectedId); }, [selectedId, highlight]);
+  useEffect(() => { if (selectedId) setSelectedElement(null); }, [selectedId]);
   useEffect(() => { const t = setTimeout(() => { const canvas = canvasSelectionRef.current; highlight(canvas?.sectionId || selectedId, false, canvas ? canvas.blockId : blockId); }, 250); return () => clearTimeout(t); }, [design]); // eslint-disable-line react-hooks/exhaustive-deps
   useEffect(() => { iframeRef.current?.contentWindow?.postMessage({ type: "STUDIO_MODE", mode }, window.location.origin); }, [mode]);
-  useEffect(() => { setStructure(null); setHoverKey(null); }, [previewUrl, previewRevision]);
+  // A new page in the preview: its structure is re-read, and a part selected on the old page closes.
+  useEffect(() => { setStructure(null); setHoverKey(null); setSelectedElement(null); }, [previewUrl, previewRevision]);
   useEffect(() => { setPreviewStatus("loading"); const timer = setTimeout(() => setPreviewStatus(s => s === "loading" ? "error" : s), 15000); return () => clearTimeout(timer); }, [previewUrl, previewRevision]);
 
   // Open the settings behind a click-to-edit target (from the preview or the page structure).
@@ -726,12 +730,20 @@ export function StudioEditor({ settings, onExit, onPersisted, appearance = "ligh
     }, 120);
   };
   // Page structure rows: a built-in region opens its own controls, anything else its click-to-edit settings.
-  const openStructureItem = (item: StructureItem) => {
-    postPreview({ type: "HIGHLIGHT_NODE", key: item.key });
-    const region = item.region && REGION_GROUPS.flatMap(g => g.regions).find(r => r.id === item.region);
+  // Open a built-in part in the inspector (Words · Style · Layout · Visibility); the preview outlines it.
+  const openElement = (el: ElementRef, scroll = false) => {
+    setSelectedId(null); setBlockId(null); setSelectedElement(el); setMobilePanel("settings");
+    postPreview({ type: "SELECT_NODE", key: el.key, scroll });
+  };
+  const openStructureItem = (item: StructureItem) =>
+    openElement({ key: item.key, label: item.label, target: item.target, region: item.region || undefined }, true);
+  const closeElement = () => { setSelectedElement(null); postPreview({ type: "SELECT_NODE", key: null }); setMobilePanel("outline"); };
+  // "Open in Theme settings" from the element inspector: the region's own controls, else its style category.
+  const openElementInTheme = (el: ElementRef) => {
+    const region = el.region && REGION_GROUPS.flatMap(g => g.regions).find(r => r.id === el.region);
     if (region) { openRegion(region.id, region.label); return; }
-    const target = primaryTarget(item.target);
-    if (target) openTarget(target, item.label);
+    const target = primaryTarget(el.target);
+    if (target) openTarget(target, el.label);
   };
   const regionToggleState = (id: string) => {
     const region = REGION_GROUPS.flatMap(g => g.regions).find(r => r.id === id);
@@ -762,7 +774,7 @@ export function StudioEditor({ settings, onExit, onPersisted, appearance = "ligh
       if (e.origin !== window.location.origin || e.source !== iframeRef.current?.contentWindow || !e.data) return;
       const d = e.data;
       if (d.type === "PREVIEW_ERROR") say("err", `The preview hit an error: ${String(d.message).slice(0, 200)}`);
-      if (d.type === "PREVIEW_READY") { setPreviewStatus("ready"); sendPreviewState(); sendCopyMap(); highlight(selectedId); iframeRef.current?.contentWindow?.postMessage({ type: "STUDIO_MODE", mode }, window.location.origin); postPreview({ type: "SET_TARGET_LABELS", labels: TARGET_LABELS }); }
+      if (d.type === "PREVIEW_READY") { setPreviewStatus("ready"); sendPreviewState(); sendCopyMap(); highlight(selectedId); iframeRef.current?.contentWindow?.postMessage({ type: "STUDIO_MODE", mode }, window.location.origin); }
       if (d.type === "STUDIO_ROUTE" && typeof d.href === "string") {
         const route = previewRoute(d.href, import.meta.env.BASE_URL);
         // Only a real page change resets the selection: the preview also reports its route when it
@@ -777,7 +789,13 @@ export function StudioEditor({ settings, onExit, onPersisted, appearance = "ligh
         if (action) shortcutRef.current(action);
         return;
       }
-      if (d.type === "STUDIO_TARGET" && typeof d.target === "string") openTarget(d.target, typeof d.label === "string" ? d.label : "");
+      if ((d.type === "STUDIO_ELEMENT" || d.type === "ELEMENT_INFO") && typeof d.key === "string") {
+        const el: ElementRef = { key: d.key, label: String(d.label || "").slice(0, 120), target: String(d.target || "").slice(0, 300),
+          region: typeof d.region === "string" && d.region ? d.region.slice(0, 80) : undefined, text: String(d.text || "").slice(0, 2000) };
+        if (d.type === "STUDIO_ELEMENT") { setSelectedId(null); setBlockId(null); setSelectedElement(el); setMobilePanel("settings"); }
+        else setSelectedElement(cur => cur?.key === el.key ? { ...cur, ...el, label: cur.label || el.label } : cur);
+        return;
+      }
       if (d.type === "STRUCTURE") { const nodes = readStructure(d.nodes); if (nodes) setStructure(buildPageStructure(nodes)); return; }
       if (d.type === "NODE_HOVER") { setHoverKey(typeof d.key === "string" ? d.key : null); return; }
       if (d.type === "CANVAS_SELECT" && d.sectionId) canvasSelectionRef.current = {sectionId:d.sectionId,blockId:d.blockId || null};
@@ -811,6 +829,7 @@ export function StudioEditor({ settings, onExit, onPersisted, appearance = "ligh
       if (d.type === "CONTEXT_ACTION" && typeof d.sectionId === "string") {
         change(current => applyContextAction(current, d, getBlocksKey));
         if (d.action === "delete" || d.action === "hide") { canvasSelectionRef.current = null; highlight(null,false,null); setSelectedId(null); setBlockId(null); }
+        if (d.action === "delete") say("ok", d.blockId ? "Block deleted." : "Section deleted.", { label: "Undo", run: () => setHist(undo) });
       }
       if ((d.type === "SPACING_COMMIT" || d.type === "SPACING_RESET") && typeof d.sectionId === "string") {
         change(current => {
@@ -883,7 +902,7 @@ export function StudioEditor({ settings, onExit, onPersisted, appearance = "ligh
       case "help": setShortcutsOpen(true); break;
       case "desktop": case "tablet": case "mobile": setDevice(action); break;
       case "toggleMode": setMode(m => m === "edit" ? "browse" : "edit"); break;
-      case "deselect": if (selectedId) { setSelectedId(null); setBlockId(null); } break;
+      case "deselect": if (selectedId) { setSelectedId(null); setBlockId(null); } else if (selectedElement) closeElement(); break;
       case "delete": if (selected && !blockId) delSection(selected.id); break;
       case "duplicate": if (selected) dupSection(selected.id); break;
       case "moveUp": case "moveDown": {
@@ -1038,7 +1057,7 @@ export function StudioEditor({ settings, onExit, onPersisted, appearance = "ligh
     if (t.type === "page") { setLeftTab("pages"); setOpenPage({ slug: t.slug, nonce: Date.now() }); }
   };
 
-  const sidebarTabs: [LeftTab, string][] = [["sections", "Page layout"], ["shared", "Shared layout"], ["style", "Theme settings"], ["text", "Text & labels"], ["menus", "Navigation"], ["pages", "Pages"]];
+  const sidebarTabs: [LeftTab, string][] = [["sections", "Page layout"], ["style", "Theme settings"], ["text", "Text & labels"], ["menus", "Navigation"], ["pages", "Pages"]];
   const q = copyFilter.trim().toLowerCase();
   const visibleStyleGroups = filterSettingGroups(STYLE_GROUPS, styleSearch, styleCategory);
   // Theme settings home: task headings over the same categories, with "changed" counts.
@@ -1059,15 +1078,10 @@ export function StudioEditor({ settings, onExit, onPersisted, appearance = "ligh
           <div className="studio-panel-context">
             <strong>{panelTitle}</strong>
             <span>{leftTab === "sections" ? (showGlobal ? "Shared sections · every page" : template.label) + ` · ${sections.length} sections` : `Previewing: ${showGlobal ? "shared sections" : template.label}`}</span>
-            <small>{leftTab === "sections" ? "Select content here or click it in the preview." : leftTab === "style" ? "Choose a category or search every setting." : leftTab === "shared" ? "Announcement, header, navigation and footer controls in one place." : leftTab === "text" ? "Edit the words your shoppers see." : leftTab === "menus" ? "Manage links, categories and their order." : "Create pages and edit their content or layout."}</small>
+            <small>{leftTab === "sections" ? "Select content here or click it in the preview." : leftTab === "style" ? "Choose a category or search every setting." : leftTab === "text" ? "Edit the words your shoppers see." : leftTab === "menus" ? "Manage links, categories and their order." : "Create pages and edit their content or layout."}</small>
           </div>
           <div className="flex-1 overflow-auto" ref={sidebarScrollRef}>
             <StudioTips forceOpen={tipsNonce} />
-            {leftTab === "shared" && <StudioSharedLayout globalCount={(design.globalSections || []).length}
-              onStyle={(id, label) => { setStyleScope("all"); setStyleSearch(""); setStyleCategory(id); setStyleFocus(label ? {id, label} : null); setLeftTab("style"); }}
-              onText={group => { setCopyFilter(""); setTextCategory(group); setLeftTab("text"); }}
-              onNavigation={() => setLeftTab("menus")}
-              onSections={() => { setShowGlobal(true); setSelectedId(null); setBlockId(null); setLeftTab("sections"); }} />}
             {leftTab === "sections" && template.id === "heroPage" && (
               <div className="m-3 p-3 rounded-lg border border-neutral-200 bg-white text-xs space-y-2">
                 <label className="flex items-center justify-between gap-3 font-bold text-sm">
@@ -1104,7 +1118,7 @@ export function StudioEditor({ settings, onExit, onPersisted, appearance = "ligh
                   onSelect: () => { if (!selected) { say("ok", "Select a section first, then save it. Saved sections appear in Add section."); return; } saveSection(selected); } },
               ]} /></div>
             </div>}
-            {leftTab === "sections" && <StudioStructure structure={structure} hoverKey={hoverKey} deviceLabel={REGION_DEVICE_LABELS[device]}
+            {leftTab === "sections" && <StudioStructure structure={structure} hoverKey={hoverKey} selectedKey={selectedElement?.key || null} deviceLabel={REGION_DEVICE_LABELS[device]}
               pageLabel={template.label} showGlobal={showGlobal} globalCount={(design.globalSections || []).length}
               onHover={key => postPreview({ type: "HOVER_NODE", key })}
               onOpen={openStructureItem}
@@ -1364,6 +1378,18 @@ export function StudioEditor({ settings, onExit, onPersisted, appearance = "ligh
             onToggle={() => setList((l) => toggleSection(l, selected.id))} onNotice={(text) => say("ok", text)} onClose={() => { setSelectedId(null); setBlockId(null); setMobilePanel("outline"); }} />
   );
 
+  const selectedTabs = useMemo(() => selectedElement ? elementTabs(selectedElement, device, design) : null, [selectedElement, device, design]);
+  const elementPanel = selectedElement && selectedTabs && (
+          <StudioElementInspector element={selectedElement} path={structurePath(structure, selectedElement.key)} tabs={selectedTabs} design={design}
+            deviceLabel={REGION_DEVICE_LABELS[device]} scope={styleScope} pageLabel={template.label} onScope={setStyleScope}
+            renderField={({ group, field }) => renderStyleField(group, field)}
+            onCopy={(key, value) => setStyle('copy.' + key, value)}
+            onOpenTheme={() => openElementInTheme(selectedElement)}
+            onOpenText={group => { setCopyFilter(""); setTextCategory(group); setLeftTab("text"); setMobilePanel("outline"); }}
+            onOpenTarget={target => openTarget(target, selectedElement.label)}
+            onClose={closeElement} />
+  );
+
   return (
     <div className="rp studio-editor" data-rp-appearance={appearance} data-studio-editor data-mobile-panel={mobilePanel}>
       {/* top bar */}
@@ -1412,11 +1438,11 @@ export function StudioEditor({ settings, onExit, onPersisted, appearance = "ligh
 
       <FocusContext.Provider value={focus}>
       <div className="studio-workspace" {...(busy === "discard" ? { inert: "" } : {})}>
-        <StudioRail active={leftTab} onSelect={id => { setLeftTab(id); setStyleFocus(null); setSelectedId(null); setBlockId(null); setMobilePanel("outline"); }} />
+        <StudioRail active={leftTab} onSelect={id => { setLeftTab(id); setStyleFocus(null); setSelectedId(null); setBlockId(null); setSelectedElement(null); setMobilePanel("outline"); }} />
         {narrow ? <>
           {sidebarPanel}
           {canvasPanel}
-          {selected && inspectorPanel}
+          {selected ? inspectorPanel : elementPanel}
         </> : (
           <PanelGroup direction="horizontal" autoSaveId="studio-panels-v1" className="studio-panels">
             <Panel id="studio-left" order={1} defaultSize={24} minSize={18} maxSize={45}>{sidebarPanel}</Panel>
@@ -1424,9 +1450,9 @@ export function StudioEditor({ settings, onExit, onPersisted, appearance = "ligh
             <Panel id="studio-canvas" order={2} minSize={30}>{canvasPanel}</Panel>
             <PanelResizeHandle className="studio-resize-handle" aria-label="Resize the inspector" />
             <Panel id="studio-inspector" order={3} defaultSize={22} minSize={16} maxSize={45}>
-              {selected ? inspectorPanel : <div className="studio-inspector-empty" role="note">
+              {selected ? inspectorPanel : elementPanel || <div className="studio-inspector-empty" role="note">
                 <strong>Nothing selected</strong>
-                <span>Click a section in the preview, or pick one under Page layout, to edit it here.</span>
+                <span>Click any part of the preview, or pick it under Page layout, to edit its words, style and layout here.</span>
               </div>}
             </Panel>
           </PanelGroup>

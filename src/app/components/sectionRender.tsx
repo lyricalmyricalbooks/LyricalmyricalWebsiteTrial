@@ -239,6 +239,8 @@ export function SectionList({
             s.fullWidth ? "w-full" : "",
             s.hideOnMobile ? "hidden md:block" : "",
             s.hideOnDesktop ? "block md:hidden" : "",
+            // Tablets = 768–1023px, the same range as Studio's tablet preview (features/site/breakpoints.ts).
+            s.hideOnTablet ? "md:max-lg:hidden" : "",
             s.customClass || "",
           ]
             .filter(Boolean)

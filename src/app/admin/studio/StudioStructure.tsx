@@ -9,6 +9,8 @@ export type RegionToggle = { visible: boolean; required: boolean } | null;
 type Props = {
   structure: PageStructure | null;
   hoverKey: string | null;
+  /** The part open in the inspector. */
+  selectedKey?: string | null;
   deviceLabel: string;
   pageLabel: string;
   showGlobal: boolean;
@@ -36,10 +38,10 @@ export function StudioStructure(p: Props) {
     const toggle = item.region ? p.regionState(item.region) : null;
     const off = toggle?.visible === false;
     return <div key={item.key}>
-      <div className="studio-tree-row studio-structure-row" data-hovered={p.hoverKey === item.key} data-hidden={off}
+      <div className="studio-tree-row studio-structure-row" data-hovered={p.hoverKey === item.key} data-selected={p.selectedKey === item.key} data-hidden={off}
         style={depth ? { paddingLeft: depth * 14 } : undefined}
         onMouseEnter={() => p.onHover(item.key)} onMouseLeave={() => p.onHover(null)}>
-        <button className="studio-tree-label" onClick={() => p.onOpen(item)} onFocus={() => p.onHover(item.key)} onBlur={() => p.onHover(null)}>
+        <button className="studio-tree-label" aria-current={p.selectedKey === item.key || undefined} onClick={() => p.onOpen(item)} onFocus={() => p.onHover(item.key)} onBlur={() => p.onHover(null)}>
           {item.label}
           <small>{[
             item.count > 1 ? `${item.count} on this page` : "",

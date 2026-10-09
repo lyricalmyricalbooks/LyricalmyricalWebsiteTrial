@@ -26,10 +26,10 @@ export const CANVAS_TOOLS_SOURCE = String.raw`
     var focusedKey=document.activeElement&&document.activeElement.getAttribute('data-spacing-key');
     if(canvasBar)canvasBar.remove();canvasBar=null;
     if(spacingOverlay&&!spacingSession){spacingOverlay.remove();spacingOverlay=null;}
-    var node=selectedNode(),meta=canvasMeta();if(mode!=='edit'||!node||editing||spacingSession)return;
+    var node=selectedNode(),meta=canvasMeta();if(mode!=='edit'||!selected||!node||editing||spacingSession)return;
     canvasBar=overlay('toolbar',block?'Selected block actions':'Selected section actions');
     canvasBar.style.cssText='position:fixed;z-index:100000;display:flex;flex-wrap:wrap;gap:4px;max-width:calc(100vw - 16px);padding:5px;background:#fff;color:#111;border:2px solid #059669;box-shadow:2px 2px 0 #111;';
-    var action=function(name){if(name==='delete'&&!confirm('Delete this '+(block?'block':'section')+'? You can Undo this change.'))return;send({type:'CONTEXT_ACTION',sectionId:selected,blockId:block,action:name});};
+    var action=function(name){send({type:'CONTEXT_ACTION',sectionId:selected,blockId:block,action:name});};
     canvasBar.appendChild(toolButton('Edit',function(){if(block&&meta&&!meta.actions){var field=node.querySelector('[data-theme-field]'),target=resolveTextTarget(field);if(target&&target.editable){startTextEdit(target);return;}}send({type:'SECTION_SELECT',instanceId:selected,blockId:meta&&!meta.actions?null:block});}));
     if(meta&&meta.actions){canvasBar.appendChild(toolButton('Move up',function(){action('up');},!meta.actions.up));canvasBar.appendChild(toolButton('Move down',function(){action('down');},!meta.actions.down));
       ['Duplicate','Hide','Delete'].forEach(function(label){canvasBar.appendChild(toolButton(label,function(){action(label.toLowerCase());}));});}

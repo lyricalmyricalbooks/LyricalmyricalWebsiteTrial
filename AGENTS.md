@@ -211,8 +211,8 @@ A Studio › Style control is not done until it visibly changes the live preview
 
 New storefront regions must carry `data-studio-target` + `data-studio-label` so clicking them in the Studio preview opens their settings (see CLAUDE.md › Click-to-edit in the preview).
 
-Studio's **Shared layout** workspace groups announcement, header, navigation,
-footer and shared-section controls. In Edit mode, double-click plain text in the
+Studio's announcement, header, navigation and footer are listed in **Page layout**'s Header / Footer groups
+(the separate Shared layout tab was retired in 1.5; old `tab=shared` links open Page layout). In Edit mode, double-click plain text in the
 iframe (or focus its edit hook and press Enter), then choose **Done** to commit
 one undoable draft change or **Cancel** / Escape to restore it. Typing keeps the
 preview stable; Save, Publish and Exit wait until the edit finishes. Announcement,

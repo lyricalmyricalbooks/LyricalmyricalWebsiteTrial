@@ -156,6 +156,50 @@ await check("page structure lists the header, follows the pointer and opens the 
   if (pressed !== "true") throw new Error("Shopping bag did not open its settings");
 });
 
+await check("a page part opens in the inspector with its words, and an edit shows in the preview", desktop, async page => {
+  await expectText(page, "Preview connected", 30000);
+  const panel = page.locator(".studio-structure");
+  await panel.locator("summary", { hasText: "Header" }).click();
+  await panel.getByRole("button", { name: /^Header/ }).first().click();
+  const inspector = page.locator("[data-studio-element-inspector]");
+  await inspector.waitFor({ timeout: 5000 });
+  await inspector.getByRole("tab", { name: "Words" }).waitFor({ timeout: 5000 });
+  await inspector.getByRole("tab", { name: "Style" }).waitFor({ timeout: 5000 });
+  await inspector.getByRole("tab", { name: "Words" }).click();
+  const fields = inspector.locator(".studio-copy-field input");
+  let edited = null;
+  for (let i = 0; i < await fields.count(); i++) {
+    const value = await fields.nth(i).inputValue();
+    if (value.length >= 3 && !value.includes("{")) { edited = { i, value }; break; }
+  }
+  if (!edited) throw new Error("no plain word to edit in the Header words");
+  await fields.nth(edited.i).fill(edited.value + " Zq");
+  const frame = page.frameLocator("iframe").first();
+  await frame.getByText(edited.value + " Zq").first().waitFor({ state: "attached", timeout: 8000 });
+  await page.getByRole("button", { name: "Undo (Ctrl+Z)" }).click();
+  if ((await fields.nth(edited.i).inputValue()) !== edited.value) throw new Error("Undo did not restore the word");
+  await page.keyboard.press("Escape");
+  await page.getByText("Nothing selected").waitFor({ timeout: 5000 });
+});
+
+await check("a section's Style, Layout and Visibility tabs save its look", desktop, async page => {
+  await page.getByRole("button", { name: "Add section" }).first().click();
+  await page.getByRole("button", { name: /^Newsletter/ }).first().click();
+  const tabs = page.getByRole("tablist", { name: "Section settings" });
+  for (const name of ["Content", "Style", "Layout", "Visibility"]) await tabs.getByRole("tab", { name }).waitFor({ timeout: 5000 });
+  await tabs.getByRole("tab", { name: "Visibility" }).click();
+  await page.getByRole("switch", { name: "Hide on tablets", exact: true }).waitFor({ timeout: 5000 });
+  await tabs.getByRole("tab", { name: "Style" }).click();
+  await page.locator("[data-section-style-key=bgColor] input:not([type=color])").fill("#112233");
+  await page.getByRole("button", { name: "Save draft" }).click();
+  await page.waitForFunction(() => window.__studioFixture.calls.some(c => c.method === "updateSettings"));
+  const saved = (await calls(page)).filter(c => c.method === "updateSettings").pop();
+  const section = saved.args[0].design.heroPage.sections.find(s => s.type === "NewsletterSection");
+  if (section?.settings?.bgColor !== "#112233") throw new Error(`saved bgColor is ${section?.settings?.bgColor}`);
+  await page.getByRole("button", { name: "Reset Solid colour" }).click();
+  if (await page.getByRole("button", { name: "Reset Solid colour" }).count()) throw new Error("Reset did not clear the colour");
+});
+
 await check("page-only overrides are listed and can follow all pages", desktop, async page => {
   await page.getByRole("button", { name: "Theme settings" }).click();
   await page.getByRole("button", { name: "Page to edit" }).click();
