@@ -957,10 +957,11 @@ export function StudioEditor({ settings, onExit, onPersisted, appearance = "ligh
     return () => window.removeEventListener("message", h);
   }, [templates, selectedId, sendPreviewState, sendCopyMap, highlight, change, mode]);
 
-  const { busy, saveDraft, publish, discard, recovery, recover, dismissRecovery, conflict, resolveConflict } = useStudioPersistence({
+  const { busy, saveDraft, publish, discard, recovery, recover, dismissRecovery, conflict, resolveConflict, incoming, resolveIncoming } = useStudioPersistence({
     design, savedDraft, published, setSavedDraft, setPublished, onPersisted, workspace,
     reset: (next) => { setHist(initHistory(next)); setSelectedId(null); setBlockId(null); },
     restore: next => change(() => normalizeDesign(next, defaults)), say,
+    normalize: next => normalizeDesign(next, defaults),
   });
   const exit = () => {
     if (inlineEditingRef.current) { say("err", "Finish or cancel the preview text edit before leaving Studio."); return; }
@@ -1743,6 +1744,20 @@ export function StudioEditor({ settings, onExit, onPersisted, appearance = "ligh
       <div className="studio-mobile-tabs" role="tablist" aria-label="Studio workspace">{["outline", "preview", "settings"].map(panel => <button key={panel} role="tab" aria-selected={mobilePanel === panel} onClick={() => setMobilePanel(panel)}>{panel}</button>)}</div>
       {inlineEditing && <div className="studio-inline-status" role="status">Editing {inlineEditing} in the preview. Finish the text edit or release the spacing handle to keep it; Escape cancels.</div>}
       {recovery && <div className="studio-recovery" role="status"><span>Local edits from {new Date(recovery.savedAt).toLocaleString()}.{recovery.conflict ? " The server draft has changed; recovering will load your local version as unsaved edits." : " Recover your unsaved work?"}</span><SecondaryButton onClick={recover}>Recover local changes</SecondaryButton><SecondaryButton onClick={dismissRecovery}>Discard local recovery</SecondaryButton></div>}
+      {incoming && <div className="studio-recovery studio-incoming" role="status" data-studio-incoming>
+        <span>
+          {incoming.remote.published ? "This design was published" : "This design was saved"} in another tab or device{incoming.remote.updatedAt ? ` at ${new Date(incoming.remote.updatedAt).toLocaleTimeString()}` : ""}.{" "}
+          {incoming.paths.length
+            ? <>You both changed {incoming.paths.slice(0, 3).map(path => conflictLabel(path, templates)).join(", ")}{incoming.paths.length > 3 ? ` and ${incoming.paths.length - 3} more` : ""}. Bringing their changes in keeps your edit for those.</>
+            : "Your unsaved edits are to other settings, so both can be kept."}
+        </span>
+        <PrimaryButton size="sm" onClick={() => resolveIncoming("combine")}>{incoming.paths.length ? "Bring in theirs, keep mine" : "Bring in their changes"}</PrimaryButton>
+        <SecondaryButton size="sm" onClick={async () => {
+          const ok = await askConfirm({ title: "Use their version?", message: "Your unsaved edits in this tab will be replaced by the version saved in the other tab or device. To keep a copy first, use Theme actions › Version history › Save checkpoint.", confirmLabel: "Use their version" });
+          if (ok) resolveIncoming("theirs");
+        }}>Use their version</SecondaryButton>
+        <SecondaryButton size="sm" onClick={() => resolveIncoming("later")}>Later</SecondaryButton>
+      </div>}
       {draftPage && leftTab !== "pages" && <div className="studio-recovery" role="status"><span>{pageBusy ? "Saving" : "Unsaved edits to"} page “{draftPage.title || draftPage.slug || "Untitled"}”. {pageBusy ? "Wait for the save to finish." : "Return to Pages to review and save it."}</span>{!pageBusy && <SecondaryButton onClick={() => setLeftTab("pages")}>Return to Pages</SecondaryButton>}</div>}
       {toast && (
         <div role={toast.kind === "err" ? "alert" : "status"}

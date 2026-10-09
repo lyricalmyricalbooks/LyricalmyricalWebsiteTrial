@@ -501,6 +501,12 @@ sections matched by id) and **Use this version's** applies `restoreItem` as one 
 `summariseDiff` lines. New structured design keys with their own editor belong in `designDiff.ts` `STRUCTURAL` so they get
 a readable name. Studio's `confirmNode`/`promptNode` render last so questions asked from inside a dialog open on top.
 
+**Live sync (3.2):** while Studio is open, `useStudioPersistence` follows the private working copy (`watchWorkspace`;
+the fixture fakes it with `__studioFixture.remoteSave(draft, { publish })`). `decideRemoteChange` (pure, `studioWorkflow.ts`)
+ignores revisions not newer than this tab's, takes another tab's save when nothing is unsaved here, and otherwise shows the
+**This design was saved in another tab or device** banner (Bring in / Use their version / Later). Remote drafts go through
+`normalize` before any comparison. Never auto-overwrite unsaved edits.
+
 **Colour schemes (2.5):** Studio › Theme settings › **Colour schemes** (`StudioColorSchemes.tsx`, pure edits in
 `studio/colorSchemeOps.ts`) edits `design.colorSchemes` — ten roles (background, surface, text, muted, accent, onAccent,
 border, buttonBg, buttonText, link) with a live swatch and WCAG badges. `features/site/colorSchemes.ts` `schemeCss()`

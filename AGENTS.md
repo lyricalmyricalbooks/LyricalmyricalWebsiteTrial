@@ -193,6 +193,12 @@ sections matched by id) and **Use this version's** applies `restoreItem` as one 
 `summariseDiff` lines. New structured design keys with their own editor belong in `designDiff.ts` `STRUCTURAL` so they get
 a readable name. Studio's `confirmNode`/`promptNode` render last so questions asked from inside a dialog open on top.
 
+**Live sync (3.2):** while Studio is open, `useStudioPersistence` follows the private working copy (`watchWorkspace`;
+the fixture fakes it with `__studioFixture.remoteSave(draft, { publish })`). `decideRemoteChange` (pure, `studioWorkflow.ts`)
+ignores revisions not newer than this tab's, takes another tab's save when nothing is unsaved here, and otherwise shows the
+**This design was saved in another tab or device** banner (Bring in / Use their version / Later). Remote drafts go through
+`normalize` before any comparison. Never auto-overwrite unsaved edits.
+
 **Media library (2.4).** Studio › **Media** (`studio/StudioMedia.tsx`) lists admin-only `media/{id}` records; library
 uploads (`uploadMediaImage`) store WebP copies at 480/960/1600 px under `assets/media/<id>/`. Picking a picture for a
 section/block field writes its URL plus a public `${field}__media` record (Theme settings images get the URL only, but

@@ -48,6 +48,11 @@ const click = async (el: Element | undefined) => {
 const key = async (k: string, extra: KeyboardEventInit = {}) => {
   await act(async () => { window.dispatchEvent(new KeyboardEvent("keydown", { key: k, ctrlKey: true, bubbles: true, ...extra })); await new Promise(r => setTimeout(r, 0)); });
 };
+// Another Studio tab saves a normalised design, like this one does.
+const otherTabDraft = async (patch: Record<string, any>) => {
+  const { normalizeDesign } = await import("./studioModel");
+  return { ...normalizeDesign(fixture.settings.draftDesign, adminApi.getDefaultSettings().design), ...patch };
+};
 const homeSections = (design: any) => (design?.heroPage?.sections || []).map((s: any) => s.type);
 
 describe("Studio editor (mounted with an in-memory API)", () => {
@@ -86,6 +91,49 @@ describe("Studio editor (mounted with an in-memory API)", () => {
     expect(save?.args[1]).toEqual({ publish: false });
     expect(homeSections(save?.args[0].design)).toEqual(["NewsletterSection"]);
     expect(homeSections(fixture.settings.design)).toEqual([]);
+  });
+
+  it("live sync: a save in another tab comes straight in when nothing is unsaved here", async () => {
+    await mount();
+    await act(async () => { fixture.remoteSave!({ ...JSON.parse(JSON.stringify(fixture.settings.draftDesign)), heroPage: { sections: [{ id: "remote1", type: "NewsletterSection", settings: {} }] } }); await new Promise(r => setTimeout(r, 0)); });
+    expect(host.textContent).toMatch(/Home · 1 section/);
+    expect(document.body.querySelector("[data-studio-incoming]")).toBeNull();
+    // Their saved draft is now this tab's saved draft (compared after normalising), so nothing reads as unsaved.
+    expect(host.textContent).not.toMatch(/Unsaved changes/);
+    // The next save builds on their revision instead of meeting a conflict.
+    await click(buttons("Add section")[0]);
+    await click(buttons(/^Newsletter/)[0]);
+    await click(buttons("Save draft")[0]);
+    expect(homeSections(fixture.calls.find(c => c.method === "saveDesign")?.args[0].design)).toHaveLength(2);
+  });
+
+  it("live sync: unsaved edits here show a banner, and Bring in keeps both", async () => {
+    await mount();
+    await click(buttons("Add section")[0]);
+    await click(buttons(/^Newsletter/)[0]);
+    await act(async () => { fixture.remoteSave!(await otherTabDraft({ accentColor: "#123456" }), { publish: true }); await new Promise(r => setTimeout(r, 0)); });
+    const banner = document.body.querySelector("[data-studio-incoming]")!;
+    expect(banner.textContent).toMatch(/published in another tab or device/);
+    await click(buttons("Bring in their changes")[0]);
+    expect(document.body.querySelector("[data-studio-incoming]")).toBeNull();
+    expect(host.textContent).toMatch(/Home · 1 section/);
+    await click(buttons("Save draft")[0]);
+    const save = fixture.calls.find(c => c.method === "saveDesign");
+    expect(save?.args[0].design.accentColor).toBe("#123456");
+    expect(homeSections(save?.args[0].design)).toEqual(["NewsletterSection"]);
+  });
+
+  it("live sync: Later leaves the edits alone, and Save then combines as before", async () => {
+    await mount();
+    await click(buttons("Add section")[0]);
+    await click(buttons(/^Newsletter/)[0]);
+    await act(async () => { fixture.remoteSave!(await otherTabDraft({ accentColor: "#654321" })); await new Promise(r => setTimeout(r, 0)); });
+    await click(buttons("Later")[0]);
+    expect(document.body.querySelector("[data-studio-incoming]")).toBeNull();
+    await click(buttons("Save draft")[0]);
+    const save = fixture.calls.filter(c => c.method === "saveDesign").pop();
+    expect(save?.args[0].design.accentColor).toBe("#654321");
+    expect(homeSections(save?.args[0].design)).toEqual(["NewsletterSection"]);
   });
 
   it("publishes only after confirming", async () => {

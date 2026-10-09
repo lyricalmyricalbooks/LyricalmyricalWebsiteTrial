@@ -669,6 +669,29 @@ await check("Version history compares a version with the draft and takes one sec
   await expectText(page, "Home · 1 section");
 });
 
+await check("a save in another tab shows a live banner, and both sets of changes can be kept", desktop, async page => {
+  await page.getByRole("button", { name: "Add section" }).first().click();
+  await page.getByRole("button", { name: /^Newsletter/ }).first().click();
+  await expectText(page, "Home · 1 section");
+  // Another tab saves a different Home page section list and a new accent colour.
+  await page.evaluate(() => {
+    const f = window.__studioFixture;
+    f.remoteSave({ ...JSON.parse(JSON.stringify(f.settings.draftDesign)), accentColor: "#123456", heroPage: { sections: [{ id: "theirs", type: "RichTextSection", settings: {} }] } });
+  });
+  const banner = page.locator("[data-studio-incoming]");
+  await banner.waitFor({ timeout: 5000 });
+  if (!/You both changed/.test(await banner.textContent())) throw new Error(`banner reads "${await banner.textContent()}"`);
+  await banner.getByRole("button", { name: "Bring in theirs, keep mine" }).click();
+  await banner.waitFor({ state: "detached", timeout: 5000 });
+  await expectText(page, "Home · 1 section");
+  await page.getByRole("button", { name: "Save draft" }).click();
+  await page.waitForFunction(() => window.__studioFixture.calls.some(c => c.method === "saveDesign"));
+  const save = (await calls(page)).find(c => c.method === "saveDesign");
+  if (save.args[0].design.accentColor !== "#123456") throw new Error("their accent colour was lost");
+  const kept = (save.args[0].design.heroPage.sections || []).map(x => x.type);
+  if (kept.length !== 1 || kept[0] !== "NewsletterSection") throw new Error(`Home sections saved as ${kept.join(", ")}`);
+});
+
 await check("phone-sized editor loads without errors", { width: 390, height: 844 }, async page => {
   await page.waitForTimeout(1500);
   const overflow = await page.evaluate(() => document.documentElement.scrollWidth - window.innerWidth);

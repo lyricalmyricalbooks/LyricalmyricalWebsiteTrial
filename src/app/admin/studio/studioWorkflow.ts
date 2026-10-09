@@ -287,3 +287,23 @@ export function mergeDesigns(base: any, local: any, server: any, depth = 0, path
   }
   return { merged, conflicts };
 }
+
+/**
+ * Studio 3.2 live sync: what to do when the working copy changes in another tab or device.
+ * - ignore: not newer than what this tab already has (including this tab's own saves);
+ * - rebase: same content, only the revision moved;
+ * - adopt: nothing unsaved here, so their version simply comes in;
+ * - merge: unsaved edits here touch different settings, so both can be combined;
+ * - conflict: both changed the same settings (`merged` keeps this tab's value for those).
+ */
+export type RemoteChange =
+  | { kind: "ignore" } | { kind: "rebase" } | { kind: "adopt" }
+  | { kind: "merge"; merged: any } | { kind: "conflict"; merged: any; paths: string[] };
+export function decideRemoteChange(input: { localRev: number; remote: { draft: any; rev: number }; design: any; savedDraft: any }): RemoteChange {
+  const { localRev, remote, design, savedDraft } = input;
+  if (!(remote.rev > localRev)) return { kind: "ignore" };
+  if (sameDesign(remote.draft, savedDraft)) return { kind: "rebase" };
+  if (sameDesign(design, savedDraft)) return { kind: "adopt" };
+  const { merged, conflicts } = mergeDesigns(savedDraft, design, remote.draft);
+  return conflicts.length ? { kind: "conflict", merged, paths: conflicts } : { kind: "merge", merged };
+}

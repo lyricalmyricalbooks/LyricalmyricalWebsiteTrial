@@ -456,3 +456,6 @@
 .studio-history-values { font-size: 12px; color: var(--rp-text-subtle); display: flex; flex-wrap: wrap; gap: 4px; overflow-wrap: anywhere; }
 .studio-history-swatch { display: inline-block; width: 12px; height: 12px; margin-right: 4px; vertical-align: -2px; border: 1px solid var(--rp-border-strong); }
 .studio-history-note { font-size: 12px; font-weight: 700; margin: 0; }
+
+/* Live sync (3.2): a save from another tab or device. */
+.studio-incoming { background: var(--rp-primary-tint); color: var(--rp-text); border-bottom: 1px solid var(--rp-border); }

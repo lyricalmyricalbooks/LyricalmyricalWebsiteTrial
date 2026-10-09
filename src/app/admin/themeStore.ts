@@ -7,12 +7,14 @@
 // settings/website.draftDesign field any more: the first open copies an older public draft (and
 // My themes) across once, then removes the public copies. If the private documents can't be
 // read, Studio says so instead of saving drafts where shoppers can download them.
-import { deleteField, doc, getDoc, collection, getDocs, runTransaction, setDoc, writeBatch } from "firebase/firestore";
+import { deleteField, doc, getDoc, collection, getDocs, onSnapshot, runTransaction, setDoc, writeBatch } from "firebase/firestore";
 import { db } from "../../lib/firebase";
 import { adminApi } from "./api";
 import { sameDesign } from "./studio/studioModel";
 
 export type Workspace = { draft: any; rev: number; savedThemes: any[] };
+/** The working copy as another tab or device just saved it (Studio 3.2 live sync). */
+export type RemoteWorkspace = { draft: any; rev: number; tabId?: string; updatedAt?: string; published?: boolean };
 
 /** Thrown when another tab or device saved the draft since this Studio loaded it. */
 export class ThemeConflictError extends Error {
@@ -61,6 +63,8 @@ export type ThemeBackend = {
   /** Change single draft fields without a revision bump (categories, the under-construction wall). */
   fieldUpdate(fields: Record<string, any>): Promise<void>;
   readField(key: string): Promise<any>;
+  /** Live updates of the working copy (Studio 3.2). Returns an unsubscribe function. Optional. */
+  watch?(onChange: (remote: RemoteWorkspace) => void, onError?: (error: unknown) => void): () => void;
 };
 
 async function readSavedThemes(): Promise<any[]> {
@@ -120,7 +124,7 @@ const firestoreBackend: ThemeBackend = {
         if (rev !== expectedRev) throw new ThemeConflictError({ draft: current.draft, rev });
         next = rev + 1;
         if (live) tx.set(SETTINGS(), { design: live, designPublishedAt: now() }, { mergeFields: ["design", "designPublishedAt"] });
-        tx.set(WORKSPACE(), { draft, rev: next, updatedAt: now(), tabId: studioTabId() });
+        tx.set(WORKSPACE(), { draft, rev: next, updatedAt: now(), tabId: studioTabId(), action: live ? "publish" : "save" });
       });
     } catch (error) { throw unavailable(error); }
     return next;
@@ -147,6 +151,15 @@ const firestoreBackend: ThemeBackend = {
       return snap.data()?.draft?.[key];
     } catch (error) { throw unavailable(error); }
   },
+  watch(onChange, onError) {
+    return onSnapshot(WORKSPACE(), (snap: any) => {
+      // Our own field-path writes show up first as local, unconfirmed changes: wait for the server copy.
+      if (snap.metadata?.hasPendingWrites) return;
+      const data: any = snap.data();
+      if (!data) return;
+      onChange({ draft: data.draft, rev: Number(data.rev) || 0, tabId: data.tabId, updatedAt: data.updatedAt, published: data.action === "publish" });
+    }, error => onError?.(unavailable(error)));
+  },
 };
 
 let backend: ThemeBackend = firestoreBackend;
@@ -158,6 +171,14 @@ export function setThemeBackend(next: ThemeBackend): () => void {
 
 /** Open Studio's working copy (draft, revision, My themes). */
 export function openWorkspace(settings: any): Promise<Workspace> { return backend.open(settings); }
+
+/**
+ * Follow the working copy while Studio is open, so a save from another tab or device shows up at once
+ * instead of only as a conflict on the next save. Backends without live updates return a no-op.
+ */
+export function watchWorkspace(onChange: (remote: RemoteWorkspace) => void, onError?: (error: unknown) => void): () => void {
+  return backend.watch ? backend.watch(onChange, onError) : () => {};
+}
 
 /** Save draft. Returns the new revision. Throws ThemeConflictError when another tab saved first. */
 export async function saveDraft(_ws: Workspace, design: any, expectedRev: number): Promise<number> {
