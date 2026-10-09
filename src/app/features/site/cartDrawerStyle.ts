@@ -12,6 +12,8 @@
 //   fm-bag-summary / -row / -total   summary ledger
 //   fm-bag-badges     trust badges               fm-bag-cta                      checkout button
 
+import { elementScheme } from "./colorSchemes";
+
 const S = ".fm-bag";
 const clean = (v: any) => String(v).replace(/[;{}<>]/g, "");
 const font = (name: any) => `'${String(name).replace(/['"\\;{}<>]/g, "")}', sans-serif`;
@@ -35,14 +37,18 @@ export function cartDrawerFontNames(design: any): string[] {
 
 export function cartDrawerCss(design: any): string {
   const d = design || {};
-  const bg = color(d, "cartDrawerBg", "var(--bg-color, Canvas)");
-  const fg = color(d, "cartDrawerText", "rgb(var(--fg-rgb))");
-  const muted = color(d, "cartDrawerMuted", "var(--muted, currentColor)");
-  const surface = color(d, "cartDrawerSurface", "var(--surface, transparent)");
-  const rule = color(d, "cartDrawerBorder", "rgba(var(--fg-rgb), 0.18)");
-  const edge = color(d, "cartDrawerEdgeColor", "var(--rp-outline, rgb(var(--fg-rgb)))");
+  // Theme settings › Colour schemes › Shopping bag: while the bag follows a scheme, the scheme's
+  // colours (set as tokens on .fm-bag by schemeCss) replace the bag's own colour controls.
+  const schemed = Boolean(elementScheme(d, "cartDrawer"));
+  const tint = (key: string, fallback: string) => (schemed ? fallback : color(d, key, fallback));
+  const bg = tint("cartDrawerBg", "var(--bg-color, Canvas)");
+  const fg = tint("cartDrawerText", "rgb(var(--fg-rgb))");
+  const muted = tint("cartDrawerMuted", "var(--muted, currentColor)");
+  const surface = tint("cartDrawerSurface", "var(--surface, transparent)");
+  const rule = tint("cartDrawerBorder", "rgba(var(--fg-rgb), 0.18)");
+  const edge = tint("cartDrawerEdgeColor", "var(--rp-outline, rgb(var(--fg-rgb)))");
   const edgeW = has(d.cartDrawerEdgeWidth) ? `${num(d, "cartDrawerEdgeWidth", 2, 0, 6)}px` : "var(--rp-outline-w, 2px)";
-  const shadow = color(d, "cartDrawerShadowColor", "var(--accent)");
+  const shadow = tint("cartDrawerShadowColor", "var(--accent)");
   const shadowX = num(d, "cartDrawerShadowOffset", 6, 0, 16);
   const left = d.cartDrawerSide === "left";
   const pad = num(d, "cartDrawerPadding", 28, 12, 48);
@@ -54,14 +60,14 @@ export function cartDrawerCss(design: any): string {
   const thumbW = num(d, "cartDrawerThumbWidth", 72, 48, 128);
   const thumbOutline = d.cartDrawerThumbOutline ?? true;
   const itemSize = num(d, "cartDrawerItemTitleSize", 14, 10, 20);
-  const track = color(d, "cartDrawerProgressTrack", "rgba(var(--fg-rgb), 0.12)");
-  const fill = color(d, "cartDrawerProgressColor", "var(--accent)");
+  const track = tint("cartDrawerProgressTrack", "rgba(var(--fg-rgb), 0.12)");
+  const fill = tint("cartDrawerProgressColor", "var(--accent)");
   const meterH = num(d, "cartDrawerProgressHeight", 6, 2, 12);
   const upsellShadow = d.cartDrawerUpsellShadow ?? true;
   const totalSize = num(d, "cartDrawerTotalSize", 32, 18, 56);
   const solid = (d.buttonStyle || "solid") === "solid";
-  const ctaBg = color(d, "cartDrawerCheckoutBg", has(d.buttonColor) ? clean(d.buttonColor) : "var(--accent)");
-  const ctaText = color(d, "cartDrawerCheckoutText", has(d.buttonTextColor) ? clean(d.buttonTextColor) : "var(--on-accent, rgb(var(--fg-rgb)))");
+  const ctaBg = schemed ? "var(--btn-bg, var(--accent))" : color(d, "cartDrawerCheckoutBg", has(d.buttonColor) ? clean(d.buttonColor) : "var(--accent)");
+  const ctaText = schemed ? "var(--btn-text, var(--on-accent))" : color(d, "cartDrawerCheckoutText", has(d.buttonTextColor) ? clean(d.buttonTextColor) : "var(--on-accent, rgb(var(--fg-rgb)))");
   const ctaH = num(d, "cartDrawerCheckoutHeight", 56, 40, 80);
   const ctaShadow = d.cartDrawerCheckoutShadow ?? true;
   const radius = has(d.buttonRadius) ? `${num(d, "buttonRadius", 0, 0, 999)}px` : "var(--rp-card-radius, 0px)";

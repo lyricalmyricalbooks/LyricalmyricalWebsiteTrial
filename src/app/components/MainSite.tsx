@@ -1389,7 +1389,7 @@ export default function MainSite({ setShowCatalog, showCatalog, setCurrentPage, 
                     ? { duration: 0.8, delay: index * 0.05, ease: [0.22, 1, 0.36, 1] }
                     : { duration: 0 }
                   }
-                  className={`group relative transition-all duration-500 ${storefrontDesign?.productHoverEffect === "lift" ? "hover:-translate-y-2" : ""} ${cardStyle === "card" ? "fm-surface border border-white/10 p-3" : ""}`}
+                  className={`fm-card group relative transition-all duration-500 ${storefrontDesign?.productHoverEffect === "lift" ? "hover:-translate-y-2" : ""} ${cardStyle === "card" ? "fm-surface border border-white/10 p-3" : ""}`}
                   style={cardStyle === "card" ? { borderRadius: storefrontCardRadius } : undefined}
                 >
                   <button

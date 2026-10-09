@@ -1297,7 +1297,7 @@ export function ProductGridHeaderSection({ settings, books, onProductClick, enab
                   type="button"
                   onClick={() => onProductClick?.(book)}
                   {...blockEditAttrs({ id: book.id || productSlug(book) }, idx)}
-                  className="group block w-full text-left"
+                  className="fm-card group block w-full text-left"
                 >
                   <div className="relative overflow-hidden bg-white/5" style={{ aspectRatio: aspect }}>
                     {book.photos?.[0]?.url && (
@@ -1505,7 +1505,7 @@ export function ProductShowcaseGridSection({ settings, books, onProductClick, en
               <AnimationContainer key={book.id || idx} enabled={enableAnimations} delay={idx * 0.05}>
                 <div
                   {...blockEditAttrs({ id: book.id || productSlug(book) }, idx)}
-                  className="group relative cursor-pointer"
+                  className="fm-card group relative cursor-pointer"
                   role="link"
                   tabIndex={0}
                   aria-label={sc("sectionViewBook", { title: book.title })}

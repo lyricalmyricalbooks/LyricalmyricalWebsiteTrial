@@ -32,7 +32,7 @@ export default function RecentlyViewedRow({ excludeId }: { excludeId?: string })
           {items.map(book => {
             const slug = book.slug || book.title?.toLowerCase().replace(/[^a-z0-9]+/g, "-");
             return (
-              <Link key={book.id} to={`/books/${slug}`} className="group">
+              <Link key={book.id} to={`/books/${slug}`} className="fm-card group">
                 <div className="relative aspect-[3/4] fm-surface rounded-xl overflow-hidden border border-white/[0.05]">
                   <img
                     src={book.photos?.[0]?.url || placeholderImage(settings?.design)}

@@ -279,3 +279,27 @@
 .studio-settings-band:first-child { margin-top: 4px; border-top: 0; }
 .studio-category-item { display: grid; gap: 2px; }
 .studio-show-on-page { justify-self: start; display: inline-flex; align-items: center; gap: 5px; font-size: 11px; padding: 4px 6px; color: var(--rp-primary-text); text-decoration: underline; }
+
+/* Theme settings › Colour schemes (StudioColorSchemes.tsx) */
+.studio-scheme-list { display: grid; gap: 10px; margin: 0 0 12px; padding: 0; list-style: none; }
+.studio-scheme { border: var(--rp-stroke, 2px) solid var(--rp-border-strong); background: var(--rp-surface); }
+.studio-scheme-head { width: 100%; display: grid; grid-template-columns: minmax(0, 1fr); gap: 8px; padding: 10px; text-align: left; }
+.studio-scheme-head:hover { background: var(--rp-primary-tint); }
+.studio-scheme-name { display: flex; align-items: baseline; justify-content: space-between; gap: 8px; }
+.studio-scheme-name strong { font-size: 13px; }
+.studio-scheme-name small { font-size: 11px; color: var(--rp-text-muted); }
+.studio-scheme-swatch { display: grid; gap: 8px; padding: 10px 12px; border: 1px solid; font-size: 12px; }
+.studio-scheme-swatch-row { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
+.studio-scheme-swatch-row strong { font-size: 18px; line-height: 1; }
+.studio-scheme-swatch-tag { padding: 2px 8px; font-size: 10px; font-weight: 800; text-transform: uppercase; letter-spacing: .08em; }
+.studio-scheme-swatch-panel { padding: 3px 8px; border: 1px solid; }
+.studio-scheme-swatch-button { padding: 4px 10px; font-weight: 800; }
+.studio-scheme-contrast { display: flex; flex-wrap: wrap; gap: 6px; margin: 0; padding: 0 10px 10px; list-style: none; }
+.studio-scheme-contrast .rp-badge { height: auto; min-height: 24px; white-space: normal; }
+.studio-scheme-body { display: grid; gap: 12px; padding: 12px 10px; border-top: 1px solid var(--rp-divider); }
+.studio-scheme-field { display: grid; gap: 4px; font-size: 11px; font-weight: 700; }
+.studio-scheme-field input { min-height: 36px; padding: 0 10px; border: 1px solid var(--rp-border); background: var(--rp-input-bg, var(--rp-surface)); font-size: 13px; font-weight: 500; }
+.studio-scheme-roles { display: grid; gap: 10px; }
+.studio-scheme-role-hint { display: block; margin-top: 3px; font-size: 11px; color: var(--rp-text-muted); }
+.studio-scheme-legacy { display: grid; gap: 8px; padding: 10px; background: var(--rp-surface-sunken); font-size: 12px; line-height: 1.5; }
+.studio-scheme-actions { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; }

@@ -1077,7 +1077,7 @@ export default function BookDetail() {
                       initial={{ opacity: 0, y: 20 }}
                       animate={{ opacity: 1, y: 0 }}
                       transition={{ delay: i * 0.07 }}
-                      className="group"
+                      className="fm-card group"
                     >
                       <Link to={`/books/${relSlug}`}>
                         <div className="relative fm-surface rounded-[1.5rem] overflow-hidden mb-4 border border-white/[0.05] group-hover:border-white/[0.12] transition-all shadow-xl" style={{ aspectRatio: productImageAspect }}>
