@@ -33,6 +33,8 @@ const NOT_STYLE_CONTROLS = new Set([
   "headerSections", "overlaySections", "announcements",
   // Alternate book/collection templates (Page layout › template card: create / rename / delete).
   "alternateTemplates",
+  // Product page buy box order (Page layout › Buy box blocks).
+  "productInfoBlocks",
 ]);
 
 function publicSources(dir: string, out: string[] = []): string[] {

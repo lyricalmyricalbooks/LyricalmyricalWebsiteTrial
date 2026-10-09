@@ -451,7 +451,28 @@ assistant, personalization/A-B tests, author/series/event pages, multi-language 
       preview URL carries `?template=<id>` (or `default`) and `previewRoute` maps it back. Tests:
       `templateAlternates.test.ts`, `alternateTemplates.render.test.tsx`, `templatePickerAlternates.test.ts`,
       `BookTemplatePicker.test.tsx`; e2e: create "Poetry", add a section, save.
-- [ ] 2.9 Product information as blocks.
+- [x] 2.9 Product information as blocks. The product page's buy card (`.fm-pdp-card` in `BookDetail.tsx`) is an
+      ordered list, `productInfoBlocks`, on the `productPage` surface or an alternate `productPage~<id>` (arrays layer
+      wholesale, so an alternate follows the default's list until it has its own). Pure rules in
+      `features/site/productBlocks.ts`: built-in blocks at the card's existing DOM groups — `tag`, `heading` (title,
+      subtitle, author; required), `price` (price, sale end, stock), `formats`, `boxSet`, `addOns`, `giftCard`, `buy`
+      (quantity, Add to bag, wishlist, share; required), `backInStock`, `details` (the Sections-layout description and
+      specs) — plus `divider` (starts a new part of the card) and added blocks `text`, `collapsible`, `badge`,
+      `lookInside`, `customField` (2.7 book field). No list = `DEFAULT_PRODUCT_BLOCKS`, which reproduces the card exactly:
+      `productCard.parity.test.tsx` renders `BookDetail` for 8 kinds of book × 3 designs and compares the card's markup with
+      `__fixtures__/productCardDom.json`, recorded from the hand-written card before the change (refresh with
+      `UPDATE_PRODUCT_CARD=1` only for an intended change). `productBlocks()` drops unknown/duplicate entries, keeps the
+      required ones visible and appends missing built-ins hidden. Each built-in keeps every older control (`pdpShowTag`,
+      `pdpShowStock`, `showQtyStepper`, `showBackInStock`, regions…); `BookDetail`'s `renderBlock` returns the original
+      JSX (moved, not rewritten) or `null`, and a card part renders only when something in it does. Added blocks resolve
+      2.7 connections against the book (`resolveDynamicSettings`) and honour Hide when empty. Fix: buy-card region
+      visibility now reads the shown template's design (`regionDesign`), so an alternate's own "hide sale end" etc.
+      applies. Studio: Page layout › **Buy box blocks** (`studio/StudioProductBlocks.tsx`, shown for book page templates):
+      Move up/down, hide (the title and Add to bag rows show "Always shown"), Add a block (Text, Collapsible note, Badge,
+      Look inside link, Book detail, Divider), inline fields with Connect to a detail, Remove with Undo, and **Use the
+      default book page's blocks** / **Reset to the standard order**. Writes `writeDesignValue(…, { surface: template })`.
+      Tests: `productBlocks.test.ts`, `productBlocks.render.test.tsx`, `productCard.parity.test.tsx`,
+      `StudioProductBlocks.test.tsx`; e2e: reorder + hide + add, save, then Add to bag in Browse mode adds to the bag.
 
 **2.4 Media library + responsive images (done).** A **Media** rail tab (`studio/StudioMedia.tsx`) lists the
 admin-only Firestore `media/{id}` records (`admin/mediaApi.ts`: name, alt, focal point, width/height, bytes,

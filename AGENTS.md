@@ -179,6 +179,12 @@ card (New template from this one / Rename / Delete); the preview URL carries `?t
 sections only. Use `bookTemplateSurface` / `categoryTemplateSurface` / `sectionsSurface` — never read `design.productPage`
 directly for a book's sections.
 
+**Product information as blocks (2.9):** the buy card is the ordered list `productInfoBlocks` (on `productPage` or an
+alternate template) — rules in `features/site/productBlocks.ts`, rendered by `renderBlock` in `BookDetail.tsx`, edited in
+Page layout › **Buy box blocks** (`studio/StudioProductBlocks.tsx`). No list = the hand-written card exactly
+(`productCard.parity.test.tsx` + `__fixtures__/productCardDom.json`); a new buy-card piece needs a built-in block type and a
+parity fixture refresh. `heading` and `buy` are required. Buy-card visibility reads `regionDesign` (the shown template).
+
 **Media library (2.4).** Studio › **Media** (`studio/StudioMedia.tsx`) lists admin-only `media/{id}` records; library
 uploads (`uploadMediaImage`) store WebP copies at 480/960/1600 px under `assets/media/<id>/`. Picking a picture for a
 section/block field writes its URL plus a public `${field}__media` record (Theme settings images get the URL only, but

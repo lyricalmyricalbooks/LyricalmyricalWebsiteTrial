@@ -77,6 +77,7 @@ import type { StudioLocation } from "../../lib/studioLocation";
 import { LinkPicker, StudioPickerProvider } from "./StudioPickers";
 import { StudioSectionLibrary } from "./StudioSectionLibrary";
 import { StudioTemplateCard } from "./StudioTemplateCard";
+import { isProductTemplate, StudioProductBlocks } from "./StudioProductBlocks";
 import { ALT_BASE_LABELS, ALT_BASES, alternatesFor, altSurface, createAlternate, deleteAlternate, isAltSurface, parseAltSurface, renameAlternate, type AltBase } from "../../features/site/templateAlternates";
 import { DynamicSourcesContext } from "./StudioConnect";
 import type { BookFieldDef } from "../../features/site/bookFields";
@@ -1374,6 +1375,10 @@ export function StudioEditor({ settings, onExit, onPersisted, appearance = "ligh
                 onSwitch={id => { setTemplateId(id); setSelectedId(null); setBlockId(null); }}
                 onPreviewBook={setProductSlug}
                 onCreate={createTemplateAsk} onRename={renameTemplateAsk} onDelete={deleteTemplateNow} />
+            )}
+            {leftTab === "sections" && adding === null && !showGlobal && isProductTemplate(template.id) && (
+              <StudioProductBlocks design={design} templateId={template.id} change={change}
+                onNotice={(text, undoable) => say("ok", text, undoable ? { label: "Undo", run: () => setHist(undo) } : undefined)} />
             )}
             {leftTab === "sections" && adding === null && template.id === "heroPage" && (
               <div className="m-3 p-3 rounded-lg border border-neutral-200 bg-white text-xs space-y-2">
