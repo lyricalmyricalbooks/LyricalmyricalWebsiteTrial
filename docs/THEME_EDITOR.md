@@ -327,7 +327,28 @@ assistant, personalization/A-B tests, author/series/event pages, multi-language 
       implementations (identical except one added `aria-label` on the shop's desktop category bar), and fails if any
       other file renders the navigation header or footer panel. Also fixed `useNavFit`: it measured the full-row
       bar box instead of the links, shrinking them ~1% per font load/resize even with room (`naturalNavWidth`).
-- [ ] 2.2 Header/footer/popup section groups.
+- [x] 2.2 Header/footer/popup section groups. Deviation from the planned `design.sectionGroups {…}` shape, chosen so
+      nothing migrates: three root section lists, all `ROOT_ONLY_KEYS` — `headerSections` (under the header, every
+      page), `globalSections` (above the footer, the list shops already had) and `overlaySections` (pop-up). Pure rules
+      in `features/site/sectionGroups.ts` (`SECTION_GROUPS`, `isGroupSurface`, `groupSections`). `sectionRender.tsx`
+      `GroupSections({ group })` renders any of them (`GlobalSections` wraps it); `StoreHeader` renders the header group
+      and `features/site/PopupSections.tsx` on every page using it (not checkout). The pop-up waits for the cookie
+      answer (`CONSENT_KEY`/`CONSENT_EVENT`, unless the banner is off), then Style › Pop-up › delay; how often
+      (`popupFrequency` session/once/always, remembered per content version `popupVersion`), position, width, shading,
+      colours/outline and hide on phones are Style › **Pop-up** controls; words `popupLabel`/`popupClose` in Text &
+      labels › Sections. It portals into `[data-fm-store]` so it inherits the theme tokens. In the preview it opens only
+      when Studio asks (`OPEN_OVERLAY "popup"`: Page layout › Pop-overs, or while its sections are being edited).
+      Studio: `SectionTarget` `{ kind: "global", group }`, `studioWorkflow.writeSections` writes any surface (group =
+      plain array), `sectionEntries`/moves/bulk edits/search/publish diff/media where-used/pre-publish checks cover all
+      groups; Page layout offers **Shared sections under the header / above the footer / Pop-up sections** buttons in the
+      Header, Footer and Pop-overs groups. Announcement bar: `announcements` list (`{ id, text, link?, from?, until? }`,
+      Toronto days, `activeAnnouncements`) edited in Theme settings › Header & announcement bar › **Announcement
+      messages** (`studio/StudioAnnouncements.tsx`); several messages take turns (`announcementRotateSeconds`, pause on
+      hover/focus) or scroll together in the ticker; with no list the single `announcementText` behaves exactly as
+      before (parity fixture unchanged). Mega menu: Navigation › Header menu › a link with sub-links › **Show sub-links
+      as a mega menu (columns)** + featured picture (library), title and link (data shape already in `storeMenu.ts`).
+      Tests: `sectionGroups.test.ts`, `PopupSections.test.tsx`, `announcementBar.test.tsx`, `StudioAnnouncements.test.ts`,
+      group cases in `studioMoves.test.ts`; e2e: pop-up group, rotating messages, mega menu.
 - [x] 2.3 Pickers + catalog sources. New section/block field kinds `link`, `book`, `books`, `category`, `page`,
       `video`, `font` (`studio/StudioPickers.tsx`, choices in the pure `studio/pickers.ts`) save exactly the string the
       old text field held, so there is no migration: `link` an href (`/`, `/?catalog=true`, `/wishlist`, `/account`,

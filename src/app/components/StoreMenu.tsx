@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, type ReactNode } from "react";
 import { Link } from "react-router";
 import { ChevronDown } from "lucide-react";
 import { resolveHref, isExternal, type MenuItem } from "../features/site/storeMenu";
@@ -22,6 +22,12 @@ function MenuLink({ item, className, copyKey }: { item: MenuItem; className?: st
       <span data-studio-copy={copyKey}>{item.label}</span>
     </Link>
   );
+}
+
+/** The featured card's link: Studio's link picker can save a page path or a full web address. */
+function FeaturedLink({ href, className, children }: { href: string; className: string; children: ReactNode }) {
+  if (/^https?:\/\//i.test(href)) return <a href={href} target="_blank" rel="noopener noreferrer" className={className}>{children}</a>;
+  return <Link to={href} className={className}>{children}</Link>;
 }
 
 /** Mega menu panel: child items become link-group columns (their own children are
@@ -56,8 +62,8 @@ function MegaMenuPanel({ item }: { item: MenuItem }) {
             })}
           </div>
           {item.featuredImage && (
-            <Link
-              to={item.featuredLink || "/"}
+            <FeaturedLink
+              href={item.featuredLink || "/"}
               className="group relative w-56 flex-shrink-0 aspect-[4/5] rounded-2xl overflow-hidden border border-white/10"
             >
               <img
@@ -73,7 +79,7 @@ function MegaMenuPanel({ item }: { item: MenuItem }) {
                   {item.featuredTitle}
                 </p>
               )}
-            </Link>
+            </FeaturedLink>
           )}
         </div>
       </div>

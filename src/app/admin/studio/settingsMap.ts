@@ -31,7 +31,7 @@ export const THEME_HEADINGS: SettingsHeading[] = [
   { id: "system", band: "Site-wide design", title: "", blurb: "Presets, brand, colours, fonts, buttons and spacing used on every page. One change restyles the whole shop.",
     groups: ["themeLook", "logo", "colors", "schemes", "type", "smallPrint", "buttons", "layout", "effects", "riso"] },
   { id: "chrome", band: "Parts of your shop", title: "Header, menu & footer", blurb: "The parts that repeat at the top and bottom of every page. Tip: click one in the preview to edit it there.",
-    groups: ["header", "navlinks", "footer", "paymentIcons"] },
+    groups: ["header", "navlinks", "footer", "popup", "paymentIcons"] },
   { id: "shop", title: "Shop & book pages", blurb: "The book grid, book cards and each book's own page.",
     groups: ["products", "catalog", "labels", "productPage", "productCard", "catalogLayout"] },
   { id: "buy", title: "Bag, checkout & accounts", blurb: "Everything after a shopper presses Add to bag.",
@@ -49,8 +49,8 @@ export const THEME_HEADINGS: SettingsHeading[] = [
  * stay on the current page) and a pop-over to open first. Studio then selects the first part on that
  * page linked to the category, in the inspector.
  */
-export const CATEGORY_PAGES: Record<string, { template?: string; overlay?: "cart" | "search" }> = {
-  header: {}, navlinks: {}, footer: {}, paymentIcons: {},
+export const CATEGORY_PAGES: Record<string, { template?: string; overlay?: "cart" | "search" | "popup" }> = {
+  header: {}, navlinks: {}, footer: {}, paymentIcons: {}, popup: { overlay: "popup" },
   products: { template: "storefront" }, catalog: { template: "storefront" }, labels: { template: "productPage" },
   catalogLayout: { template: "storefront" }, productPage: { template: "productPage" }, productCard: { template: "productPage" },
   cartDrawer: { overlay: "cart" }, checkout: { template: "cartPage" }, accounts: { template: "accountPage" },
@@ -61,6 +61,7 @@ export const CATEGORY_PAGES: Record<string, { template?: string; overlay?: "cart
 export const GROUP_BLURBS: Record<string, string> = {
   colors: "Page background, text, accent and status colours.",
   schemes: "Named colour sets for sections, book cards, the buy card and the bag, with contrast checks.",
+  popup: "When the pop-up opens, how often, where and how wide. Its content is the Pop-up sections in Page layout.",
   type: "Heading, body and menu fonts, sizes and weights.",
   buttons: "Button style, colours and corners.",
   logo: "Logo image or text wordmark, and the picture shown when your shop is shared.",
@@ -112,7 +113,7 @@ export const STYLE_SUBSECTIONS: Record<string, { title: string; keys: string[] }
   header: [
     { title: "Header layout", keys: ["headerStyle", "logoPosition", "logoHeight", "stickyHeader", "transparentHeader", "navStyle", "showMobileNavigation", "showSecondaryNavigation", "showStoreChromeOnUtilityPages"] },
     { title: "Header colours", keys: ["headerBg", "headerColor"] },
-    { title: "Announcement bar", keys: ["showAnnouncement", "announcementText", "announcementBg", "announcementColor", "announcementScrolling", "announcementFontSize", "announcementWeight", "announcementTracking", "announcementSpeed"] },
+    { title: "Announcement bar", keys: ["showAnnouncement", "announcementText", "announcementBg", "announcementColor", "announcementScrolling", "announcementFontSize", "announcementWeight", "announcementTracking", "announcementSpeed", "announcementRotateSeconds"] },
     { title: "Icons & buttons in the header", keys: ["hideHeaderSearch", "hideHeaderWishlist", "hideHeaderAccount", "hideCurrencySelector", "hideThemeToggle", "hideAdminLink", "hideCartButton"] },
   ],
   navlinks: [

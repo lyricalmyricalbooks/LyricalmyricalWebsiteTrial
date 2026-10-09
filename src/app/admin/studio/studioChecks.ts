@@ -1,3 +1,4 @@
+import { SECTION_GROUP_KEYS } from "../../features/site/sectionGroups";
 type Field = { key: string; kind: string };
 
 /** Fields whose filled-in value counts as content. Picker kinds hold the same strings text fields did. */
@@ -13,7 +14,7 @@ export function designChecks(
   },
 ): { tone: "ok" | "warn"; text: string }[] {
   const sections = [
-    ...(Array.isArray(design?.globalSections) ? design.globalSections : []),
+    ...SECTION_GROUP_KEYS.flatMap(key => Array.isArray(design?.[key]) ? design[key] : []),
     ...Object.values(design || {}).flatMap((value: any) => Array.isArray(value?.sections) ? value.sections : []),
   ];
   const images: { url: string; alt: string }[] = [];

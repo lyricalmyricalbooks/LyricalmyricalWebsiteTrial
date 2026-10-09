@@ -367,3 +367,14 @@
 .studio-field-picker-summary { flex-basis: 8em; }
 .studio-field-picker-panel .studio-picker-list { max-height: 260px; }
 .studio-field-picker-close { margin-top: 6px; font-size: 11px; text-decoration: underline; color: var(--rp-text-subtle); }
+
+/* Theme settings › Header & announcement bar › Announcement messages (StudioAnnouncements.tsx) */
+.studio-announcements { display: grid; gap: 10px; padding-top: 12px; border-top: 1px solid var(--rp-divider); }
+.studio-announcements-title { margin: 0; font-size: 13px; font-weight: 800; }
+.studio-announcements-list { display: grid; gap: 10px; margin: 0; padding: 0; list-style: none; }
+.studio-announcement { display: grid; gap: 8px; padding: 10px; border: var(--rp-stroke, 2px) solid var(--rp-border-strong); background: var(--rp-surface); }
+.studio-announcement-dates { display: grid; grid-template-columns: repeat(auto-fit, minmax(130px, 1fr)); gap: 8px; }
+.studio-announcement-dates input { width: 100%; min-width: 0; box-sizing: border-box; }
+.studio-announcement .studio-scheme-actions .studio-link-button, .studio-announcements > .studio-link-button { width: auto; min-height: 36px; display: inline-flex; align-items: center; gap: 4px; font-size: 12px; }
+.studio-mega { display: grid; gap: 8px; padding: 8px; border: 1px solid var(--rp-divider); }
+.studio-mega-featured { display: grid; gap: 8px; }

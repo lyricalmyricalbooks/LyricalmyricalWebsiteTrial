@@ -50,6 +50,8 @@ try {
       await context.addInitScript(cache => {
         localStorage.setItem('lm:cookie-consent', JSON.stringify({ necessary: true, analytics: false, marketing: false, decidedAt: new Date().toISOString() }));
         sessionStorage.setItem(`fm_visit_${new Date().toISOString().split('T')[0]}`, 'true');
+        // Keep the Studio pop-up section group out of the HTML snapshots (PopupSections, POPUP_SUPPRESS_KEY).
+        sessionStorage.setItem('lm:popup-suppressed', '1');
         if (cache) sessionStorage.setItem('site-bootstrap-v1', cache);
       }, publishedCache);
       const page = await context.newPage();

@@ -26,6 +26,7 @@ import {
 } from "./studioModel";
 import { STATIC_SURFACES, STYLE_GROUPS, STYLE_TARGET_FIELDS, applyGlobalStyle, readStyle, regionStyleFields, schemeFieldOptions, type StyleField, type StyleGroup } from "./styleSchema";
 import { StudioColorSchemes } from "./StudioColorSchemes";
+import { StudioAnnouncements } from "./StudioAnnouncements";
 import { StudioPages } from "./StudioPages";
 import { StudioCategories } from "./StudioCategories";
 import { categoryNavOrder } from "./categoryManager";
@@ -45,6 +46,7 @@ import { StudioInspector } from "./StudioInspector";
 import { StudioSearch } from "./StudioSearch.tsx";
 import { buildStudioIndex, contextCommands, searchedDevice, type SearchEntry } from "./studioSearch";
 import { resolveProductRoutes } from "../../features/site/productRoutes";
+import { groupLabel, isGroupSurface, SECTION_GROUP_KEYS, SECTION_GROUPS, type SectionGroupKey } from "../../features/site/sectionGroups";
 import { autoFitSections, autoFitRegions } from "./autoMobile";
 import { applyCanvasAction, applyPageStyle, buildPreviewState, deliverPreviewState, findSectionOwner, moveBlockTo, moveSectionTo, PAGE_STYLE_GROUPS, PREVIEW_CHANNEL, previewRoute, sectionEntries, updateSectionsById, withDraftPage } from "./studioWorkflow";
 import { sectionStyleFields, SPACING_CARD_KEYS } from "./sectionStyleSchema";
@@ -63,7 +65,7 @@ import { StudioPageOverrides } from "./StudioPageOverrides";
 import { Panel, PanelGroup, PanelResizeHandle } from "react-resizable-panels";
 import { StudioRail } from "./StudioRail";
 import { MediaPickerDialog, StudioMediaPanel, useMediaLibrary } from "./StudioMedia";
-import { MediaPickerContext } from "./mediaPicker";
+import { MediaLibraryButton, MediaPickerContext } from "./mediaPicker";
 import type { UsagePlace } from "./mediaLibrary";
 import { resolveShortcut, SHORTCUTS, type ShortcutAction } from "./shortcuts";
 import { StudioPreviewFrame } from "./StudioPreviewFrame";
@@ -72,7 +74,7 @@ import { currentOption, pickerOptions, type PickerOption } from "./templatePicke
 import { loadUiState, saveUiState, uiStateKey, type Zoom } from "./studioUiState";
 import { auth } from "../../../lib/firebase";
 import type { StudioLocation } from "../../lib/studioLocation";
-import { StudioPickerProvider } from "./StudioPickers";
+import { LinkPicker, StudioPickerProvider } from "./StudioPickers";
 import "./studio.css";
 
 type LeftTab = "sections" | "style" | "text" | "menus" | "pages" | "media";
@@ -88,8 +90,8 @@ function describeChanges(from: any, to: any): string[] {
   }
   const labels: Record<string, string> = { copy: "Text & labels", menus: "Menus", colorSchemes: "Color schemes", sectionPresets: "Saved sections" };
   for (const [key, label] of Object.entries(labels)) if (JSON.stringify(from?.[key]) !== JSON.stringify(to?.[key])) out.push(label);
-  const ignored = new Set([...surfaces, ...Object.keys(labels), "globalSections"]);
-  if (JSON.stringify(from?.globalSections) !== JSON.stringify(to?.globalSections)) out.push("Global sections");
+  const ignored = new Set([...surfaces, ...Object.keys(labels), ...SECTION_GROUP_KEYS]);
+  for (const g of SECTION_GROUPS) if (JSON.stringify(from?.[g.key]) !== JSON.stringify(to?.[g.key])) out.push(`Shared sections: ${g.label}`);
   if (Object.keys({ ...from, ...to }).some(k => !ignored.has(k) && JSON.stringify(from?.[k]) !== JSON.stringify(to?.[k]))) out.push("Theme style and settings");
   return out.length ? out : ["No saved design differences"];
 }
@@ -215,6 +217,38 @@ function AddSectionDialog({ onPick, onClose, presets = [], onPickPreset }: {
 }
 
 // ── Menu editor ────────────────────────────────────────────────────────────
+/** Header links with sub-links: show them as a mega menu (each sub-link a column, its own sub-links
+ *  underneath) with an optional featured picture card. Data shape: storeMenu.ts `mega` / `featured*`. */
+function MegaMenuControls({ item, onChange }: { item: MenuItem; onChange: (n: MenuItem) => void }) {
+  const set = (patch: Partial<MenuItem>) => {
+    const next: any = { ...item, ...patch };
+    for (const k of ["featuredImage", "featuredTitle", "featuredLink"]) if (!next[k]) delete next[k];
+    if (!next.mega) delete next.mega;
+    onChange(next);
+  };
+  return (
+    <div className="studio-mega" data-studio-panel="menus:mega">
+      <label className="text-xs flex gap-1 items-center">
+        <input type="checkbox" checked={item.mega === true} onChange={e => set({ mega: e.target.checked })} />
+        Show sub-links as a mega menu (columns)
+      </label>
+      {item.mega === true && (
+        <div className="studio-mega-featured">
+          <p className="studio-hint">Each sub-link becomes a column heading; its own sub-links are listed under it. Add a picture to show a featured card beside the columns.</p>
+          <label className="studio-scheme-field">Featured picture (link to an image)
+            <input value={item.featuredImage || ""} onChange={e => set({ featuredImage: e.target.value })} placeholder="https://…" />
+          </label>
+          <MediaLibraryButton fieldKey="featuredImage" label="Mega menu picture" onChange={url => set({ featuredImage: url })} />
+          <label className="studio-scheme-field">Featured card title
+            <input value={item.featuredTitle || ""} onChange={e => set({ featuredTitle: e.target.value })} />
+          </label>
+          <LinkPicker label="Featured card link" value={item.featuredLink || ""} onChange={v => set({ featuredLink: v })} />
+        </div>
+      )}
+    </div>
+  );
+}
+
 function MenuRow({ item, pages, footer = false, depth, onChange, onRemove, onMove }: {
   item: MenuItem; pages: any[]; footer?: boolean; depth: number; onChange: (n: MenuItem) => void; onRemove: () => void; onMove: (d: number) => void;
 }) {
@@ -252,6 +286,7 @@ function MenuRow({ item, pages, footer = false, depth, onChange, onRemove, onMov
         </select>
         <label className="text-xs flex gap-1"><input type="checkbox" checked={!item.hidden} onChange={e => onChange({ ...item, hidden: !e.target.checked })} />Show link</label>
       </div>}
+      {!footer && depth === 0 && kids.length > 0 && <MegaMenuControls item={item} onChange={onChange} />}
       {depth === 0 && (
         <>
           {kids.map((k, i) => (
@@ -366,6 +401,8 @@ export function StudioEditor({ settings, onExit, onPersisted, appearance = "ligh
   // Read by the preview message handler, which is not re-created on every page switch.
   const templateIdRef = useRef(templateId); templateIdRef.current = templateId;
   const [showGlobal, setShowGlobal] = useState(remembered.showGlobal === true);
+  // Which shared section group Page layout edits while `showGlobal` (under the header, above the footer, pop-up).
+  const [globalGroup, setGlobalGroup] = useState<SectionGroupKey>(isGroupSurface(remembered.globalGroup || "") ? remembered.globalGroup as SectionGroupKey : "globalSections");
   const [device, setDevice] = useState<keyof typeof DEVICE_W>(remembered.device || "desktop");
   const [zoom, setZoom] = useState<Zoom>(remembered.zoom ?? "fit");
   const [narrow, setNarrow] = useState(() => typeof window !== "undefined" && !!window.matchMedia?.("(max-width: 767px)").matches);
@@ -435,7 +472,7 @@ export function StudioEditor({ settings, onExit, onPersisted, appearance = "ligh
 
   const templates = useMemo(() => buildPageTemplates(pages, { includeDrafts: true }), [pages]);
   const template = templates.find((t) => t.id === templateId) || templates[0];
-  const target: SectionTarget = showGlobal ? { kind: "global" } : { kind: "template", id: template.id };
+  const target: SectionTarget = showGlobal ? { kind: "global", group: globalGroup } : { kind: "template", id: template.id };
   const sections = getSections(design, target);
   const selected = sections.find((s) => s.id === selectedId) || null;
   useEffect(() => {
@@ -624,8 +661,8 @@ export function StudioEditor({ settings, onExit, onPersisted, appearance = "ligh
     if (o.collectionSlug) setCollectionSlug(o.collectionSlug);
   };
   useEffect(() => {
-    saveUiState(uiKey, { leftTab, templateId, showGlobal, device, zoom, productSlug, collectionSlug });
-  }, [uiKey, leftTab, templateId, showGlobal, device, zoom, productSlug, collectionSlug]);
+    saveUiState(uiKey, { leftTab, templateId, showGlobal, globalGroup, device, zoom, productSlug, collectionSlug });
+  }, [uiKey, leftTab, templateId, showGlobal, globalGroup, device, zoom, productSlug, collectionSlug]);
 
   // ── preview wiring ──
   const previewUrl = useMemo(() => {
@@ -817,6 +854,12 @@ export function StudioEditor({ settings, onExit, onPersisted, appearance = "ligh
     if (overlay && !want.overlayOpened) { want.overlayOpened = true; setMode("edit"); postPreview({ type: "OPEN_OVERLAY", overlay }); }
     // Otherwise keep waiting: the page may still be loading. The timer opens the settings if it never shows.
   }, [structure]); // eslint-disable-line react-hooks/exhaustive-deps
+  // Editing the Pop-up group opens the pop-up in the preview (and closes it again on leaving).
+  const editingPopup = showGlobal && globalGroup === "overlaySections";
+  useEffect(() => {
+    if (previewStatus !== "ready") return;
+    postPreview({ type: "OPEN_OVERLAY", overlay: editingPopup ? "popup" : "close" });
+  }, [editingPopup, previewStatus, previewUrl]); // eslint-disable-line react-hooks/exhaustive-deps
   // preview → editor messages
   useEffect(() => {
     const h = (e: MessageEvent) => {
@@ -909,7 +952,7 @@ export function StudioEditor({ settings, onExit, onPersisted, appearance = "ligh
       if (d.type === "INLINE_TEXT_UNAVAILABLE") {
         if (d.sectionId) {
           const owner = findSectionOwner(designRef.current, d.sectionId);
-          if (owner) { setShowGlobal(owner.surface === "globalSections"); if (owner.surface !== "globalSections") setTemplateId(owner.surface); }
+          if (owner) { setShowGlobal(isGroupSurface(owner.surface)); if (isGroupSurface(owner.surface)) setGlobalGroup(owner.surface); else setTemplateId(owner.surface); }
           setLeftTab("sections"); setSelectedId(d.sectionId); setBlockId(d.blockId || null); setMobilePanel("settings");
         } else if (d.kind === "copy") { setCopyFilter(d.key || ""); setLeftTab("text"); setMobilePanel("outline"); }
         say("ok", "Formatted or templated text opens in the inspector so its structure is preserved.");
@@ -1018,7 +1061,7 @@ export function StudioEditor({ settings, onExit, onPersisted, appearance = "ligh
     const preset = { id: `preset-${Date.now()}`, name: name.trim() || sectionTitle(section).label, section: JSON.parse(JSON.stringify(section)) };
     setStyle("sectionPresets", [...(design.sectionPresets || []), preset]); say("ok", "Section saved. Add it to any page from Add section › Your saved sections.");
   };
-  const surfaceLabel = (surface: string) => surface === "globalSections" ? "Every page (shared sections)" : templates.find(t => t.id === surface)?.label || surface;
+  const surfaceLabel = (surface: string) => isGroupSurface(surface) ? `Every page · ${groupLabel(surface)}` : templates.find(t => t.id === surface)?.label || surface;
   const STYLE_KEYS = useMemo(() => [...sectionStyleFields().map(f => f.key), ...SPACING_CARD_KEYS], []);
   // Where a block may move: other sections of the same kind, on any page.
   const blockDestinations = (sectionId: string) => {
@@ -1101,6 +1144,8 @@ export function StudioEditor({ settings, onExit, onPersisted, appearance = "ligh
     copySchema: COPY_SCHEMA, templates, pages,
     sectionsByTemplate: {
       __global: getSections(design, { kind: "global" }),
+      headerSections: getSections(design, { kind: "global", group: "headerSections" }),
+      overlaySections: getSections(design, { kind: "global", group: "overlaySections" }),
       ...Object.fromEntries(templates.map(t => [t.id, getSections(design, { kind: "template", id: t.id })])),
     },
     sectionLabel: (type: string) => getSectionMeta(type)?.label || type,
@@ -1220,7 +1265,8 @@ export function StudioEditor({ settings, onExit, onPersisted, appearance = "ligh
     if (t.type === "menus") { setLeftTab("menus"); setSelectedId(null); flashPanel(`[data-studio-panel="${CSS.escape(t.panel)}"]`); return; }
     if (t.type === "template") { setSelectedId(null); setBlockId(null); setShowGlobal(false); setTemplateId(t.id); setLeftTab("sections"); return; }
     if (t.type === "section") {
-      if (t.templateId === "__global") setShowGlobal(true); else { setShowGlobal(false); setTemplateId(t.templateId); }
+      if (t.templateId === "__global" || isGroupSurface(t.templateId)) { setShowGlobal(true); setGlobalGroup(t.templateId === "__global" ? "globalSections" : t.templateId as SectionGroupKey); }
+      else { setShowGlobal(false); setTemplateId(t.templateId); }
       setLeftTab("sections"); setSelectedId(t.sectionId); setBlockId(null); setMobilePanel("settings");
       setTimeout(() => highlight(t.sectionId, true, null), 500);
       return;
@@ -1255,7 +1301,7 @@ export function StudioEditor({ settings, onExit, onPersisted, appearance = "ligh
         <div className="studio-sidebar" aria-label="Editor panel" role="region">
           <div className="studio-panel-context">
             <strong>{panelTitle}</strong>
-            <span>{leftTab === "sections" ? (showGlobal ? "Shared sections · every page" : template.label) + ` · ${sections.length} sections` : `Previewing: ${showGlobal ? "shared sections" : template.label}`}</span>
+            <span>{leftTab === "sections" ? (showGlobal ? `Every page · ${groupLabel(globalGroup)}` : template.label) + ` · ${sections.length} sections` : `Previewing: ${showGlobal ? groupLabel(globalGroup) : template.label}`}</span>
             <small>{leftTab === "sections" ? "Select content here or click it in the preview." : leftTab === "style" ? "Choose a category or search every setting." : leftTab === "text" ? "Edit the words your shoppers see." : leftTab === "menus" ? "Manage links, categories and their order." : leftTab === "media" ? "Upload images, describe them and see where each is used." : "Create pages and edit their content or layout."}</small>
           </div>
           <div className="flex-1 overflow-auto" ref={sidebarScrollRef}>
@@ -1297,15 +1343,16 @@ export function StudioEditor({ settings, onExit, onPersisted, appearance = "ligh
               ]} /></div>
             </div>}
             {leftTab === "sections" && <StudioStructure structure={structure} hoverKey={hoverKey} selectedKey={selectedElement?.key || null} deviceLabel={REGION_DEVICE_LABELS[device]}
-              pageLabel={template.label} showGlobal={showGlobal} globalCount={(design.globalSections || []).length}
+              pageLabel={template.label} showGlobal={showGlobal} group={globalGroup}
+              groupCounts={Object.fromEntries(SECTION_GROUP_KEYS.map(k => [k, Array.isArray(design[k]) ? design[k].length : 0]))}
               onHover={key => postPreview({ type: "HOVER_NODE", key })}
               onOpen={openStructureItem}
               onOpenTarget={(target, label) => openTarget(target, label)}
               onOverlay={overlay => { if (overlay !== "close") setMode("edit"); postPreview({ type: "OPEN_OVERLAY", overlay }); }}
               regionState={regionToggleState} onToggleRegion={toggleRegion}
-              onGlobal={() => { setShowGlobal(true); setSelectedId(null); setBlockId(null); }}
+              onGlobal={group => { setShowGlobal(true); setGlobalGroup(group); setSelectedId(null); setBlockId(null); }}
               onPage={() => { setShowGlobal(false); setSelectedId(null); setBlockId(null); }}>
-              <StudioOutline key={showGlobal ? "__global" : template.id}
+              <StudioOutline key={showGlobal ? `__group:${globalGroup}` : template.id}
               sections={sections} selectedId={selectedId} blockId={blockId}
               hoveredId={hoverKey?.startsWith("s:") ? hoverKey.slice(2) : null}
               onHover={id => postPreview({ type: "HOVER_NODE", key: id ? `s:${id}` : null })}
@@ -1383,6 +1430,9 @@ export function StudioEditor({ settings, onExit, onPersisted, appearance = "ligh
                     </button>
                   ))}
                 </div>
+                  </div>}
+                  {styleCategory === "header" && <div className="px-4 pb-4">
+                    <StudioAnnouncements design={design} change={change} />
                   </div>}
                   {styleCategory === "schemes" && <div className="px-4 pb-4">
                     <StudioColorSchemes design={design} change={change} confirm={askConfirm}
@@ -1668,8 +1718,8 @@ export function StudioEditor({ settings, onExit, onPersisted, appearance = "ligh
         footer={<><SecondaryButton onClick={() => setMoveDialog(null)}>Cancel</SecondaryButton><PrimaryButton disabled={!moveDest} onClick={confirmMove}>Move</PrimaryButton></>}>
         {moveDialog && (() => {
           const options = moveDialog.kind === "block" ? blockDestinations(moveDialog.sectionId)
-            : [{ value: "globalSections", label: surfaceLabel("globalSections") }, ...templates.map(t => ({ value: t.id, label: t.label }))]
-              .filter(o => o.value !== (showGlobal ? "globalSections" : template.id));
+            : [...SECTION_GROUP_KEYS.map(k => ({ value: k as string, label: surfaceLabel(k) })), ...templates.map(t => ({ value: t.id, label: t.label }))]
+              .filter(o => o.value !== (showGlobal ? globalGroup : template.id));
           return options.length ? <div className="rp-field">
             <label className="rp-label" htmlFor="studio-move-dest">{moveDialog.kind === "block" ? "Section" : "Page"}</label>
             <select id="studio-move-dest" className="rp-input" value={moveDest} onChange={e => setMoveDest(e.target.value)}>

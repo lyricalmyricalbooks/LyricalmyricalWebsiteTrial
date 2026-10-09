@@ -453,6 +453,15 @@ and fails if another file renders the navigation `<header>` or `footerPanel`; re
 
 **Shop card title & price:** Studio › Style › **Product cards & grid** has colour, size (desktop + phone), weight, font and letter-spacing controls for the card title and price (`productTitleColor`, `cardTitle*`, `productPriceColor`, `cardPrice*`), plus the boxed-tag and old-price colours. `features/site/cardTypography.ts` turns them into CSS (emitted by `StorefrontThemeStyle`); cards opt in with the `fm-card-title` / `fm-card-price-wrap` / `fm-card-price` / `fm-card-price-tag` / `fm-card-price-old` classes — the shop grid, collection, wishlist, search, related-books and recently-viewed cards and the **Product grid** / **Product showcase grid** sections do. When a Style card colour is set it wins over a section's own colour; empty = the section's colour. Add those classes to any new book card — `features/site/cardClasses.test.tsx` renders every section with sample books and fails on a book title without `fm-card-title`.
 
+**Section groups (2.2):** three every-page section lists, all root-only: `headerSections` (under the header),
+`globalSections` (above the footer) and `overlaySections` (pop-up) — rules in `features/site/sectionGroups.ts`, rendered by
+`GroupSections` in `sectionRender.tsx` (`StoreHeader` renders the header group and `PopupSections`). Write any section list
+with `writeSections` (`studio/studioWorkflow.ts`); a group is a plain array. The pop-up waits for the cookie answer, then
+Style › **Pop-up** (delay, how often, position, width, shading, colours, hide on phones); in the preview it opens only on
+request. Announcement bar messages (`announcements`, link + show-from/until Toronto days) are edited in Theme settings ›
+Header & announcement bar › **Announcement messages**; without a list the single `announcementText` is unchanged. Header
+links with sub-links have **Show sub-links as a mega menu (columns)** + featured card in Navigation › Header menu.
+
 **Colour schemes (2.5):** Studio › Theme settings › **Colour schemes** (`StudioColorSchemes.tsx`, pure edits in
 `studio/colorSchemeOps.ts`) edits `design.colorSchemes` — ten roles (background, surface, text, muted, accent, onAccent,
 border, buttonBg, buttonText, link) with a live swatch and WCAG badges. `features/site/colorSchemes.ts` `schemeCss()`

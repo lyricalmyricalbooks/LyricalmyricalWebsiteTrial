@@ -804,6 +804,8 @@ export const COPY_SCHEMA: CopyGroup[] = [
     group: "Sections",
     fields: [
       { key: "sectionNoImage", label: "Empty image placeholder", default: "No Image" },
+      { key: "popupLabel", label: "Pop-up — screen-reader name", default: "Special message" },
+      { key: "popupClose", label: "Pop-up close button — screen-reader label", default: "Close" },
       { key: "sectionNoVideo", label: "Empty video placeholder", default: "No Video" },
       { key: "sectionGoToCover", label: "Cover carousel dot — screen-reader label", default: "Go to cover {n}", hint: "Use {n} for the cover number." },
       { key: "sectionViewBook", label: "Book link — screen-reader label", default: "View {title}", hint: "Use {title} for the book title." },

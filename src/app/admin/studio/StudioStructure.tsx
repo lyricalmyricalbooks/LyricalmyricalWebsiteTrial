@@ -2,6 +2,7 @@ import type { ReactNode } from "react";
 import { Eye, EyeOff, Lock, PanelTop, PanelBottom, Layers, MessageSquare } from "lucide-react";
 import { IconButton } from "../riso/components";
 import { STUDIO_OVERLAYS, type PageStructure, type StructureItem } from "./pageStructure";
+import { groupLabel, type SectionGroupKey } from "../../features/site/sectionGroups";
 
 /** Hide/show state of a built-in region at the size being previewed (null = not a region). */
 export type RegionToggle = { visible: boolean; required: boolean } | null;
@@ -14,14 +15,17 @@ type Props = {
   deviceLabel: string;
   pageLabel: string;
   showGlobal: boolean;
-  globalCount: number;
+  /** The shared section group being edited while `showGlobal`. */
+  group: SectionGroupKey;
+  /** How many sections each shared group has. */
+  groupCounts: Record<string, number>;
   onHover: (key: string | null) => void;
   onOpen: (item: StructureItem) => void;
-  onOverlay: (overlay: "cart" | "search" | "close") => void;
+  onOverlay: (overlay: "cart" | "search" | "popup" | "close") => void;
   onOpenTarget: (target: string, label: string) => void;
   regionState: (region: string) => RegionToggle;
   onToggleRegion: (region: string, visible: boolean) => void;
-  onGlobal: () => void;
+  onGlobal: (group: SectionGroupKey) => void;
   onPage: () => void;
   /** The page's sections (the sortable outline). */
   children: ReactNode;
@@ -60,14 +64,19 @@ export function StudioStructure(p: Props) {
     ? <p className="studio-hint">Reading the page in the preview…</p>
     : items?.length ? items.map(i => row(i)) : <p className="studio-hint">{empty}</p>;
 
+  // Shared section groups (every page): each one is offered where it appears on the page.
+  const groupButton = (key: SectionGroupKey, text: string) => !(p.showGlobal && p.group === key) &&
+    <button className="studio-structure-switch" onClick={() => p.onGlobal(key)}>{text} ({p.groupCounts[key] || 0}) — shown on every page</button>;
+
   return <div className="studio-structure">
     <details className="studio-structure-group">
       <summary><PanelTop size={14} /> Header{s ? <small>{count(s.header)}</small> : null}</summary>
       {list(s?.header, "This page has no header.")}
+      {groupButton("headerSections", "Shared sections under the header")}
     </details>
 
     <details className="studio-structure-group" open>
-      <summary><Layers size={14} /> {p.showGlobal ? "Shared sections · every page" : `Page · ${p.pageLabel}`}</summary>
+      <summary><Layers size={14} /> {p.showGlobal ? `Every page · ${groupLabel(p.group)}` : `Page · ${p.pageLabel}`}</summary>
       {p.showGlobal
         ? <button className="studio-structure-switch" onClick={p.onPage}>← Back to {p.pageLabel}</button>
         : <>
@@ -83,15 +92,14 @@ export function StudioStructure(p: Props) {
 
     <details className="studio-structure-group">
       <summary><PanelBottom size={14} /> Footer{s ? <small>{count(s.footer)}</small> : null}</summary>
-      {!p.showGlobal && <button className="studio-structure-switch" onClick={p.onGlobal}>
-        Shared sections above the footer ({p.globalCount}) — shown on every page
-      </button>}
+      {groupButton("globalSections", "Shared sections above the footer")}
       {list(s?.footer, "This page has no footer.")}
     </details>
 
     <details className="studio-structure-group">
       <summary><MessageSquare size={14} /> Pop-overs</summary>
       <p className="studio-hint">Open one in the preview to see and style it.</p>
+      {groupButton("overlaySections", "Pop-up sections")}
       {STUDIO_OVERLAYS.map(o => <div key={o.id} className="studio-tree-row studio-structure-row">
         <button className="studio-tree-label" onClick={() => p.onOpenTarget(o.target.split("|")[0], o.label)}>{o.label}<small>Settings</small></button>
         <button className="studio-structure-open" onClick={() => p.onOverlay(o.id)}>Open in preview</button>

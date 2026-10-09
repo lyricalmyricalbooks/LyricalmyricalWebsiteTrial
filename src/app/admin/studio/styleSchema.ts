@@ -264,6 +264,7 @@ export const STYLE_GROUPS: StyleGroup[] = [
       { key: "announcementWeight", label: "Announcement weight", kind: "select", options: weights },
       { key: "announcementTracking", label: "Announcement letter spacing", kind: "range", min: 0, max: 0.5, step: 0.02, suffix: "em" },
       { key: "announcementSpeed", label: "Ticker speed (seconds per loop)", kind: "range", min: 5, max: 90, step: 1 },
+      { key: "announcementRotateSeconds", label: "Seconds each message shows (several messages)", kind: "range", min: 2, max: 20, step: 1, suffix: "s", defaultValue: 5 },
       { key: "navStyle", label: "Nav link style", kind: "select", options: [{ value: "default", label: "Plain" }, { value: "stickers", label: "Sticker pills" }] },
       { key: "showMobileNavigation", label: "Show phone navigation", kind: "toggle", defaultValue: true },
       { key: "showStoreChromeOnUtilityPages", label: "Show the shop header & footer on wishlist, account, order tracking and missing pages", kind: "toggle", defaultValue: true },
@@ -274,6 +275,25 @@ export const STYLE_GROUPS: StyleGroup[] = [
       { key: "hideThemeToggle", label: "Hide light/dark toggle", kind: "toggle" },
       { key: "hideAdminLink", label: "Hide “Admin” link", kind: "toggle" },
       { key: "hideCartButton", label: "Hide cart button", kind: "toggle" },
+    ],
+  },
+  {
+    id: "popup",
+    title: "Pop-up",
+    hint: "The Pop-up section group (Page layout › Shared sections › Pop-up). It never covers the cookie banner: it waits until the shopper has answered it.",
+    fields: [
+      { key: "popupDelaySeconds", label: "Delay before it opens", kind: "range", min: 0, max: 60, step: 1, suffix: "s", defaultValue: 5 },
+      { key: "popupFrequency", label: "How often it shows", kind: "select", defaultValue: "session", options: [
+        { value: "session", label: "Once per visit" }, { value: "once", label: "Once per shopper (until you change it)" }, { value: "always", label: "On every page" }] },
+      { key: "popupPosition", label: "Position", kind: "select", defaultValue: "center", options: [
+        { value: "center", label: "Centre of the screen" }, { value: "bottom", label: "Bottom" }, { value: "bottom-right", label: "Bottom right corner" }] },
+      { key: "popupMaxWidth", label: "Width", kind: "range", min: 280, max: 1000, step: 10, suffix: "px", defaultValue: 560 },
+      { key: "popupBackdropOpacity", label: "Page shading behind it", kind: "range", min: 0, max: 90, step: 5, suffix: "%", defaultValue: 60 },
+      { key: "popupHideOnPhones", label: "Don't show on phones", kind: "toggle" },
+      { key: "popupBg", label: "Pop-up background", kind: "color" },
+      { key: "popupTextColor", label: "Pop-up text colour", kind: "color" },
+      { key: "popupBorderColor", label: "Pop-up outline colour", kind: "color" },
+      { key: "popupBorderWidth", label: "Pop-up outline width", kind: "range", min: 0, max: 6, step: 1, suffix: "px", defaultValue: 2 },
     ],
   },
   {

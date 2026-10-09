@@ -1,10 +1,10 @@
 import { useEffect, useRef } from "react";
 
-export type StudioOverlay = "cart" | "search";
+export type StudioOverlay = "cart" | "search" | "popup";
 
 /**
  * Studio's page structure can open a pop-over (shopping bag, search) inside the preview so the
- * owner can see and style it. The preview bridge dispatches `fm:studio-open-overlay`; outside the
+ * owner can see and style it ("popup" is the pop-up section group). The preview bridge dispatches `fm:studio-open-overlay`; outside the
  * preview nothing sends it, so shoppers are unaffected. "close" closes every pop-over.
  */
 export function useStudioOverlay(name: StudioOverlay, setOpen: (open: boolean) => void) {

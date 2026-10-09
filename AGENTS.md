@@ -145,6 +145,15 @@ Menus › Shop categories or create-and-assign one in a book's Categories & tags
 tab; the book workflow must update the live storefront and Studio draft together
 without replacing unrelated design fields.
 New book cards must carry the `fm-card-*` classes (`cardClasses.test.tsx`).
+**Section groups (2.2):** three every-page section lists, all root-only: `headerSections` (under the header),
+`globalSections` (above the footer) and `overlaySections` (pop-up) — rules in `features/site/sectionGroups.ts`, rendered by
+`GroupSections` in `sectionRender.tsx` (`StoreHeader` renders the header group and `PopupSections`). Write any section list
+with `writeSections` (`studio/studioWorkflow.ts`); a group is a plain array. The pop-up waits for the cookie answer, then
+Style › **Pop-up** (delay, how often, position, width, shading, colours, hide on phones); in the preview it opens only on
+request. Announcement bar messages (`announcements`, link + show-from/until Toronto days) are edited in Theme settings ›
+Header & announcement bar › **Announcement messages**; without a list the single `announcementText` is unchanged. Header
+links with sub-links have **Show sub-links as a mega menu (columns)** + featured card in Navigation › Header menu.
+
 **Media library (2.4).** Studio › **Media** (`studio/StudioMedia.tsx`) lists admin-only `media/{id}` records; library
 uploads (`uploadMediaImage`) store WebP copies at 480/960/1600 px under `assets/media/<id>/`. Picking a picture for a
 section/block field writes its URL plus a public `${field}__media` record (Theme settings images get the URL only, but

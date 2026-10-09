@@ -19,6 +19,9 @@ import { SecondaryStorefrontNav } from "./SecondaryStorefrontNav";
 import { getPublishedBooks } from "./selectors";
 import { getCopy } from "./storeCopy";
 import { useStudioOverlay } from "./studioOverlay";
+import { activeAnnouncements } from "./sectionGroups";
+import { GroupSections } from "../../components/sectionRender";
+import { PopupSections } from "./PopupSections";
 import type { Book, Page } from "./types";
 
 /*
@@ -156,9 +159,39 @@ function CategoryBar({ navRef, items, design, copyDesign, color, line, stickers,
   );
 }
 
-/** The promo strip above the header (Style › Header & announcement bar). */
-function AnnouncementBar({ design, message, shop }: { design: any; message?: string; shop: boolean }) {
-  if (!message) return null;
+/** One announcement message: plain text, or a link when the message has one. */
+function AnnouncementMessage({ text, link, editable, className }: { text: string; link?: string; editable?: boolean; className?: string }) {
+  const edit = editable ? { "data-studio-style-text": "announcementText", "data-studio-edit-value": text } : {};
+  if (!link) return <span {...edit} className={className}>{text}</span>;
+  if (/^(https?:|mailto:)/i.test(link)) return <a href={link} {...edit} className={`${className || ""} underline-offset-4 hover:underline`}>{text}</a>;
+  return <Link to={link} {...edit} className={`${className || ""} underline-offset-4 hover:underline`}>{text}</Link>;
+}
+
+/** Cycles through several messages (Style › Header & announcement bar › Seconds each message shows); pauses on hover/focus. */
+function useRotation(count: number, seconds: number) {
+  const [index, setIndex] = useState(0);
+  const [paused, setPaused] = useState(false);
+  useEffect(() => { setIndex(0); }, [count]);
+  useEffect(() => {
+    if (count < 2 || paused) return;
+    const timer = window.setInterval(() => setIndex(i => (i + 1) % count), Math.max(2, Math.min(20, seconds)) * 1000);
+    return () => window.clearInterval(timer);
+  }, [count, seconds, paused]);
+  const pause = { onMouseEnter: () => setPaused(true), onMouseLeave: () => setPaused(false), onFocus: () => setPaused(true), onBlur: () => setPaused(false) };
+  return { index: count ? index % count : 0, pause };
+}
+
+/**
+ * The promo strip above the header (Style › Header & announcement bar). Its messages come from
+ * Announcement messages (several, each with an optional link and show-from / show-until days) or, when
+ * that list is empty, the single Announcement text — `fallback` is Settings › announcements.
+ */
+function AnnouncementBar({ design, show, fallback, shop }: { design: any; show: boolean; fallback?: string; shop: boolean }) {
+  const messages = show ? activeAnnouncements({ ...design, announcementText: design?.announcementText ?? fallback }) : [];
+  const single = !Array.isArray(design?.announcements) || !design.announcements.length;
+  const { index, pause } = useRotation(messages.length, Number(design?.announcementRotateSeconds ?? 5));
+  if (!messages.length) return null;
+  const current = messages[index];
   if (!shop) {
     return (
       <div
@@ -166,8 +199,9 @@ function AnnouncementBar({ design, message, shop }: { design: any; message?: str
         data-studio-label="Announcement bar"
         className="px-6 py-2.5 text-center text-[10px] font-bold uppercase tracking-[0.3em]"
         style={{ backgroundColor: design.announcementBg || "var(--accent)", color: design.announcementColor || "var(--on-accent)" }}
+        {...pause}
       >
-        <span data-studio-style-text="announcementText" data-studio-edit-value={message}>{message}</span>
+        <AnnouncementMessage key={index} text={current.text} link={current.link} editable={single} />
       </div>
     );
   }
@@ -184,9 +218,16 @@ function AnnouncementBar({ design, message, shop }: { design: any; message?: str
             letterSpacing: `${design?.announcementTracking ?? 0.3}em`,
           }}
         >
-          {[0, 1].map((copy) => (
-            <span key={copy} aria-hidden={copy === 1} data-studio-style-text={copy === 0 ? "announcementText" : undefined} data-studio-edit-value={message} className="px-8 whitespace-nowrap">
-              {Array.from({ length: 4 }).map(() => message).join("        ")}
+          {[0, 1].map((copy) => single ? (
+            // One message: the ticker's original markup (both copies carry the inline-edit value).
+            <span key={copy} aria-hidden={copy === 1} data-studio-style-text={copy === 0 ? "announcementText" : undefined} data-studio-edit-value={current.text} className="px-8 whitespace-nowrap">
+              {Array.from({ length: 4 }).map(() => current.text).join("        ")}
+            </span>
+          ) : (
+            <span key={copy} aria-hidden={copy === 1} className="px-8 whitespace-nowrap">
+              {Array.from({ length: 2 }).flatMap((_, round) => messages.map((m, i) => (
+                <AnnouncementMessage key={`${round}-${i}`} text={m.text} link={copy === 0 ? m.link : undefined} className="px-8" />
+              )))}
             </span>
           ))}
         </div>
@@ -194,8 +235,8 @@ function AnnouncementBar({ design, message, shop }: { design: any; message?: str
     );
   }
   return (
-    <div data-section="announcements" data-studio-target="style:header" data-studio-label="Announcement bar" className="text-center py-2.5 px-6 text-[10px] tracking-[0.3em] font-bold uppercase sticky top-0 z-[60]" style={colors}>
-      <span data-studio-style-text="announcementText" data-studio-edit-value={message}>{message}</span>
+    <div data-section="announcements" data-studio-target="style:header" data-studio-label="Announcement bar" className="text-center py-2.5 px-6 text-[10px] tracking-[0.3em] font-bold uppercase sticky top-0 z-[60]" style={colors} {...pause}>
+      <AnnouncementMessage key={index} text={current.text} link={current.link} editable={single} />
     </div>
   );
 }
@@ -282,6 +323,9 @@ export function StoreHeader({ design, pages, books, shop }: { design: any; pages
         ? <ShopHeader design={design} pages={pages} books={books} shop={shop} onSearch={openSearch} />
         : <PageHeader design={design} pages={pages} onSearch={openSearch} />}
       <SearchOverlay open={searchOpen} onClose={() => setSearchOpen(false)} books={searchBooks} design={shop ? shop.surface : design} />
+      {/* Section groups shown on every page: under the header, and the pop-up (Studio › Page layout). */}
+      <GroupSections design={design} group="headerSections" books={searchBooks} />
+      <PopupSections design={design} books={searchBooks} />
     </>
   );
 }
@@ -324,7 +368,7 @@ function PageHeader({ design, pages, onSearch }: { design: any; pages: Page[]; o
 
   return (
     <>
-      <AnnouncementBar design={storefront} message={(storefront.showAnnouncement ?? false) ? storefront.announcementText : undefined} shop={false} />
+      <AnnouncementBar design={storefront} show={storefront.showAnnouncement ?? false} shop={false} />
       <header
         data-section="navigation"
         data-studio-target="style:header|menus:header-order|copy:Header"
@@ -430,8 +474,7 @@ function ShopHeader({ design, pages, books, shop, onSearch }: { design: any; pag
   const bagLabel = sf?.cartLabel || "BAG";
   const stickers = sf?.navStyle === "stickers";
   const showAnnouncement = sf?.showAnnouncement ?? !isReferenceCatalog;
-  const announcementMsg = sf?.announcementText ?? shop.announcement;
-  const announcementShown = !!(showAnnouncement && announcementMsg);
+  const announcementShown = showAnnouncement && activeAnnouncements({ ...sf, announcementText: sf?.announcementText ?? shop.announcement }).length > 0;
 
   const headerTextColor = isHeaderTransparent ? storefrontText : (sf?.headerColor || storefrontText);
   const headerBgColor = isHeaderTransparent ? "transparent" : (sf?.headerBg || `${storefrontBg}${(sf?.headerStyle || "minimal") === "full" ? "f5" : "b3"}`);
@@ -462,7 +505,7 @@ function ShopHeader({ design, pages, books, shop, onSearch }: { design: any; pag
   return (
     <>
       {stickers && <style>{STICKER_PILL_CSS}</style>}
-      <AnnouncementBar design={sf} message={showAnnouncement ? announcementMsg : undefined} shop />
+      <AnnouncementBar design={sf} show={showAnnouncement} fallback={shop.announcement} shop />
       <header
         data-section="navigation"
         data-studio-target="style:header|menus:header-order|copy:Header" data-studio-label="Header"

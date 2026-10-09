@@ -1,11 +1,12 @@
 import { findBlock, moveBlockBefore, patchSectionSettings, removeBlock, sameDesign, setPath, type Section, type StudioBlock } from "./studioModel";
 import { MAX_BLOCK_DEPTH } from "../../features/site/sharedBlocks";
 import { REGION_GROUPS } from "../../features/site/storefrontRegions";
+import { isGroupSurface, SECTION_GROUP_KEYS } from "../../features/site/sectionGroups";
 
-/** Finds section ownership in the current design, including globals and page:<slug>. */
+/** Finds section ownership in the current design, including the section groups and page:<slug>. */
 export function sectionEntries(design: any): { surface: string; sections: Section[] }[] {
   return [
-    ...(Array.isArray(design?.globalSections) ? [{ surface: "globalSections", sections: design.globalSections }] : []),
+    ...SECTION_GROUP_KEYS.flatMap(key => Array.isArray(design?.[key]) ? [{ surface: key as string, sections: design[key] as Section[] }] : []),
     ...Object.entries(design || {}).flatMap(([surface, value]: [string, any]) =>
       Array.isArray(value?.sections) ? [{ surface, sections: value.sections }] : []),
   ];
@@ -16,11 +17,12 @@ export function findSectionOwner(design: any, sectionId: string) {
   return owner && { ...owner, section: owner.sections.find(section => section.id === sectionId)! };
 }
 
-const writeSections = (design: any, surface: string, sections: Section[]) =>
-  surface === "globalSections" ? { ...design, globalSections: sections } : { ...design, [surface]: { ...(design[surface] || {}), sections } };
+/** Writes a section list back to its owner: a section group (a root list) or a page (`<page>.sections`). */
+export const writeSections = (design: any, surface: string, sections: Section[]) =>
+  isGroupSurface(surface) ? { ...design, [surface]: sections } : { ...design, [surface]: { ...(design[surface] || {}), sections } };
 
 /**
- * Moves a section to `index` in `surface` ("globalSections", a template id or "page:<slug>"),
+ * Moves a section to `index` in `surface` (a section group such as "globalSections", a template id or "page:<slug>"),
  * on the same page or another one. Unknown sections, and moves that change nothing, return `design`.
  */
 export function moveSectionTo(design: any, sectionId: string, surface: string, index?: number): any {
@@ -29,7 +31,7 @@ export function moveSectionTo(design: any, sectionId: string, surface: string, i
   const without = owner.sections.filter(s => s.id !== sectionId);
   let next = writeSections(design, owner.surface, without);
   const into = owner.surface === surface ? without
-    : surface === "globalSections" ? (Array.isArray(next.globalSections) ? next.globalSections : []) : (next[surface]?.sections || []);
+    : isGroupSurface(surface) ? (Array.isArray(next[surface]) ? next[surface] : []) : (next[surface]?.sections || []);
   const at = Math.max(0, Math.min(into.length, index ?? into.length));
   if (owner.surface === surface && owner.sections.findIndex(s => s.id === sectionId) === at) return design;
   next = writeSections(next, surface, [...into.slice(0, at), owner.section, ...into.slice(at)]);
@@ -113,8 +115,7 @@ export function applyCanvasAction(design: any, action: {
       sections = patchSectionSettings(sections, action.sectionId, { [key]: moveBlockBefore(blocks, action.blockId, action.beforeId) });
     } else return design;
   }
-  return owner.surface === "globalSections" ? { ...design, globalSections: sections }
-    : { ...design, [owner.surface]: { ...design[owner.surface], sections } };
+  return writeSections(design, owner.surface, sections);
 }
 
 /** Advance server fields while retaining edits made since the request started. */
