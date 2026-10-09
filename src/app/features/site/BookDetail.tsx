@@ -38,6 +38,8 @@ import { buildStorefrontTokenVars, RISO_STOREFRONT_CSS, risoGrainCss, STOREFRONT
 import { StorefrontOverrides } from "./StorefrontOverrides";
 import { resolveProductDesign } from "./surfaceDesign";
 import { bookTemplateSurface, previewTemplate } from "./templateAlternates";
+import { blockLabel, cardSections, productBlocks, type ProductBlock } from "./productBlocks";
+import { resolveDynamicSettings } from "./dynamicSources";
 import { aspectRatioValue } from "./imageAspect";
 import { regionProps, regionVisible } from "./storefrontRegions";
 import { googleFontHref } from "./fonts";
@@ -189,6 +191,9 @@ export default function BookDetail() {
   // Merge top-level design with storefront-level overrides so tokens can be set
   // at either level (storefront wins).
   const tokenSource = { ...(settings?.design || {}), ...(storefrontDesign || {}) };
+  // Visibility and words follow the template being shown, including an alternate template's own settings (2.8/2.9).
+  const regionDesign = tokenSource;
+  const inPreview = typeof window !== "undefined" && new URLSearchParams(window.location.search).get("preview") === "true";
   // Add to bag sits in the buy card: when the buy card follows a colour scheme, it uses the scheme's
   // button roles (the inline --btn-* would otherwise override the variables schemeCss puts on the card).
   const buyButton = schemeButtonColors(tokenSource, "buyCard", { bg: buttonBg, text: buttonText });
@@ -432,7 +437,7 @@ export default function BookDetail() {
     { key: "specIsbn", icon: <Package size={11} />, value: bk.isbn },
     { key: "specWeight", icon: <Weight size={11} />, value: bk.weight },
   ].filter((r) => r.value);
-  const hasSpecs = showSpecs !== false && regionVisible(settings?.design, "productSpecs") && (specRows.length > 0 || isLowStock);
+  const hasSpecs = showSpecs !== false && regionVisible(regionDesign, "productSpecs") && (specRows.length > 0 || isLowStock);
 
   const renderSpecs = () => pdpSpecsRecord ? (
     <dl className="fm-pdp-record w-full text-left">
@@ -453,9 +458,9 @@ export default function BookDetail() {
   );
 
   const detailTabs: { id: "description" | "specs" | "reviews"; label: string }[] = [
-    ...(regionVisible(settings?.design, "productDescription") ? [{ id: "description" as const, label: getCopy(settings?.design, "tabDescription") }] : []),
+    ...(regionVisible(regionDesign, "productDescription") ? [{ id: "description" as const, label: getCopy(settings?.design, "tabDescription") }] : []),
     ...(hasSpecs ? [{ id: "specs" as const, label: getCopy(settings?.design, productDetailsLayout === "accordions" ? "tabSpecs" : "tabDetails") }] : []),
-    ...(regionVisible(settings?.design, "productReviews") ? [{ id: "reviews" as const, label: getCopy(settings?.design, "tabReviews") }] : []),
+    ...(regionVisible(regionDesign, "productReviews") ? [{ id: "reviews" as const, label: getCopy(settings?.design, "tabReviews") }] : []),
   ];
   const activeTab = detailTabs.some((t) => t.id === detailsTab) ? detailsTab : detailTabs[0]?.id;
   const onTabKey = (e: React.KeyboardEvent, i: number) => {
@@ -568,6 +573,319 @@ export default function BookDetail() {
   }
 
   // ── page ───────────────────────────────────────────────────────────────────
+  // Blocks the owner added in Studio (Page layout › Buy box blocks). Their words can be connected to this book's
+  // details (2.7); with Hide when empty a block whose connected detail is missing is left out.
+  const renderCustomBlock = (block: ProductBlock): React.ReactNode => {
+    const resolved = resolveDynamicSettings(block.settings || {}, { book }, { preview: inPreview });
+    if (resolved.hidden) return null;
+    const v = resolved.settings as Record<string, any>;
+    const text = (key: string) => (typeof v[key] === "string" ? v[key].trim() : "");
+    const hook = { "data-studio-target": "style:productCard|copy:Product page", "data-studio-label": blockLabel(block), "data-pdp-block": block.id };
+    switch (block.type) {
+      case "text":
+        return text("text") ? <p key={block.id} {...hook} className="fm-pdp-text w-full text-[14px] leading-[1.7] whitespace-pre-line">{text("text")}</p> : null;
+      case "collapsible":
+        return text("heading") ? (
+          <details key={block.id} {...hook} className="fm-pdp-collapsible w-full">
+            <summary className="fm-pdp-meta cursor-pointer">{text("heading")}</summary>
+            {text("body") && <p className="mt-2 text-[14px] leading-[1.7] whitespace-pre-line">{text("body")}</p>}
+          </details>
+        ) : null;
+      case "badge": {
+        const tone = ["accent", "success", "warning", "danger"].includes(v.tone) ? v.tone : "accent";
+        return text("label") ? <div key={block.id} {...hook}><span className="fm-pdp-tag fm-pdp-badge" data-style="outline" style={{ color: `var(--${tone}, currentColor)`, borderColor: `var(--${tone}, currentColor)` }}>{text("label")}</span></div> : null;
+      }
+      case "lookInside": {
+        const href = text("link");
+        if (!href || !text("label")) return null;
+        return /^https?:\/\//i.test(href)
+          ? <a key={block.id} {...hook} href={href} target="_blank" rel="noopener noreferrer" className="fm-pdp-meta fm-pdp-look-inside underline underline-offset-4">{text("label")}</a>
+          : <Link key={block.id} {...hook} to={href} className="fm-pdp-meta fm-pdp-look-inside underline underline-offset-4">{text("label")}</Link>;
+      }
+      case "customField": {
+        const value = String(bk.custom?.[v.fieldKey] ?? "").trim();
+        if (!value) return null;
+        return <p key={block.id} {...hook} className="fm-pdp-detail w-full">{text("label") && <span className="fm-pdp-meta mr-2">{text("label")}</span>}<span>{value}</span></p>;
+      }
+      default: return null;
+    }
+  };
+  // ── Buy card blocks (Studio 2.9) ── each built-in returns exactly the JSX the card had before it became a list.
+  const renderBlock = (block: ProductBlock): React.ReactNode => {
+    switch (block.type) {
+      case "tag": {
+        if (!pdpShowTag) return null;
+        return <Fragment key={block.id}>
+                  {pdpShowTag && (
+                    <div>
+                      <span className="fm-pdp-tag" data-style={pdpTagStyle}>
+                        <Tag size={10} aria-hidden="true" />
+                        {categoryLabel || getCopy(settings?.design, "categoryFallback")}
+                      </span>
+                    </div>
+                  )}
+        </Fragment>;
+      }
+      case "heading": {
+        return <Fragment key={block.id}>
+                  <div className="space-y-3 w-full">
+                    <h1
+                      className="fm-pdp-title"
+                      data-studio-target="style:productCard" data-studio-label="Product title & price"
+                      style={titleAutoSize ? ({ "--pdp-title-auto": titleAutoSize } as React.CSSProperties) : undefined}
+                    >
+                      {book.title}
+                    </h1>
+                    {bk.subtitle && (
+                      <p className={`text-white/40 text-xl leading-snug ${
+                        productSubtitleWeight === "bold" ? "font-bold" :
+                        productSubtitleWeight === "medium" ? "font-normal" : "font-light"
+                      }`}>{bk.subtitle}</p>
+                    )}
+                    {bk.authorName && (
+                      <p className="fm-pdp-meta">{bk.authorName}</p>
+                    )}
+                  </div>
+        </Fragment>;
+      }
+      case "price": {
+        return <Fragment key={block.id}>
+                  <div data-section="colors" className={`flex flex-wrap items-end gap-x-5 gap-y-3 w-full ${productAlignment === "center" ? "justify-center" : "justify-between"}`}>
+                    <div className="flex flex-wrap items-baseline gap-x-4 gap-y-2">
+                      {isOnSale ? (
+                        <>
+                          <span className="fm-pdp-price">{formatBookPrice(book)}</span>
+                          <span className="text-white/25 line-through text-xl">{formatBookPrice(book, true)}</span>
+                          <span
+                            className="text-[9px] font-black tracking-widest border px-3 py-1.5 uppercase"
+                            style={{
+                              color: "var(--success)",
+                              backgroundColor: "rgba(var(--success-rgb), 0.1)",
+                              borderColor: "rgba(var(--success-rgb), 0.2)",
+                            }}
+                          >
+                            {getCopy(settings?.design, "saveAmount", { amount: formatPrice(getBookPrice(book, true) - getBookPrice(book)) })}
+                          </span>
+                        </>
+                      ) : (
+                        <span className="fm-pdp-price">
+                          {retailPrice > 0 ? (selectedVariant ? formatPrice(selectedVariant.price) : formatBookPrice(book)) : getCopy(settings?.design, "priceOnRequest")}
+                        </span>
+                      )}
+                    </div>
+                    {saleEnds && !isOutOfStock && regionVisible(regionDesign, "productSaleEnds") && (
+                      <span {...regionProps("productSaleEnds")} className="fm-pdp-meta fm-pdp-sale-ends">
+                        {getCopy(settings?.design, "pdpSaleEnds", { date: formatReleaseDate(saleEnds) })}
+                      </span>
+                    )}
+                    {pdpShowStock && !isGiftCard && (
+                      <span className="fm-pdp-meta fm-pdp-stock" data-state={isOutOfStock ? "out" : isPreorder ? "preorder" : isLowStock ? "low" : "in"}>
+                        {stockText}
+                      </span>
+                    )}
+                  </div>
+        </Fragment>;
+      }
+      case "formats": {
+        if (!(book.variants && book.variants.length > 0)) return null;
+        return <Fragment key={block.id}>
+                  {book.variants && book.variants.length > 0 && (
+                    <div className={`flex flex-col gap-2.5 w-full ${productAlignment === "center" ? "items-center" : "items-start"}`}>
+                      <span id="pdp-format-label" className="fm-pdp-meta">{getCopy(settings?.design, isGiftCard ? "pdpGiftAmountLabel" : "bookFormatLabel")}</span>
+                      <div role="group" aria-labelledby="pdp-format-label" className={`flex flex-wrap gap-2 ${productAlignment === "center" ? "justify-center" : "justify-start"}`}>
+                        {book.variants.map((v: any) => {
+                          const vStock = v.stockLevel ?? v.stock ?? 0;
+                          return (
+                            <button
+                              key={v.id}
+                              type="button"
+                              onClick={() => setSelectedVariant(v)}
+                              aria-pressed={selectedVariant?.id === v.id}
+                              data-soldout={Number(vStock) <= 0}
+                              className="fm-pdp-chip"
+                            >
+                              {v.name}{Number.isFinite(Number(v.price)) && v.price !== null && v.price !== "" ? ` · ${formatPrice(Number(v.price))}` : ""}
+                            </button>
+                          );
+                        })}
+                      </div>
+                    </div>
+                  )}
+        </Fragment>;
+      }
+      case "boxSet": {
+        if (!isBoxSet) return null;
+        return <Fragment key={block.id}>
+                  {isBoxSet && <BoxSetContents design={regionDesign} book={book} books={books} />}
+        </Fragment>;
+      }
+      case "addOns": {
+        if (isOutOfStock || !addOns.length) return null;
+        return <Fragment key={block.id}>
+                  {!isOutOfStock && (
+                    <AddOnPicker
+                      design={regionDesign}
+                      addOns={addOns}
+                      picks={addOnPicks}
+                      onChange={(next) => { setAddOnPicks(next); setAddOnError(""); }}
+                      error={addOnError}
+                      formatPrice={formatPrice}
+                      unitPrice={catalogUnitPrice(book, selectedVariant || undefined)}
+                    />
+                  )}
+        </Fragment>;
+      }
+      case "giftCard": {
+        if (!(isGiftCard && !isOutOfStock)) return null;
+        return <Fragment key={block.id}>
+                  {isGiftCard && !isOutOfStock && (
+                    <GiftCardForm design={regionDesign} value={giftForm} onChange={(next) => { setGiftForm(next); setGiftError(""); }} error={giftError} />
+                  )}
+        </Fragment>;
+      }
+      case "buy": {
+        return <Fragment key={block.id}>
+                  {/* CTA */}
+                  <div className={`flex flex-wrap gap-2.5 w-full ${
+                    productCtaWidth === "auto" && productAlignment === "center" ? "justify-center" : "justify-start"
+                  }`}>
+                    {showQtyStepper && !isOutOfStock && (
+                      <div className="fm-pdp-qty">
+                        <button
+                          type="button"
+                          onClick={() => setQty((q) => Math.max(1, q - 1))}
+                          aria-label={getCopy(settings?.design, "ariaQtyDown")}
+                          disabled={qty <= 1}
+                        >
+                          <Minus size={14} />
+                        </button>
+                        <output aria-live="polite">{qty}</output>
+                        <button
+                          type="button"
+                          onClick={() => setQty((q) => Math.min(qtyMax, q + 1))}
+                          aria-label={getCopy(settings?.design, "ariaQtyUp")}
+                          disabled={qty >= qtyMax}
+                        >
+                          <Plus size={14} />
+                        </button>
+                      </div>
+                    )}
+                    <m.button
+                      data-section="buttons"
+                      onClick={handleAddToCart}
+                      disabled={isOutOfStock}
+                      whileTap={!isOutOfStock ? { scale: 0.97 } : {}}
+                      animate={
+                        !isOutOfStock && !added && productCtaAnimation === "pulse"
+                          ? { scale: [1, 1.02, 1] }
+                          : !isOutOfStock && !added && productCtaAnimation === "glow"
+                          // .custom-btn draws box-shadow from --btn-shadow with !important, so the glow animates that variable.
+                          ? { "--btn-shadow": [`0 0 0px ${buttonBg}00`, `0 0 20px ${buttonBg}50`, `0 0 0px ${buttonBg}00`] } as any
+                          : {}
+                      }
+                      transition={
+                        !isOutOfStock && !added && (productCtaAnimation === "pulse" || productCtaAnimation === "glow")
+                          ? { duration: 2, repeat: Infinity, ease: "easeInOut" }
+                          : {}
+                      }
+                      whileHover={
+                        !isOutOfStock && !added && productCtaAnimation === "scale"
+                          ? { scale: 1.04, y: -2 }
+                          : {}
+                      }
+                      className={`${productCtaWidth === "full" ? "flex-1 min-w-[170px]" : "px-8"} min-h-[52px] flex items-center justify-center gap-3 ${
+                        productCtaSize === "medium" ? "py-3" : "py-4"
+                      } text-[10px] font-black tracking-[0.3em] transition-colors duration-300 ${
+                        isOutOfStock
+                          ? "bg-white/[0.06] text-white/25 cursor-not-allowed border border-white/[0.06]"
+                          : added
+                          ? "fm-success-solid"
+                          : `custom-btn ${buttonShadow ? "shadow-2xl" : ""} ${buttonUppercase ? "uppercase" : ""}`
+                      }`}
+                      style={
+                        !isOutOfStock && !added
+                          ? {
+                              "--btn-bg": buttonStyle === "solid" ? buyButton.bg : "transparent",
+                              "--btn-text": buttonStyle === "solid" ? buyButton.text : buyButton.bg,
+                              "--btn-border": buttonStyle !== "solid" ? `1px solid ${buyButton.bg}` : "none",
+                              "--btn-shadow": buttonStyle === "solid" && buttonShadow ? `0 20px 60px ${buyButton.bg}50` : "none",
+                              borderRadius: buttonRadius,
+                            } as React.CSSProperties
+                          : { borderRadius: buttonRadius }
+                      }
+                    >
+                      {isOutOfStock ? (
+                        getCopy(settings?.design, "soldOutLabel")
+                      ) : added ? (
+                        <><Check size={14} strokeWidth={3} /> {getCopy(settings?.design, "bookAdded")}</>
+                      ) : (
+                        <><ShoppingBag size={14} /> {isPreorder ? getCopy(settings?.design, "preorderButton") : (storefrontDesign.addToBagLabel || settings?.design?.addToBagLabel || getCopy(settings?.design, "addToBagLabel"))}</>
+                      )}
+                    </m.button>
+
+                    <button
+                      type="button"
+                      data-section="colors"
+                      onClick={() => book && toggleWish(book.id)}
+                      aria-pressed={wished}
+                      aria-label={getCopy(settings?.design, wished ? "wishlistRemoveAria" : "wishlistAddAria")}
+                      title={getCopy(settings?.design, wished ? "wishlistInTitle" : "wishlistSaveTitle")}
+                      className={`fm-pdp-sq transition-all ${wished ? "fm-favorite-active" : ""}`}
+                    >
+                      <Heart size={16} fill={wished ? "currentColor" : "none"} />
+                    </button>
+
+                    {showSocialShare && (
+                      <button
+                        type="button"
+                        onClick={handleShare}
+                        aria-label={getCopy(settings?.design, "bookShare")}
+                        title={getCopy(settings?.design, "bookShare")}
+                        className="fm-pdp-sq transition-all"
+                      >
+                        <Share2 size={16} />
+                      </button>
+                    )}
+                  </div>
+        </Fragment>;
+      }
+      case "backInStock": {
+        if (!(isOutOfStock && showBackInStock && book)) return null;
+        return <Fragment key={block.id}>
+                  {isOutOfStock && showBackInStock && book && (
+                    <BackInStockForm
+                      key={`${book.id}:${selectedVariant?.id || "base"}`}
+                      design={settings?.design}
+                      bookId={book.id}
+                      bookTitle={book.title}
+                      variantId={selectedVariant?.id}
+                      variantName={selectedVariant?.name}
+                    />
+                  )}
+        </Fragment>;
+      }
+      case "details": {
+        if (!(productDetailsLayout === "sections" && ((bk.description && regionVisible(regionDesign, "productDescription")) || hasSpecs))) return null;
+        return <Fragment key={block.id}>
+                    {bk.description && regionVisible(regionDesign, "productDescription") && (
+                      productDescriptionStyle === "designed" ? (
+                        <div {...regionProps("productDescription")} className="w-full">
+                          <p className="fm-pdp-meta mb-3" style={{ color: "var(--accent, #e8402a)" }}>
+                            {getCopy(settings?.design, "productDescriptionLabel")}
+                          </p>
+                          <p className="text-[15px] leading-[1.8] whitespace-pre-line">{bk.description}</p>
+                        </div>
+                      ) : (
+                        <p {...regionProps("productDescription")} className="text-white/50 text-[14px] leading-[1.8] whitespace-pre-line">{bk.description}</p>
+                      )
+                    )}
+                    {hasSpecs && <div {...regionProps("productSpecs")}>{renderSpecs()}</div>}
+        </Fragment>;
+      }
+      default: return renderCustomBlock(block);
+    }
+  };
+
   return (
     <div
       data-fm-store data-studio-target="style:productPage|copy:Product page|style:labels" data-studio-label="Product page"
@@ -819,246 +1137,11 @@ export default function BookDetail() {
             <div data-section="products" className="flex flex-col gap-8 lg:sticky lg:top-24 w-full min-w-0">
               <div className="fm-pdp-card" data-studio-target="style:productCard|copy:Product page" data-studio-label="Buy card">
 
-                {/* Tag · title · price · stock */}
-                <div className={`fm-pdp-card-section ${alignCls}`}>
-                  {pdpShowTag && (
-                    <div>
-                      <span className="fm-pdp-tag" data-style={pdpTagStyle}>
-                        <Tag size={10} aria-hidden="true" />
-                        {categoryLabel || getCopy(settings?.design, "categoryFallback")}
-                      </span>
-                    </div>
-                  )}
-                  <div className="space-y-3 w-full">
-                    <h1
-                      className="fm-pdp-title"
-                      data-studio-target="style:productCard" data-studio-label="Product title & price"
-                      style={titleAutoSize ? ({ "--pdp-title-auto": titleAutoSize } as React.CSSProperties) : undefined}
-                    >
-                      {book.title}
-                    </h1>
-                    {bk.subtitle && (
-                      <p className={`text-white/40 text-xl leading-snug ${
-                        productSubtitleWeight === "bold" ? "font-bold" :
-                        productSubtitleWeight === "medium" ? "font-normal" : "font-light"
-                      }`}>{bk.subtitle}</p>
-                    )}
-                    {bk.authorName && (
-                      <p className="fm-pdp-meta">{bk.authorName}</p>
-                    )}
-                  </div>
-                  <div data-section="colors" className={`flex flex-wrap items-end gap-x-5 gap-y-3 w-full ${productAlignment === "center" ? "justify-center" : "justify-between"}`}>
-                    <div className="flex flex-wrap items-baseline gap-x-4 gap-y-2">
-                      {isOnSale ? (
-                        <>
-                          <span className="fm-pdp-price">{formatBookPrice(book)}</span>
-                          <span className="text-white/25 line-through text-xl">{formatBookPrice(book, true)}</span>
-                          <span
-                            className="text-[9px] font-black tracking-widest border px-3 py-1.5 uppercase"
-                            style={{
-                              color: "var(--success)",
-                              backgroundColor: "rgba(var(--success-rgb), 0.1)",
-                              borderColor: "rgba(var(--success-rgb), 0.2)",
-                            }}
-                          >
-                            {getCopy(settings?.design, "saveAmount", { amount: formatPrice(getBookPrice(book, true) - getBookPrice(book)) })}
-                          </span>
-                        </>
-                      ) : (
-                        <span className="fm-pdp-price">
-                          {retailPrice > 0 ? (selectedVariant ? formatPrice(selectedVariant.price) : formatBookPrice(book)) : getCopy(settings?.design, "priceOnRequest")}
-                        </span>
-                      )}
-                    </div>
-                    {saleEnds && !isOutOfStock && regionVisible(settings?.design, "productSaleEnds") && (
-                      <span {...regionProps("productSaleEnds")} className="fm-pdp-meta fm-pdp-sale-ends">
-                        {getCopy(settings?.design, "pdpSaleEnds", { date: formatReleaseDate(saleEnds) })}
-                      </span>
-                    )}
-                    {pdpShowStock && !isGiftCard && (
-                      <span className="fm-pdp-meta fm-pdp-stock" data-state={isOutOfStock ? "out" : isPreorder ? "preorder" : isLowStock ? "low" : "in"}>
-                        {stockText}
-                      </span>
-                    )}
-                  </div>
-                </div>
-
-                {/* Format · quantity · add to bag */}
-                <div className={`fm-pdp-card-section ${alignCls}`}>
-                  {book.variants && book.variants.length > 0 && (
-                    <div className={`flex flex-col gap-2.5 w-full ${productAlignment === "center" ? "items-center" : "items-start"}`}>
-                      <span id="pdp-format-label" className="fm-pdp-meta">{getCopy(settings?.design, isGiftCard ? "pdpGiftAmountLabel" : "bookFormatLabel")}</span>
-                      <div role="group" aria-labelledby="pdp-format-label" className={`flex flex-wrap gap-2 ${productAlignment === "center" ? "justify-center" : "justify-start"}`}>
-                        {book.variants.map((v: any) => {
-                          const vStock = v.stockLevel ?? v.stock ?? 0;
-                          return (
-                            <button
-                              key={v.id}
-                              type="button"
-                              onClick={() => setSelectedVariant(v)}
-                              aria-pressed={selectedVariant?.id === v.id}
-                              data-soldout={Number(vStock) <= 0}
-                              className="fm-pdp-chip"
-                            >
-                              {v.name}{Number.isFinite(Number(v.price)) && v.price !== null && v.price !== "" ? ` · ${formatPrice(Number(v.price))}` : ""}
-                            </button>
-                          );
-                        })}
-                      </div>
-                    </div>
-                  )}
-
-                  {isBoxSet && <BoxSetContents design={settings?.design} book={book} books={books} />}
-
-                  {!isOutOfStock && (
-                    <AddOnPicker
-                      design={settings?.design}
-                      addOns={addOns}
-                      picks={addOnPicks}
-                      onChange={(next) => { setAddOnPicks(next); setAddOnError(""); }}
-                      error={addOnError}
-                      formatPrice={formatPrice}
-                      unitPrice={catalogUnitPrice(book, selectedVariant || undefined)}
-                    />
-                  )}
-
-                  {isGiftCard && !isOutOfStock && (
-                    <GiftCardForm design={settings?.design} value={giftForm} onChange={(next) => { setGiftForm(next); setGiftError(""); }} error={giftError} />
-                  )}
-
-                  {/* CTA */}
-                  <div className={`flex flex-wrap gap-2.5 w-full ${
-                    productCtaWidth === "auto" && productAlignment === "center" ? "justify-center" : "justify-start"
-                  }`}>
-                    {showQtyStepper && !isOutOfStock && (
-                      <div className="fm-pdp-qty">
-                        <button
-                          type="button"
-                          onClick={() => setQty((q) => Math.max(1, q - 1))}
-                          aria-label={getCopy(settings?.design, "ariaQtyDown")}
-                          disabled={qty <= 1}
-                        >
-                          <Minus size={14} />
-                        </button>
-                        <output aria-live="polite">{qty}</output>
-                        <button
-                          type="button"
-                          onClick={() => setQty((q) => Math.min(qtyMax, q + 1))}
-                          aria-label={getCopy(settings?.design, "ariaQtyUp")}
-                          disabled={qty >= qtyMax}
-                        >
-                          <Plus size={14} />
-                        </button>
-                      </div>
-                    )}
-                    <m.button
-                      data-section="buttons"
-                      onClick={handleAddToCart}
-                      disabled={isOutOfStock}
-                      whileTap={!isOutOfStock ? { scale: 0.97 } : {}}
-                      animate={
-                        !isOutOfStock && !added && productCtaAnimation === "pulse"
-                          ? { scale: [1, 1.02, 1] }
-                          : !isOutOfStock && !added && productCtaAnimation === "glow"
-                          // .custom-btn draws box-shadow from --btn-shadow with !important, so the glow animates that variable.
-                          ? { "--btn-shadow": [`0 0 0px ${buttonBg}00`, `0 0 20px ${buttonBg}50`, `0 0 0px ${buttonBg}00`] } as any
-                          : {}
-                      }
-                      transition={
-                        !isOutOfStock && !added && (productCtaAnimation === "pulse" || productCtaAnimation === "glow")
-                          ? { duration: 2, repeat: Infinity, ease: "easeInOut" }
-                          : {}
-                      }
-                      whileHover={
-                        !isOutOfStock && !added && productCtaAnimation === "scale"
-                          ? { scale: 1.04, y: -2 }
-                          : {}
-                      }
-                      className={`${productCtaWidth === "full" ? "flex-1 min-w-[170px]" : "px-8"} min-h-[52px] flex items-center justify-center gap-3 ${
-                        productCtaSize === "medium" ? "py-3" : "py-4"
-                      } text-[10px] font-black tracking-[0.3em] transition-colors duration-300 ${
-                        isOutOfStock
-                          ? "bg-white/[0.06] text-white/25 cursor-not-allowed border border-white/[0.06]"
-                          : added
-                          ? "fm-success-solid"
-                          : `custom-btn ${buttonShadow ? "shadow-2xl" : ""} ${buttonUppercase ? "uppercase" : ""}`
-                      }`}
-                      style={
-                        !isOutOfStock && !added
-                          ? {
-                              "--btn-bg": buttonStyle === "solid" ? buyButton.bg : "transparent",
-                              "--btn-text": buttonStyle === "solid" ? buyButton.text : buyButton.bg,
-                              "--btn-border": buttonStyle !== "solid" ? `1px solid ${buyButton.bg}` : "none",
-                              "--btn-shadow": buttonStyle === "solid" && buttonShadow ? `0 20px 60px ${buyButton.bg}50` : "none",
-                              borderRadius: buttonRadius,
-                            } as React.CSSProperties
-                          : { borderRadius: buttonRadius }
-                      }
-                    >
-                      {isOutOfStock ? (
-                        getCopy(settings?.design, "soldOutLabel")
-                      ) : added ? (
-                        <><Check size={14} strokeWidth={3} /> {getCopy(settings?.design, "bookAdded")}</>
-                      ) : (
-                        <><ShoppingBag size={14} /> {isPreorder ? getCopy(settings?.design, "preorderButton") : (storefrontDesign.addToBagLabel || settings?.design?.addToBagLabel || getCopy(settings?.design, "addToBagLabel"))}</>
-                      )}
-                    </m.button>
-
-                    <button
-                      type="button"
-                      data-section="colors"
-                      onClick={() => book && toggleWish(book.id)}
-                      aria-pressed={wished}
-                      aria-label={getCopy(settings?.design, wished ? "wishlistRemoveAria" : "wishlistAddAria")}
-                      title={getCopy(settings?.design, wished ? "wishlistInTitle" : "wishlistSaveTitle")}
-                      className={`fm-pdp-sq transition-all ${wished ? "fm-favorite-active" : ""}`}
-                    >
-                      <Heart size={16} fill={wished ? "currentColor" : "none"} />
-                    </button>
-
-                    {showSocialShare && (
-                      <button
-                        type="button"
-                        onClick={handleShare}
-                        aria-label={getCopy(settings?.design, "bookShare")}
-                        title={getCopy(settings?.design, "bookShare")}
-                        className="fm-pdp-sq transition-all"
-                      >
-                        <Share2 size={16} />
-                      </button>
-                    )}
-                  </div>
-
-                  {isOutOfStock && showBackInStock && book && (
-                    <BackInStockForm
-                      key={`${book.id}:${selectedVariant?.id || "base"}`}
-                      design={settings?.design}
-                      bookId={book.id}
-                      bookTitle={book.title}
-                      variantId={selectedVariant?.id}
-                      variantName={selectedVariant?.name}
-                    />
-                  )}
-                </div>
-
-                {/* Description + specs inside the card ("Sections" details layout) */}
-                {productDetailsLayout === "sections" && ((bk.description && regionVisible(settings?.design, "productDescription")) || hasSpecs) && (
-                  <div className={`fm-pdp-card-section ${alignCls}`}>
-                    {bk.description && regionVisible(settings?.design, "productDescription") && (
-                      productDescriptionStyle === "designed" ? (
-                        <div {...regionProps("productDescription")} className="w-full">
-                          <p className="fm-pdp-meta mb-3" style={{ color: "var(--accent, #e8402a)" }}>
-                            {getCopy(settings?.design, "productDescriptionLabel")}
-                          </p>
-                          <p className="text-[15px] leading-[1.8] whitespace-pre-line">{bk.description}</p>
-                        </div>
-                      ) : (
-                        <p {...regionProps("productDescription")} className="text-white/50 text-[14px] leading-[1.8] whitespace-pre-line">{bk.description}</p>
-                      )
-                    )}
-                    {hasSpecs && <div {...regionProps("productSpecs")}>{renderSpecs()}</div>}
-                  </div>
-                )}
+                {cardSections(productBlocks(tokenSource)).map((section, index) => {
+                  // A section shows only when something in it does (the description section used to be conditional).
+                  const parts = section.map(renderBlock).filter(part => part !== null && part !== false && part !== undefined);
+                  return parts.length ? <div key={index} className={`fm-pdp-card-section ${alignCls}`}>{parts}</div> : null;
+                })}
               </div>
 
               {!pdpDetailsBelow && detailsBlock}

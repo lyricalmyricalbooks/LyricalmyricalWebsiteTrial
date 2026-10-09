@@ -613,6 +613,33 @@ await check("a new book page template gets its own sections and is listed in the
   if (design.productPage?.sections?.some(s => s.type === "PromoStripSection")) throw new Error("section leaked onto the default template");
 }, "#designer?t=productPage");
 
+await check("the buy box follows Buy box blocks, and Add to bag still adds to the bag", desktop, async page => {
+  await expectText(page, "Preview connected", 30000);
+  const panel = page.locator("[data-studio-panel=product-blocks]");
+  await panel.getByRole("button", { name: "Move Price, sale end & stock up", exact: true }).click();
+  await panel.getByRole("button", { name: "Hide Category tag", exact: true }).click();
+  await panel.locator(".studio-pdp-add select").selectOption("collapsible");
+  const frame = page.frames().find(f => /preview=true/.test(f.url()));
+  if (!frame) throw new Error("no preview frame");
+  await frame.waitForFunction(() => {
+    const card = document.querySelector(".fm-pdp-card");
+    if (!card) return false;
+    const price = card.querySelector(".fm-pdp-price"), title = card.querySelector(".fm-pdp-title");
+    return !!price && !!title && !!card.querySelector("details.fm-pdp-collapsible") && !card.querySelector(".fm-pdp-tag")
+      && !!(price.compareDocumentPosition(title) & Node.DOCUMENT_POSITION_FOLLOWING);
+  }, undefined, { timeout: 15000 });
+  await page.getByRole("button", { name: "Save draft" }).click();
+  await page.waitForFunction(() => window.__studioFixture.calls.some(c => c.method === "saveDesign"));
+  const design = (await calls(page)).find(c => c.method === "saveDesign").args[0].design;
+  const saved = design.productPage?.productInfoBlocks || [];
+  if (!saved.some(b => b.type === "collapsible") || !saved.find(b => b.type === "tag")?.hidden) throw new Error(`blocks not saved: ${JSON.stringify(saved)}`);
+  // Commerce safety: the moved buy box still buys.
+  await page.getByRole("button", { name: "Edit mode" }).click();
+  await frame.evaluate(() => localStorage.removeItem("fm_cart"));
+  await frame.locator(".fm-pdp-card [data-section=buttons]").click();
+  await frame.waitForFunction(() => (JSON.parse(localStorage.getItem("fm_cart") || "[]")).length === 1, undefined, { timeout: 10000 });
+}, "#designer?t=productPage");
+
 await check("phone-sized editor loads without errors", { width: 390, height: 844 }, async page => {
   await page.waitForTimeout(1500);
   const overflow = await page.evaluate(() => document.documentElement.scrollWidth - window.innerWidth);

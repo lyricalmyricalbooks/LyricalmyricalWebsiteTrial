@@ -487,6 +487,12 @@ card (New template from this one / Rename / Delete); the preview URL carries `?t
 sections only. Use `bookTemplateSurface` / `categoryTemplateSurface` / `sectionsSurface` — never read `design.productPage`
 directly for a book's sections.
 
+**Product information as blocks (2.9):** the buy card is the ordered list `productInfoBlocks` (on `productPage` or an
+alternate template) — rules in `features/site/productBlocks.ts`, rendered by `renderBlock` in `BookDetail.tsx`, edited in
+Page layout › **Buy box blocks** (`studio/StudioProductBlocks.tsx`). No list = the hand-written card exactly
+(`productCard.parity.test.tsx` + `__fixtures__/productCardDom.json`); a new buy-card piece needs a built-in block type and a
+parity fixture refresh. `heading` and `buy` are required. Buy-card visibility reads `regionDesign` (the shown template).
+
 **Colour schemes (2.5):** Studio › Theme settings › **Colour schemes** (`StudioColorSchemes.tsx`, pure edits in
 `studio/colorSchemeOps.ts`) edits `design.colorSchemes` — ten roles (background, surface, text, muted, accent, onAccent,
 border, buttonBg, buttonText, link) with a live swatch and WCAG badges. `features/site/colorSchemes.ts` `schemeCss()`
