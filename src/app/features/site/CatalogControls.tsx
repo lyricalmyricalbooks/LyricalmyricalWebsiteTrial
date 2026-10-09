@@ -3,6 +3,7 @@ import { getCopy } from "./storeCopy";
 import { regionProps } from "./storefrontRegions";
 import { displayPrice } from "./displayPrice";
 import { quickAddChoice } from "./buyable";
+import { matchesSearch } from "./bookSearch";
 
 export type SortKey = "newest" | "price_asc" | "price_desc" | "title_az" | "title_za";
 
@@ -17,7 +18,6 @@ export const SORT_OPTIONS: { key: SortKey; label: string }[] = [
 // ⚡ Bolt: Cache the search strings per item to prevent repeated allocations
 // and `.toLowerCase()` calls during active typing or sorting.
 // Measured impact: reduces search loop time by ~85% on subsequent renders.
-const haystackCache = new WeakMap<any, string>();
 
 // ── Shop filters (format · price · in stock), Shopify-style ────────────────
 export type FormatKey = "paperback" | "hardcover" | "ebook" | "audiobook" | "other";
@@ -105,22 +105,7 @@ export function applyCatalogControls(
 
   const filtered = items.filter(item => {
     if (q) {
-      let haystack = haystackCache.get(item);
-      if (!haystack) {
-        haystack = [
-          item.title,
-          item.subtitle,
-          item.authorName,
-          item.isbn,
-          ...(item.categories || []),
-          ...(item.genres || []),
-        ]
-          .filter(Boolean)
-          .join(" ")
-          .toLowerCase();
-        haystackCache.set(item, haystack);
-      }
-      if (!haystack.includes(q)) return false;
+      if (!matchesSearch(item, q)) return false;
     }
     // Editions count: a book sold out in paperback but available as an e-book is in stock.
     if (inStockOnly && !bookInStock(item)) return false;
