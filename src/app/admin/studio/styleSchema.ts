@@ -28,6 +28,7 @@ export const STYLE_TARGET_FIELDS: Record<string, RegExp> = {
   "Card title & price": /^(productTitleColor|productPriceColor|cardTitle|cardPrice|catalogPriceStyle|catalogTitleTransform|catalogCardRuleWidth)/,
   "Buy card": /^(pdpCard|pdpShowTag|pdpTag|pdpTitle|pdpPrice|pdpShowStock|pdpStock|productCta|addToBagLabel|showQtyStepper|showSocialShare|showBackInStock)/,
   "Product title & price": /^(pdpTitle|pdpPrice|productTitleSize|productSubtitleWeight)/,
+  "Sticky add-to-bag bar": /^(showStickyBuyBar|stickyBuyBar)/,
   "Product photos": /^(productPhotoOutline|pdpThumb|pdpPhoto|pdpShowCaption|productImage|productBorderRadius|showZoom)/,
   "Product details tabs": /^(pdpDetailsPlacement|pdpSpecsStyle|pdpTab|pdpPanel|productDetailsLayout|showSpecs)/,
   "Breadcrumb": /^(pdpShowBreadcrumb|pdpShowBackLink|pdpMeta)/,
@@ -394,6 +395,10 @@ export const STYLE_GROUPS: StyleGroup[] = [
       { key: "showSocialShare", label: "Share button", kind: "toggle" },
       { key: "showBackInStock", label: "“Notify me when back in stock” box (sold-out items)", kind: "toggle" },
       { key: "showZoom", label: "Image zoom", kind: "toggle" },
+      { key: "showStickyBuyBar", label: "Sticky add-to-bag bar (appears when the button scrolls away)", kind: "toggle" },
+      { key: "stickyBuyBarDevices", label: "Sticky bar shows on", kind: "select", options: [{ value: "all", label: "All screen sizes" }, { value: "mobile", label: "Phones only" }] },
+      { key: "stickyBuyBarBg", label: "Sticky bar background", kind: "color" },
+      { key: "stickyBuyBarBorderColor", label: "Sticky bar top line colour", kind: "color" },
     ],
   },
   {

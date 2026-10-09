@@ -10,6 +10,11 @@ export type AppUpdate = {
 // Newest first. Every PR adds an entry; links open the affected admin workspace.
 export const APP_UPDATES: AppUpdate[] = [
   {
+    id: "pdp-sticky-buy-bar", date: "2026-10-09", title: "A sticky Add to bag bar on book pages",
+    summary: "Like many Shopify themes, a book's page can now show a slim bar at the bottom of the screen once a shopper scrolls past the Add to bag button, with the book's photo, title, price, chosen edition and its own Add to bag (or Pre-order) button — so they can buy without scrolling back up. It is off until you turn it on. You can show it on every screen size or on phones only, and set its background and top line colour. It never appears for sold-out books. The screen-reader name of the bar is in Text & labels › Product page.",
+    links: [{ label: "Open Product page layout", tab: "settings", settingsTab: "designer", studio: "#designer?tab=style" }],
+  },
+  {
     id: "studio-2-one-inspector", date: "2026-10-09", title: "Click any part of your shop to edit it in one place",
     summary: "In the Design studio, clicking any part of the preview — the header, the category bar, the buy card, the shopping bag, the footer — now opens its settings on the right, in tabs: Words (the words shown in that part), Style, Layout and Visibility. You no longer get a small \"what do you want to edit?\" menu or get sent to another tab. Sections have the same tabs (Content, Style, Layout, Visibility), with a new switch to hide a section on tablets only. The separate Shared layout tab is gone: the header and footer are listed in Page layout. Deleting from the preview's toolbar now happens straight away with an Undo button.",
     links: [{ label: "Open Page layout", tab: "settings", settingsTab: "designer", studio: "#designer?tab=sections" }],

@@ -119,6 +119,20 @@ export function productPageCss(design: any): string {
   css += `${S} .fm-pdp-record dd{font-family:${metaFont};font-size:14px;line-height:1.5;color:rgb(var(--fg-rgb));}`;
   css += `${S} .fm-pdp-record dt:first-of-type,${S} .fm-pdp-record dd:first-of-type{border-top:0;}`;
 
+  // Sticky add-to-bag bar (Product page layout › Sticky add-to-bag bar). Slides up from the bottom.
+  const stickyBg = color(d, "stickyBuyBarBg", "var(--surface)");
+  const stickyBorder = color(d, "stickyBuyBarBorderColor", outline);
+  css += `${S} .fm-pdp-sticky{position:fixed;left:0;right:0;bottom:0;z-index:40;display:flex;align-items:center;gap:14px;padding:10px max(16px, env(safe-area-inset-left)) calc(10px + env(safe-area-inset-bottom));background:${stickyBg};border-top:${outlineW} solid ${stickyBorder};color:rgb(var(--fg-rgb));transform:translateY(110%);transition:transform 220ms ease;}`;
+  css += `${S} .fm-pdp-sticky[data-open="true"]{transform:none;}`;
+  css += `${S} .fm-pdp-sticky-spacer{height:76px;}`;
+  css += `${S} .fm-pdp-sticky-thumb{width:40px;height:52px;flex:none;object-fit:cover;border:1px solid ${divider};}`;
+  css += `${S} .fm-pdp-sticky-info{flex:1;min-width:0;}`;
+  css += `${S} .fm-pdp-sticky-title{margin:0 0 2px;font-family:${titleFont};font-size:18px;line-height:1.1;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}`;
+  css += `${S} .fm-pdp-sticky-btn{flex:none;min-height:48px;padding:0 22px;display:inline-flex;align-items:center;gap:10px;font-size:10px;font-weight:900;letter-spacing:.28em;text-transform:uppercase;}`;
+  if (d.stickyBuyBarDevices === "mobile") css += `@media (min-width:${PHONE_MAX + 1}px){${S} .fm-pdp-sticky,${S} .fm-pdp-sticky-spacer{display:none;}}`;
+  css += `@media (prefers-reduced-motion:reduce){${S} .fm-pdp-sticky{transition:none;}}`;
+  css += `@media (max-width:${PHONE_MAX}px){${S} .fm-pdp-sticky-thumb{display:none;}${S} .fm-pdp-sticky-btn{padding:0 16px;letter-spacing:.18em;}}`;
+
   css += `@media (max-width:${PHONE_MAX}px){`
     + `${S} .fm-pdp-media[data-thumbs="side"]{grid-template-columns:minmax(0,1fr);}`
     + `${S} .fm-pdp-media[data-thumbs="side"] .fm-pdp-rail{flex-direction:row;max-height:none;overflow-x:auto;overflow-y:hidden;order:2;}`

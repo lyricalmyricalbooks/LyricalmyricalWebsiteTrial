@@ -174,6 +174,7 @@ export const COPY_SCHEMA: CopyGroup[] = [
       { key: "bookReturn", label: "Not-found button", default: "Return to Archive" },
       { key: "bookFormatLabel", label: "Format selector label", default: "Format / Edition" },
       { key: "bookAdded", label: "Added-to-bag confirmation", default: "Added to Bag" },
+      { key: "stickyBuyAria", label: "Sticky add-to-bag bar — screen-reader label", default: "Quick add to bag", hint: "The bar that slides up when the Add to bag button scrolls away. Turn it on in Theme settings › Product page layout." },
       { key: "bookShare", label: "Share button — label", default: "Share" },
       { key: "alertHeading", label: "Back-in-stock: heading", default: "Notify me when it's back" },
       { key: "alertPlaceholder", label: "Back-in-stock: email placeholder", default: "your@email.com" },

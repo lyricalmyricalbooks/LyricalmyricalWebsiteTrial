@@ -1,7 +1,7 @@
 import { catName, categoryNames } from "./navItems";
 import { recommendedBooks, editionFacts } from "./merchandising";
 import { motion, AnimatePresence } from "motion/react";
-import { Fragment, useEffect, useState } from "react";
+import { Fragment, useEffect, useRef, useState } from "react";
 import toast from "react-hot-toast";
 import { useParams, Link, useNavigate, useLocation } from "react-router";
 import {
@@ -364,6 +364,21 @@ export default function BookDetail() {
   const inBag = cart.find(item => item.id === book?.id && item.variantId === (selectedVariant?.id || undefined))?.quantity || 0;
   const qtyMax = Math.max(1, lineQuantityCap(stockLevel === 999 || backorderable(book, selectedVariant) ? undefined : Number(stockLevel)) - inBag);
   useEffect(() => { setQty(q => Math.min(q, qtyMax)); }, [qtyMax]);
+  // Sticky add-to-bag bar (Studio › Style › Product page layout › Sticky add-to-bag bar): shown once the
+  // buy card's own button has scrolled up out of view, hidden again when it comes back.
+  const showStickyBuyBar = storefrontDesign.showStickyBuyBar === true;
+  const buyButtonRef = useRef<HTMLButtonElement | null>(null);
+  const [buyButtonPassed, setBuyButtonPassed] = useState(false);
+  useEffect(() => {
+    setBuyButtonPassed(false);
+    const el = buyButtonRef.current;
+    if (!showStickyBuyBar || !el || typeof IntersectionObserver === "undefined") return;
+    const io = new IntersectionObserver(([entry]) => {
+      setBuyButtonPassed(!entry.isIntersecting && entry.boundingClientRect.top < 0);
+    });
+    io.observe(el);
+    return () => io.disconnect();
+  }, [showStickyBuyBar, book?.id, loading]);
   // Oversold stock goes below zero: that is sold out too, not "in stock".
   // An edition with no usable price can't be bought either; treat it like sold out rather than fake an add.
   const isOutOfStock  = Number(stockLevel) <= 0 || (!!book && !Number.isFinite(catalogUnitPrice(book, selectedVariant || undefined)));
@@ -889,6 +904,7 @@ export default function BookDetail() {
                       </div>
                     )}
                     <motion.button
+                      ref={buyButtonRef}
                       data-section="buttons"
                       onClick={handleAddToCart}
                       disabled={isOutOfStock}
@@ -1136,6 +1152,48 @@ export default function BookDetail() {
 
       </main>
       <SiteFooter settings={settings} pages={pages} />
+
+      {/* ── Sticky add-to-bag bar ── */}
+      {showStickyBuyBar && !isOutOfStock && (
+        <>
+          <div className="fm-pdp-sticky-spacer" aria-hidden="true" />
+          <div
+            className="fm-pdp-sticky"
+            data-open={buyButtonPassed ? "true" : "false"}
+            role="region"
+            aria-label={getCopy(settings?.design, "stickyBuyAria")}
+            aria-hidden={buyButtonPassed ? undefined : true}
+            inert={buyButtonPassed ? undefined : ("" as any)}
+            data-studio-target="style:productPage|copy:Product page" data-studio-label="Sticky add-to-bag bar"
+          >
+            <img className="fm-pdp-sticky-thumb" src={activeUrl} alt="" />
+            <div className="fm-pdp-sticky-info">
+              <p className="fm-pdp-sticky-title">{book.title}</p>
+              <p className="fm-pdp-meta">
+                {retailPrice > 0 ? (isOnSale ? formatBookPrice(book) : selectedVariant ? formatPrice(selectedVariant.price) : formatBookPrice(book)) : getCopy(settings?.design, "priceOnRequest")}
+                {selectedVariant?.name ? ` · ${selectedVariant.name}` : ""}
+              </p>
+            </div>
+            <button
+              type="button"
+              className={`fm-pdp-sticky-btn ${added ? "fm-success-solid" : "custom-btn"}`}
+              onClick={handleAddToCart}
+              style={{
+                "--btn-bg": buttonStyle === "solid" ? buttonBg : "transparent",
+                "--btn-text": buttonStyle === "solid" ? buttonText : buttonBg,
+                "--btn-border": buttonStyle !== "solid" ? `1px solid ${buttonBg}` : "none",
+                borderRadius: buttonRadius,
+              } as React.CSSProperties}
+            >
+              {added ? (
+                <><Check size={14} strokeWidth={3} aria-hidden="true" /> {getCopy(settings?.design, "bookAdded")}</>
+              ) : (
+                <><ShoppingBag size={14} aria-hidden="true" /> {isPreorder ? getCopy(settings?.design, "preorderButton") : (storefrontDesign.addToBagLabel || settings?.design?.addToBagLabel || getCopy(settings?.design, "addToBagLabel"))}</>
+              )}
+            </button>
+          </div>
+        </>
+      )}
     </div>
   );
 }
