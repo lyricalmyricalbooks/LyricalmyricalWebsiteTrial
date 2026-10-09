@@ -73,6 +73,25 @@ function publicOutboxEntry(id, entry = {}) {
   };
 }
 
+// Why a queued email no longer fits its order (sent hours later, the order may have moved on),
+// or "" when it should still go. `order` is the current order (null = deleted).
+function staleOrderEmailReason(kind, order) {
+  const k = String(kind || "");
+  const isOrderKind = /^(orderConfirmed|shopNewOrder|orderPendingPayment|shopPendingOrder|shipped|shopShipped|delivery)/.test(k);
+  if (!isOrderKind) return "";
+  if (!order) return "the order no longer exists";
+  const refunded = ["refunded", "refund_pending"].includes(order.paymentStatus);
+  const cancelled = order.status === "cancelled";
+  if (/^(orderPendingPayment|shopPendingOrder)/.test(k)) {
+    if (order.paymentStatus === "paid" || refunded) return "the order has been paid since";
+    if (cancelled) return "the order was cancelled since";
+    return "";
+  }
+  if (refunded) return "the order was refunded since";
+  if (cancelled) return "the order was cancelled since";
+  return "";
+}
+
 const daysAgoIso = (days, nowMs) => new Date(nowMs - days * 24 * 60 * 60 * 1000).toISOString();
 
 // Required placeholders: an email that loses one of these is useless to the customer, so the
@@ -99,6 +118,6 @@ function blankUnknownPlaceholders(text) {
 
 module.exports = {
   RETRY_DELAYS_MS, MAX_ATTEMPTS, LEASE_MS, LOG_RETENTION_DAYS, GAVE_UP_RETENTION_DAYS, REQUIRED_PLACEHOLDERS,
-  cleanRecipients, cleanSubject, cleanFromName, nextRetryAt, isPermanentEmailError, canSendNow, publicOutboxEntry,
+  cleanRecipients, cleanSubject, cleanFromName, nextRetryAt, isPermanentEmailError, canSendNow, publicOutboxEntry, staleOrderEmailReason,
   daysAgoIso, withRequiredPlaceholders, blankUnknownPlaceholders,
 };

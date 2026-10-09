@@ -1,7 +1,7 @@
 /**
  * Settings › Notifications template rules (pure): which placeholders each email knows, the
  * sample values the live preview fills in, and the checks shown under the editor. The server
- * mirror of REQUIRED_PLACEHOLDERS is functions/emailOutbox.js (emailTemplateChecks.parity.test.ts).
+ * mirror of REQUIRED_PLACEHOLDERS is functions/emailOutbox.js (parity checked in emailTemplateChecks.test.ts).
  */
 
 export type TemplateId =
@@ -70,6 +70,8 @@ export function templateProblems(templateId: TemplateId, fields: TemplateFields)
   if (unknown.size) {
     out.push({ tone: "warning", text: `${[...unknown].map(n => `{{${n}}}`).join(", ")} ${unknown.size === 1 ? "isn't a placeholder" : "aren't placeholders"} for this email, so ${unknown.size === 1 ? "it" : "they"} will be left blank. Check the spelling against the list below.` });
   }
+  const outsideBody = [fields.subject, fields.buttonText, fields.signoff].some(v => /\{\{\s*items_table\s*\}\}/.test(String(v ?? "")));
+  if (outsideBody) out.push({ tone: "warning", text: "{{items_table}} is the order table, so it only works in the body copy. Anywhere else it will be left blank." });
   if (!String(fields.subject ?? "").trim()) out.push({ tone: "danger", text: "The subject line is empty, so the default subject will be used." });
   if (!String(fields.body ?? "").trim()) out.push({ tone: "danger", text: "The body copy is empty, so the default text will be used." });
   for (const token of Object.keys(REQUIRED_PLACEHOLDERS[templateId] || {})) {

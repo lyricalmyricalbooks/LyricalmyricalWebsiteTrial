@@ -45,7 +45,7 @@ const { hitLimit, LIMITS, clientIpOf } = require("./rateLimit");
 const { reserveStock, releaseStock, releaseStockForOrder, StockHoldError, holdOwner } = require("./stockHolds");
 const { preorderActive, preorderLine, preorderEmailLines } = require("./preorder");
 const { claimEmailSend } = require("./emailThrottle");
-const { MAX_ATTEMPTS, LEASE_MS, LOG_RETENTION_DAYS, GAVE_UP_RETENTION_DAYS, cleanRecipients, cleanSubject, cleanFromName, nextRetryAt, isPermanentEmailError, canSendNow, publicOutboxEntry, daysAgoIso, withRequiredPlaceholders, blankUnknownPlaceholders } = require("./emailOutbox");
+const { MAX_ATTEMPTS, LEASE_MS, LOG_RETENTION_DAYS, GAVE_UP_RETENTION_DAYS, cleanRecipients, cleanSubject, cleanFromName, nextRetryAt, isPermanentEmailError, canSendNow, publicOutboxEntry, staleOrderEmailReason, daysAgoIso, withRequiredPlaceholders, blankUnknownPlaceholders } = require("./emailOutbox");
 
 admin.initializeApp();
 const db = admin.firestore();
@@ -340,7 +340,7 @@ async function sendOrderEmailOnce(orderId, kind, message) {
     return null;
   }
   try {
-    return await sendEmail({ queue: kind, ...message, claimId: ref.id });
+    return await sendEmail({ queue: kind, ...message, claimId: ref.id, about: { orderId } });
   } catch (err) {
     // Parked in the retry queue: keep the claim so a re-run trigger can't send a second copy.
     if (err?.queued) {
@@ -355,7 +355,7 @@ async function sendOrderEmailOnce(orderId, kind, message) {
 // `queue` (a short kind, e.g. "orderConfirmed"): when every sender refuses, park the email in
 // the server-only retry queue (emailOutbox) instead of losing it; the thrown error carries
 // `.queued` (the queue id). `outboxId` marks a send made by the retry queue itself.
-async function sendEmail({ to, subject, html, secret, queue = "", outboxId = "", attempt = 0, claimId = "" }) {
+async function sendEmail({ to, subject, html, secret, queue = "", outboxId = "", attempt = 0, claimId = "", about = {} }) {
   const recipientList = cleanRecipients(to);
   subject = cleanSubject(subject);
   const sourceHtml = html;
@@ -367,6 +367,9 @@ async function sendEmail({ to, subject, html, secret, queue = "", outboxId = "",
     const err = new Error(message); err.permanent = true; throw err;
   }
   to = recipientList.length === 1 ? recipientList[0] : recipientList;
+  // One id for this email across every try: the queue entry's id, and Resend's idempotency key,
+  // so a reply lost after Resend accepted the message can't turn into a second copy.
+  const queueId = outboxId || (queue ? crypto.randomBytes(12).toString("hex") : "");
   const okExtra = { ...(queue ? { kind: String(queue) } : {}), ...(outboxId ? { outboxId } : {}), ...(attempt > 1 ? { attempt } : {}) };
   let apiKey = secret;
   let keySource = secret ? "secret" : "none";
@@ -428,7 +431,8 @@ async function sendEmail({ to, subject, html, secret, queue = "", outboxId = "",
       if (html && !/<html[\s>]/i.test(html)) {
         html = risoLayout(html, { logoUrl: brand.logoUrl || "", accent: brand.brandColor, theme: brand.emailTheme });
       }
-      const transport = nodemailer.createTransport({ service: "gmail", auth: { user: ADMIN_TO, pass: gmailPass } });
+      // Bounded waits: a hung connection must not stall a trigger or the 15-minute sweep.
+      const transport = nodemailer.createTransport({ service: "gmail", auth: { user: ADMIN_TO, pass: gmailPass }, connectionTimeout: 15000, greetingTimeout: 15000, socketTimeout: 20000 });
       const info = await transport.sendMail({
         from: `"${cleanFromName(fromName)}" <${ADMIN_TO}>`,
         to,
@@ -452,7 +456,7 @@ async function sendEmail({ to, subject, html, secret, queue = "", outboxId = "",
     // The retry queue logs its own outcome (try N of M / gave up).
     if (outboxId) throw thrown;
     if (queue && !isPermanentEmailError(error)) {
-      const queued = await enqueueEmail({ to: recipientList, subject, html: sourceHtml, kind: queue, error, claimId });
+      const queued = await enqueueEmail({ id: queueId, to: recipientList, subject, html: sourceHtml, kind: queue, error, claimId, about });
       if (queued) {
         await logEmailAttempt({ to: recipients, subject, status: "queued", error: `${error} Saved to try again automatically.`, from: fromEmail, keySource, kind: String(queue), outboxId: queued.id, retryAt: queued.nextAttemptAt, ...extra });
         thrown.queued = queued.id;
@@ -480,13 +484,19 @@ async function sendEmail({ to, subject, html, secret, queue = "", outboxId = "",
     fromEmail = "onboarding@resend.dev";
   }
 
-  const send = (fromAddress) => resend.emails.send({
-    from: `${cleanFromName(fromName)} <${fromAddress}>`,
-    to,
-    subject,
-    html: withFooter(html),
-    replyTo: replyTo || undefined
-  }).catch(err => ({ data: null, error: { message: err?.message || String(err) } }));
+  const send = (fromAddress) => {
+    let timer;
+    const timeout = new Promise(resolve => { timer = setTimeout(() => resolve({ data: null, error: { message: "Resend did not answer within 20 seconds." } }), 20000); });
+    const request = resend.emails.send({
+      from: `${cleanFromName(fromName)} <${fromAddress}>`,
+      to,
+      subject,
+      html: withFooter(html),
+      replyTo: replyTo || undefined
+    }, queueId ? { idempotencyKey: `${queueId}:${fromAddress}` } : undefined)
+      .catch(err => ({ data: null, error: { message: err?.message || String(err) } }));
+    return Promise.race([request, timeout]).finally(() => clearTimeout(timer));
+  };
 
   let response = await send(fromEmail);
   let usedSandbox = fromEmail === "onboarding@resend.dev";
@@ -517,14 +527,18 @@ async function sendEmail({ to, subject, html, secret, queue = "", outboxId = "",
 
 
 // ── Email retry queue (server-only emailOutbox; rules in ./emailOutbox) ──
-async function enqueueEmail({ to, subject, html, kind, error, claimId = "" }) {
-  const id = crypto.randomBytes(12).toString("hex");
+async function enqueueEmail({ id = "", to, subject, html, kind, error, claimId = "", about = {} }) {
+  id = id || crypto.randomBytes(12).toString("hex");
   const now = Date.now();
   const entry = {
     to, subject, html: String(html || ""), kind: String(kind || ""), status: "pending", attempts: 1,
     createdAt: new Date(now).toISOString(), lastAttemptAt: new Date(now).toISOString(),
     nextAttemptAt: nextRetryAt(1, now), lastError: String(error || "").slice(0, 1000), leaseUntil: null,
     ...(claimId ? { claimId } : {}),
+    // Re-checked before each retry (an order refunded meanwhile, a gift card voided) and used by privacy erase.
+    toLower: to.map(addr => String(addr).toLowerCase()),
+    ...(typeof about.orderId === "string" && about.orderId ? { orderId: about.orderId } : {}),
+    ...(typeof about.giftCardId === "string" && about.giftCardId ? { giftCardId: about.giftCardId } : {}),
   };
   try {
     await db.collection("emailOutbox").doc(id).set(entry);
@@ -550,32 +564,71 @@ async function sendQueuedEmail(id, { force = false } = {}) {
     tx.update(ref, { leaseUntil: new Date(now + LEASE_MS).toISOString() });
   });
   if (!entry) return { status: "skipped" };
+  const toText = Array.isArray(entry.to) ? entry.to.join(", ") : String(entry.to || "");
+  // Hours may have passed: an order confirmation must not arrive after the refund email.
+  const stale = await queuedEmailStale(entry).catch(err => { console.warn(`Could not re-check queued email ${id}:`, err.message); return ""; });
+  if (stale) {
+    await ref.delete().catch(err => console.warn(`Could not drop queued email ${id}:`, err.message));
+    await logEmailAttempt({ to: toText, subject: entry.subject, kind: entry.kind || "", outboxId: id, status: "cancelled", error: `Not sent: ${stale}.` });
+    return { status: "cancelled", reason: stale };
+  }
   const attempt = (Number(entry.attempts) || 1) + 1;
   try {
     await sendEmail({ to: entry.to, subject: entry.subject, html: entry.html, secret: resendSecretValue(), queue: entry.kind || "retry", outboxId: id, attempt });
-    await ref.delete();
-    if (entry.claimId) await db.collection("email-claims").doc(entry.claimId).set({ sentAt: new Date().toISOString(), queuedAs: null }, { merge: true }).catch(() => {});
-    return { status: "sent" };
   } catch (err) {
     const message = String(err?.message || err).slice(0, 1000);
     const at = new Date().toISOString();
     const retryAt = err?.permanent || isPermanentEmailError(message) ? null : nextRetryAt(attempt, Date.now());
     await ref.update({ attempts: attempt, lastError: message, lastAttemptAt: at, nextAttemptAt: retryAt, status: retryAt ? "pending" : "failed", leaseUntil: null, ...(retryAt ? {} : { gaveUpAt: at }) })
       .catch(updateErr => console.warn(`Could not update queued email ${id}:`, updateErr.message));
-    await logEmailAttempt({ to: Array.isArray(entry.to) ? entry.to.join(", ") : String(entry.to || ""), subject: entry.subject, kind: entry.kind || "", outboxId: id, attempt,
+    await logEmailAttempt({ to: toText, subject: entry.subject, kind: entry.kind || "", outboxId: id, attempt,
       status: retryAt ? "queued" : "failed", retryAt,
       error: retryAt ? `Try ${attempt} of ${MAX_ATTEMPTS} failed: ${message} Trying again automatically.` : `Gave up after ${attempt} tries: ${message}` });
     return { status: retryAt ? "queued" : "failed", error: message, retryAt };
   }
+  // Delivered. Nothing below may send it again: mark it done before removing it, and never fall
+  // back into the retry branch if a bookkeeping write fails.
+  const at = new Date().toISOString();
+  await ref.update({ status: "sent", nextAttemptAt: null, leaseUntil: null, sentAt: at })
+    .catch(err => console.warn(`Could not mark queued email ${id} sent:`, err.message));
+  await ref.delete().catch(err => console.warn(`Could not remove sent email ${id} from the queue:`, err.message));
+  if (entry.claimId) await db.collection("email-claims").doc(entry.claimId).set({ sentAt: at, queuedAs: null }, { merge: true }).catch(() => {});
+  if (entry.giftCardId) {
+    // Gift cards › Last emailed, as for a first-time send (emailGiftCard).
+    try {
+      const cardRef = db.collection("giftCards").doc(entry.giftCardId);
+      const card = await cardRef.get();
+      if (card.exists) await cardRef.update({ emailedAt: at, history: withHistory(card.data(), { type: "emailed", minor: 0, to: toText, at }), updatedAt: at });
+    } catch (err) { console.warn(`Could not record gift card ${entry.giftCardId} as emailed:`, err.message); }
+  }
+  return { status: "sent" };
+}
+
+// "" when a queued email still fits, else why it no longer does.
+async function queuedEmailStale(entry) {
+  if (entry.orderId) {
+    const order = await db.collection("orders").doc(entry.orderId).get();
+    const reason = staleOrderEmailReason(entry.kind, order.exists ? order.data() : null);
+    if (reason) return reason;
+  }
+  if (entry.giftCardId) {
+    const card = await db.collection("giftCards").doc(entry.giftCardId).get();
+    if (!card.exists) return "the gift card no longer exists";
+    if (card.data().enabled === false) return "the gift card was disabled since";
+  }
+  return "";
 }
 
 // Every 15 minutes (from unpaidPaymentSweep): send due queued emails, then drop old delivery
 // rows and given-up queue entries so personal data isn't kept forever.
-async function runEmailOutbox(now = Date.now()) {
+// `budgetMs` caps the sending so a backlog can never run the sweep out of time; the rest wait.
+async function runEmailOutbox(now = Date.now(), { budgetMs = 30000 } = {}) {
+  const started = Date.now();
   const due = await db.collection("emailOutbox").where("nextAttemptAt", "<=", new Date(now).toISOString())
     .orderBy("nextAttemptAt").limit(25).get();
   let sent = 0;
   for (const doc of due.docs) {
+    if (Date.now() - started > budgetMs) break;
     const result = await sendQueuedEmail(doc.id).catch(err => ({ status: "error", error: err.message }));
     if (result.status === "sent") sent += 1;
   }
@@ -3039,9 +3092,12 @@ async function handlePrivacyRequest(req, res) {
 // Everything the shop holds about one email address.
 async function personalDataFor(email) {
   const byEmail = async (collection, field = "email") => (await db.collection(collection).where(field, "==", email).get()).docs;
-  const [orders, alerts, carts, contacts, messages, newsletter] = await Promise.all([
+  const [orders, alerts, carts, contacts, messages, newsletter, queuedEmails, emailRows] = await Promise.all([
     byEmail("orders", "customer.email"), byEmail("stockAlerts"), byEmail("abandoned-carts"),
     byEmail("reviewContacts"), byEmail("contactMessages"), db.collection("newsletter").doc(email).get(),
+    // Emails waiting in the retry queue to or about this person, and their delivery-log rows.
+    db.collection("emailOutbox").where("toLower", "array-contains", email).get().then(s => s.docs),
+    byEmail("emailLog", "to"),
   ]);
   let user = null;
   try { user = await admin.auth().getUserByEmail(email); } catch { user = null; }
@@ -3049,7 +3105,7 @@ async function personalDataFor(email) {
   const reviews = contacts.length
     ? (await Promise.all(contacts.map(c => db.collection("reviews").doc(c.id).get()))).filter(r => r.exists)
     : [];
-  return { orders, alerts, carts, contacts, messages, newsletter, user, profile, reviews };
+  return { orders, alerts, carts, contacts, messages, newsletter, user, profile, reviews, queuedEmails, emailRows };
 }
 
 async function handlePrivacyAdmin(req, res) {
@@ -3077,6 +3133,7 @@ async function handlePrivacyAdmin(req, res) {
         savedCarts: rows(data.carts),
         reviews: data.reviews.map(r => ({ id: r.id, ...r.data() })),
         contactMessages: rows(data.messages),
+        emailsWaitingToSend: data.queuedEmails.map(d => publicOutboxEntry(d.id, d.data())),
       });
       if (requestId) await db.collection("privacyRequests").doc(requestId).set({ status: "exported", handledAt: new Date().toISOString(), handledBy: adminUser.email }, { merge: true });
       return;
@@ -3084,7 +3141,7 @@ async function handlePrivacyAdmin(req, res) {
     // Erase: delete marketing, cart, alert, contact and account data; reviews stay but lose
     // the name; orders stay (tax and accounting records) and are reported back.
     const batch = db.batch();
-    for (const d of [...data.alerts, ...data.carts, ...data.contacts, ...data.messages]) batch.delete(d.ref);
+    for (const d of [...data.alerts, ...data.carts, ...data.contacts, ...data.messages, ...data.queuedEmails, ...data.emailRows]) batch.delete(d.ref);
     if (data.newsletter.exists) batch.delete(data.newsletter.ref);
     if (data.profile?.exists) batch.delete(data.profile.ref);
     for (const r of data.reviews) batch.update(r.ref, { authorName: "Anonymous" });
@@ -3093,7 +3150,7 @@ async function handlePrivacyAdmin(req, res) {
     const now = new Date().toISOString();
     await db.collection("marketing-optout").doc(optOutId(email)).set({ at: now, source: "privacy-erase" }).catch(() => {});
     const summary = {
-      deleted: { backInStockAlerts: data.alerts.length, savedCarts: data.carts.length, reviewContacts: data.contacts.length, contactMessages: data.messages.length, newsletter: data.newsletter.exists ? 1 : 0, account: data.user ? 1 : 0 },
+      deleted: { backInStockAlerts: data.alerts.length, savedCarts: data.carts.length, reviewContacts: data.contacts.length, contactMessages: data.messages.length, queuedEmails: data.queuedEmails.length, emailLogRows: data.emailRows.length, newsletter: data.newsletter.exists ? 1 : 0, account: data.user ? 1 : 0 },
       anonymizedReviews: data.reviews.length,
       keptOrders: data.orders.map(d => d.id),
     };
@@ -3823,7 +3880,8 @@ function compileEmailTemplate(templateId, settings, vars, additionalSection) {
   for (const [key, value] of Object.entries(vars)) {
     const regex = new RegExp(`\\{\\{\\s*${key}\\s*\\}\\}`, 'g');
     const text = String(value ?? "");
-    subject = subject.replace(regex, () => text.replace(/[\r\n]+/g, " "));
+    // The order table is HTML: it belongs in the body only.
+    subject = subject.replace(regex, () => (key === "items_table" ? "" : text.replace(/[\r\n]+/g, " ")));
     body = body.replace(regex, () => (key === "items_table" ? text : escapeHtml(text)));
     if (key !== "items_table") signoff = signoff.replace(regex, () => escapeHtml(text));
   }
@@ -3877,7 +3935,7 @@ async function emailGiftCard(cardId, card, { to = "", notificationSettings = nul
     button_url: siteLink("/"),
     shop_url: siteLink("/"),
   });
-  await sendEmail({ to: recipient, subject: compiled.subject, html: compiled.html, secret: RESEND_API_KEY.value(), queue });
+  await sendEmail({ to: recipient, subject: compiled.subject, html: compiled.html, secret: RESEND_API_KEY.value(), queue, about: { giftCardId: cardId } });
   const at = new Date().toISOString();
   await db.collection("giftCards").doc(cardId).update({ emailedAt: at, history: withHistory(card, { type: "emailed", minor: 0, to: recipient, at }), updatedAt: at });
 }
@@ -5231,6 +5289,7 @@ exports.onOrderCreated = onDocumentCreated(
       try {
         await sendEmail({
           queue: "shopPendingOrder",
+          about: { orderId },
           to: ADMIN_TO,
           subject: `[NEW ORDER] ${order.orderId || orderId}`,
           html: adminHtml,
@@ -5275,6 +5334,7 @@ exports.onOrderCreated = onDocumentCreated(
       try {
         await sendEmail({
           queue: "orderPendingPayment",
+          about: { orderId },
           to: order.customer.email,
           subject: compiled.subject,
           html: compiled.html,
@@ -5427,17 +5487,25 @@ exports.sendTestEmail = onBrowserRequest(
       try {
         if (body.action === "emailQueue") {
           const snap = await db.collection("emailOutbox").orderBy("createdAt", "desc").limit(50).get();
-          res.status(200).json({ entries: snap.docs.map(d => publicOutboxEntry(d.id, d.data())) });
+          res.status(200).json({ entries: snap.docs.filter(d => d.data().status !== "sent").map(d => publicOutboxEntry(d.id, d.data())) });
           return;
         }
         const id = String(body.id || "");
         if (!/^[a-f0-9]{24}$/.test(id)) { res.status(400).json({ error: "Unknown queued email." }); return; }
         if (body.action === "cancelEmail") {
           const ref = db.collection("emailOutbox").doc(id);
-          const snap = await ref.get();
-          if (!snap.exists) { res.status(404).json({ error: "That email is no longer waiting — it was sent or already removed." }); return; }
-          const entry = snap.data();
-          await ref.delete();
+          // Never claim "stopped" while a sweep is sending it right now (it holds the lease).
+          const outcome = await db.runTransaction(async tx => {
+            const snap = await tx.get(ref);
+            if (!snap.exists || snap.data().status === "sent") return { gone: true };
+            const lease = Date.parse(snap.data().leaseUntil || "");
+            if (Number.isFinite(lease) && lease > Date.now()) return { busy: true };
+            tx.delete(ref);
+            return { entry: snap.data() };
+          });
+          if (outcome.gone) { res.status(404).json({ error: "That email is no longer waiting — it was sent or already removed." }); return; }
+          if (outcome.busy) { res.status(409).json({ error: "That email is being sent right now. Refresh in a minute to see whether it went." }); return; }
+          const entry = outcome.entry;
           await logEmailAttempt({ to: Array.isArray(entry.to) ? entry.to.join(", ") : String(entry.to || ""), subject: entry.subject, kind: entry.kind || "", outboxId: id,
             status: "cancelled", error: `Stopped by ${adminUser.email || "the shop"} after ${Number(entry.attempts) || 1} tries. It will not be sent.` });
           res.status(200).json({ status: "cancelled" });
@@ -5673,6 +5741,7 @@ exports.shippoWebhook = onRequest(
           try {
             await sendEmail({
               queue: "delivery",
+              about: { orderId },
               to: order.customer.email,
               subject: compiled.subject,
               html: compiled.html,
@@ -5979,16 +6048,11 @@ exports.markOrderPaid = onBrowserRequest(
  * live) it was created in, then the other one.
  */
 exports.unpaidPaymentSweep = onSchedule(
-  { schedule: "every 15 minutes", secrets: [STRIPE_SECRET_KEY, RESEND_API_KEY] },
+  { schedule: "every 15 minutes", timeoutSeconds: 300, secrets: [STRIPE_SECRET_KEY, RESEND_API_KEY] },
   async () => {
     // Studio 3.5: scheduled theme publishes and campaigns ride on this sweep (own try/catch: never blocks payments).
     try { await require("./themeSchedule").runThemeSchedule(db); }
     catch (err) { console.error("unpaidPaymentSweep: theme schedule failed:", err.message); }
-    // Emails that every sender refused are retried here on a widening schedule (own try/catch).
-    try {
-      const outbox = await runEmailOutbox();
-      if (outbox.tried || outbox.prunedLog || outbox.prunedOutbox) console.log("unpaidPaymentSweep: email queue", outbox);
-    } catch (err) { console.error("unpaidPaymentSweep: email retry queue failed:", err.message); }
     const { suspectOrders, alertHtml } = require("./paymentSweep");
     // Newest unpaid orders first, within the 7-day window the sweep checks. Without an order
     // the 300 returned were an arbitrary slice, so new orders could be skipped for good.
@@ -6043,6 +6107,13 @@ exports.unpaidPaymentSweep = onSchedule(
     } catch (err) {
       console.warn("unpaidPaymentSweep: reversal checks failed:", err.message);
     }
+
+    // Emails that every sender refused are retried here on a widening schedule, after the payment
+    // checks and within a time budget so a backlog can't starve them (own try/catch).
+    try {
+      const outbox = await runEmailOutbox();
+      if (outbox.tried || outbox.prunedLog || outbox.prunedOutbox) console.log("unpaidPaymentSweep: email queue", outbox);
+    } catch (err) { console.error("unpaidPaymentSweep: email retry queue failed:", err.message); }
 
     if (!found.length) return;
     // Stamp only after the alert really went out: a failed send leaves the orders

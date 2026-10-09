@@ -26,6 +26,11 @@ describe("Notifications template checks", () => {
     expect(templateProblems("order_cancelled", { subject: "Cancelled {{order_id}}", body: "Hi {{customer_name}}", buttonText: "", signoff: "" })).toEqual([]);
   });
 
+  it("warns when the order table is placed outside the body", () => {
+    const problems = templateProblems("order_confirmation", { subject: "Order {{items_table}}", body: "Hi", buttonText: "", signoff: "" });
+    expect(problems.map(p => p.text).join(" ")).toContain("only works in the body");
+  });
+
   it("lists placeholders for every email", () => {
     expect(Object.keys(PLACEHOLDERS)).toHaveLength(10);
   });

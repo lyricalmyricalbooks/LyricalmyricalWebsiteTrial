@@ -70,11 +70,11 @@ describe("pure rules", () => {
   });
 });
 
-function harness({ docs: extra = {}, gmailFails = true, resendFails = true, patch = "" } = {}) {
+function harness({ docs: extra = {}, gmailFails = true, resendFails = true, patch = "", failOutboxDelete = 0 } = {}) {
   const docs = { settings: { website: { payments: {} }, notifications: {} }, adminSecrets: { gmail: { appPassword: "abcd" }, resend: { apiKey: "re_live_key" } }, ...extra };
   const logs = [];
   const delivered = [];
-  const state = { gmailFails, resendFails };
+  const state = { gmailFails, resendFails, failOutboxDelete, resendOptions: [] };
   const clone = v => (v === undefined ? v : structuredClone(v));
   const ref = (name, id) => ({
     id,
@@ -83,9 +83,12 @@ function harness({ docs: extra = {}, gmailFails = true, resendFails = true, patc
     async get() { const data = docs[name]?.[id]; return { id, exists: !!data, data: () => clone(data) }; },
     async set(data, opts) { docs[name] = docs[name] || {}; docs[name][id] = opts?.merge ? { ...(docs[name][id] || {}), ...data } : { ...data }; },
     async update(data) { docs[name][id] = { ...(docs[name][id] || {}), ...data }; },
-    async delete() { if (docs[name]) delete docs[name][id]; },
+    async delete() {
+      if (name === "emailOutbox" && state.failOutboxDelete > 0) { state.failOutboxDelete -= 1; throw new Error("delete failed"); }
+      if (docs[name]) delete docs[name][id];
+    },
   });
-  const matches = (v, op, value) => op === "==" ? v === value : op === "<=" ? typeof v === "string" && v <= value
+  const matches = (v, op, value) => op === "array-contains" ? Array.isArray(v) && v.includes(value) : op === "==" ? v === value : op === "<=" ? typeof v === "string" && v <= value
     : op === "<" ? typeof v === "string" && v < value : op === ">=" ? String(v || "") >= value : op === "in" ? value.includes(v) : true;
   const query = (name, filters = []) => ({
     where: (field, op, value) => query(name, [...filters, { field, op, value }]),
@@ -103,16 +106,20 @@ function harness({ docs: extra = {}, gmailFails = true, resendFails = true, patc
       add: async data => { if (name === "emailLog") logs.push(data); },
       ...query(name),
     }),
+    batch() {
+      const ops = [];
+      return { delete: r => ops.push(() => r.delete()), update: (r, d) => ops.push(() => r.update(d)), set: (r, d, o) => ops.push(() => r.set(d, o)), async commit() { for (const op of ops) await op(); } };
+    },
     async runTransaction(fn) { return fn({ get: r => r.get(), set: (r, d, o) => r.set(d, o), update: (r, d) => r.update(d), delete: r => r.delete(), create: (r, d) => r.set(d) }); },
   };
   const admin = {
     initializeApp() {},
     firestore: Object.assign(() => db, { FieldValue: { increment: n => n, arrayUnion: (...x) => x } }),
-    auth: () => ({ verifyIdToken: async () => ({ email: "lyricalmyricalbooks@gmail.com", email_verified: true }) }),
+    auth: () => ({ verifyIdToken: async () => ({ email: "lyricalmyricalbooks@gmail.com", email_verified: true }), getUserByEmail: async () => { throw new Error("none"); } }),
   };
   const wrap = (...args) => args.at(-1);
   const nodemailer = { createTransport: () => ({ sendMail: async (m) => { if (state.gmailFails) throw new Error("Invalid login"); delivered.push(m); return { messageId: "gmail-1" }; } }) };
-  const Resend = class { constructor() { this.emails = { send: async (m) => { if (state.resendFails) return { data: null, error: { message: "boom" } }; delivered.push(m); return { data: { id: "re-1" }, error: null }; } }; } };
+  const Resend = class { constructor() { this.emails = { send: async (m, options) => { state.resendOptions.push(options); if (state.resendFails) return { data: null, error: { message: "boom" } }; delivered.push(m); return { data: { id: "re-1" }, error: null }; } }; } };
   const mockRequire = name => {
     if (name === "firebase-admin") return admin;
     if (name === "stripe") return class {};
@@ -125,18 +132,19 @@ function harness({ docs: extra = {}, gmailFails = true, resendFails = true, patc
   const module = { exports: {} };
   vm.runInNewContext(`${source}\nautoApproveShippingAddress = async () => {};
 module.exports.__sendEmail = (m) => sendEmail(m);
-module.exports.__runOutbox = (now) => runEmailOutbox(now);
+module.exports.__runOutbox = (now, opts) => runEmailOutbox(now, opts);
 module.exports.__compile = (...a) => compileEmailTemplate(...a);
 module.exports.__defaults = () => loadNotificationSettings();
 ${patch}`,
     { module, exports: module.exports, require: mockRequire, process: { env: { APP_CHECK_MODE: "off" } }, Buffer, console, setTimeout, clearTimeout, URL, AbortController, fetch: async () => { throw new Error("no network"); } },
     { filename: "index.js" });
-  const call = async (body) => {
+  const callFn = async (fn, body) => {
     const res = { code: 200, body: null, set() {}, status(c) { this.code = c; return this; }, json(b) { this.body = b; return this; }, send(b) { this.body = b; return this; } };
-    await module.exports.sendTestEmail({ method: "POST", headers: { authorization: "Bearer t" }, body }, res);
+    await module.exports[fn]({ method: "POST", headers: { authorization: "Bearer t" }, body }, res);
     return res;
   };
-  return { docs, logs, delivered, state, call, exports: module.exports };
+  const call = body => callFn("sendTestEmail", body);
+  return { docs, logs, delivered, state, call, callFn, exports: module.exports };
 }
 
 const order = (extra = {}) => ({ orderId: "AB-1", customer: { name: "Reader", email: "reader@example.com", address: {} }, items: [{ id: "b", title: "Book", quantity: 1, price: 3 }], total: 3.39, subtotal: 3, shipping: 0, paymentMethod: "Stripe", ...extra });
@@ -295,4 +303,90 @@ test("templates: spaced placeholders fill, button links must be web links, the g
   expect(gift.html).not.toContain("javascript:");
   const ok = app.exports.__compile("order_cancelled", { ...settings, order_cancelled: { ...settings.order_cancelled, buttonText: "View" } }, { customer_name: "R", order_id: "1", button_url: 'https://shop.test/track?a=1&b="x"' });
   expect(ok.html).toContain('href="https://shop.test/track?a=1&amp;b=&quot;x&quot;"');
+});
+
+describe("review fixes", () => {
+  const ID = "e".repeat(24);
+  const pending = (extra = {}) => ({ to: ["reader@example.com"], toLower: ["reader@example.com"], subject: "Order confirmed", html: "<p>Hi</p>", kind: "orderConfirmed", status: "pending", attempts: 1,
+    createdAt: "2026-10-09T10:00:00.000Z", nextAttemptAt: new Date(Date.now() - 60_000).toISOString(), leaseUntil: null, ...extra });
+
+  test("an order email is not sent after the order was refunded or cancelled", () => {
+    expect(outbox.staleOrderEmailReason("orderConfirmed", { paymentStatus: "refunded" })).toMatch(/refunded/);
+    expect(outbox.staleOrderEmailReason("shippedResend_x", { paymentStatus: "paid", status: "cancelled" })).toMatch(/cancelled/);
+    expect(outbox.staleOrderEmailReason("orderPendingPayment", { paymentStatus: "paid" })).toMatch(/paid/);
+    expect(outbox.staleOrderEmailReason("orderConfirmed", null)).toMatch(/no longer exists/);
+    expect(outbox.staleOrderEmailReason("orderConfirmed", { paymentStatus: "paid" })).toBe("");
+    expect(outbox.staleOrderEmailReason("welcome", null)).toBe("");
+  });
+
+  test("the sweep drops a stale order email instead of sending it", async () => {
+    const app = harness({ gmailFails: false, docs: { emailOutbox: { [ID]: pending({ orderId: "o1" }) }, orders: { o1: { paymentStatus: "refunded" } } } });
+    await app.exports.__runOutbox();
+    expect(app.delivered).toHaveLength(0);
+    expect(app.docs.emailOutbox[ID]).toBeUndefined();
+    expect(app.logs.at(-1)).toMatchObject({ status: "cancelled", outboxId: ID });
+  });
+
+  test("a delivered retry whose queue cleanup fails is never sent again", async () => {
+    const app = harness({ gmailFails: false, failOutboxDelete: 1, docs: { emailOutbox: { [ID]: pending() } } });
+    await app.exports.__runOutbox();
+    await app.exports.__runOutbox(Date.now() + 2 * 3600_000);
+    expect(app.delivered).toHaveLength(1);
+    expect(app.docs.emailOutbox[ID]).toMatchObject({ status: "sent", nextAttemptAt: null });
+    expect((await app.call({ action: "emailQueue" })).body.entries).toEqual([]);
+  });
+
+  test("a queued send gives Resend a stable idempotency key, reused on the retry", async () => {
+    const app = harness({ gmailFails: true, resendFails: true, docs: { adminSecrets: { resend: { apiKey: "re_live_key" } } } });
+    const err = await app.exports.__sendEmail({ to: "reader@example.com", subject: "S", html: "<p>x</p>", queue: "welcome" }).catch(e => e);
+    expect(app.state.resendOptions[0].idempotencyKey.startsWith(`${err.queued}:`)).toBe(true);
+    app.state.resendFails = false;
+    app.docs.emailOutbox[err.queued].nextAttemptAt = new Date(Date.now() - 1000).toISOString();
+    await app.exports.__runOutbox();
+    expect(app.state.resendOptions.at(-1).idempotencyKey).toBe(app.state.resendOptions[0].idempotencyKey);
+  });
+
+  test("a gift card delivered by a retry is recorded as emailed", async () => {
+    const app = harness({ gmailFails: false, docs: { emailOutbox: { [ID]: pending({ kind: "giftCard", giftCardId: "g1" }) }, giftCards: { g1: { enabled: true, history: [] } } } });
+    await app.exports.__runOutbox();
+    expect(app.docs.giftCards.g1.emailedAt).toBeTruthy();
+    expect(app.docs.giftCards.g1.history.at(-1)).toMatchObject({ type: "emailed" });
+  });
+
+  test("a disabled gift card's code is not sent later", async () => {
+    const app = harness({ gmailFails: false, docs: { emailOutbox: { [ID]: pending({ kind: "giftCard", giftCardId: "g1" }) }, giftCards: { g1: { enabled: false } } } });
+    await app.exports.__runOutbox();
+    expect(app.delivered).toHaveLength(0);
+  });
+
+  test("Stop refuses while a send is in progress", async () => {
+    const app = harness({ docs: { emailOutbox: { [ID]: pending({ leaseUntil: new Date(Date.now() + 300_000).toISOString() }) } } });
+    expect((await app.call({ action: "cancelEmail", id: ID })).code).toBe(409);
+    expect(app.docs.emailOutbox[ID]).toBeTruthy();
+  });
+
+  test("the sweep stops sending once its time budget is spent", async () => {
+    const app = harness({ gmailFails: false, docs: { emailOutbox: { [ID]: pending(), ["f".repeat(24)]: pending() } } });
+    const result = await app.exports.__runOutbox(Date.now(), { budgetMs: -1 });
+    expect(result.sent).toBe(0);
+    expect(app.delivered).toHaveLength(0);
+  });
+
+  test("privacy erase removes queued emails and delivery rows for that address; export lists them", async () => {
+    const app = harness({ docs: { emailOutbox: { [ID]: pending({ kind: "contactNotify" }) }, emailLog: { l1: { to: "reader@example.com", at: new Date().toISOString() }, l2: { to: "other@example.com", at: new Date().toISOString() } } } });
+    const exported = await app.callFn("createStripeCheckoutSession", { action: "privacyExport", email: "reader@example.com" });
+    expect(exported.body.emailsWaitingToSend).toHaveLength(1);
+    expect(JSON.stringify(exported.body)).not.toContain("<p>Hi</p>");
+    const erased = await app.callFn("createStripeCheckoutSession", { action: "privacyErase", email: "reader@example.com" });
+    expect(erased.body.deleted).toMatchObject({ queuedEmails: 1, emailLogRows: 1 });
+    expect(app.docs.emailOutbox[ID]).toBeUndefined();
+    expect(Object.keys(app.docs.emailLog)).toEqual(["l2"]);
+  });
+
+  test("the order table never lands in a subject line", async () => {
+    const app = harness();
+    const settings = await app.exports.__defaults();
+    const compiled = app.exports.__compile("order_confirmation", { ...settings, order_confirmation: { ...settings.order_confirmation, subject: "Order {{items_table}} {{order_id}}" } }, { order_id: "A1", items_table: "<table>x</table>" });
+    expect(compiled.subject).toBe("Order A1");
+  });
 });

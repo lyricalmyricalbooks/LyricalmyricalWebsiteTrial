@@ -109,4 +109,10 @@ describe("readiness evidence boundaries", () => {
     expect(status(rows, "catalog-test-content")).toBe("warn");
     expect(JSON.stringify(book)).toBe(original);
   });
+  it("treats an email waiting to retry as not sent, and ignores ones the owner stopped", () => {
+    const base = { settings: goodSettings, books: [goodBook], shippingProfiles: [{}], orders: [] };
+    expect(status(launchReadiness({ ...base, emailLog: [{ status: "queued", error: "Gmail refused" }] }), "email")).toBe("block");
+    expect(status(launchReadiness({ ...base, emailLog: [{ status: "cancelled" }, { status: "failed" }] }), "email")).toBe("block");
+    expect(status(launchReadiness({ ...base, emailLog: [{ status: "cancelled" }, { status: "sent" }] }), "email")).toBe("warn");
+  });
 });
