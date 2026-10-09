@@ -10,6 +10,11 @@ export type AppUpdate = {
 // Newest first. Every PR adds an entry; links open the affected admin workspace.
 export const APP_UPDATES: AppUpdate[] = [
   {
+    id: "studio-2-colour-schemes", date: "2026-10-09", title: "Colour schemes you can name, edit and reuse",
+    summary: "Theme settings in the Design studio has a new Colour schemes category. A scheme is a named set of colours: background, panels, text, muted text, accent, text on the accent, borders, button colours and links. Add, rename, duplicate, reorder or delete schemes; each shows a small preview and checks that its text, buttons and accent are easy to read (WCAG contrast). Give a section a scheme in its Style tab › Colour scheme, or pick one for the book cards, the product page's buy card or the shopping bag. Change a scheme and everything using it follows. The starter schemes now use the Riso black, white and red instead of purple. Schemes you saved before keep their current look until you change one of their colours. Deleting a scheme that's in use asks first, and those parts go back to the theme's own colours.",
+    links: [{ label: "Open Theme settings", tab: "settings", settingsTab: "designer", studio: "#designer?tab=style" }],
+  },
+  {
     id: "studio-2-pickers", date: "2026-10-09", title: "Pick links, books and categories instead of typing them",
     summary: "In the Design studio, a section's link fields (button and card links) now have a Choose button: pick a store page (Home, Shop, Wishlist, Account, Order tracking), one of your custom pages, a shop category or a book, or still type any web address. Book grids and the cover carousel have \"Which books\": all books, featured, books you pick from a searchable list, a shop category, newest, on sale or pre-orders, plus an Order setting (shop order, the order you picked, newest, title or price). Featured product and the staff notes table pick their book from the catalog, video fields tell you straight away whether a link will play, and the page title font is chosen from the font list. Sections you already set up keep showing the same books and links — nothing needs redoing. These are design settings only; prices, stock and checkout are unchanged.",
     links: [{ label: "Open Page layout", tab: "settings", settingsTab: "designer", studio: "#designer?tab=sections" }],

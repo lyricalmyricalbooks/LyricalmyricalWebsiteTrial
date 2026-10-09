@@ -24,7 +24,8 @@ import {
   patchSectionSettings, redo, removeSection, sameDesign, setSections, toggleSection, undo, undoLabel, redoLabel, moveSection,
   resolveSharedBlocks, type Section, type SectionTarget, type SharedBlock,
 } from "./studioModel";
-import { STATIC_SURFACES, STYLE_GROUPS, STYLE_TARGET_FIELDS, applyGlobalStyle, readStyle, regionStyleFields, type StyleField, type StyleGroup } from "./styleSchema";
+import { STATIC_SURFACES, STYLE_GROUPS, STYLE_TARGET_FIELDS, applyGlobalStyle, readStyle, regionStyleFields, schemeFieldOptions, type StyleField, type StyleGroup } from "./styleSchema";
+import { StudioColorSchemes } from "./StudioColorSchemes";
 import { StudioPages } from "./StudioPages";
 import { StudioCategories } from "./StudioCategories";
 import { categoryNavOrder } from "./categoryManager";
@@ -555,7 +556,8 @@ export function StudioEditor({ settings, onExit, onPersisted, appearance = "ligh
     else setStyle(path, value);
   };
 
-  const renderStyleField = (g: StyleGroup, f: StyleField) => {
+  const renderStyleField = (g: StyleGroup, field: StyleField) => {
+    const f = schemeFieldOptions(field, colorSchemes);
     const local = styleScope === "page" && PAGE_STYLE_GROUPS.has(g.id);
     const region = REGION_GROUPS.find(group => group.id === g.id)?.regions.find(r => f.key.startsWith('regions.' + r.id));
     const values = { ...design.regions, ...(local ? design[template.id]?.regions : {}) };
@@ -1367,6 +1369,10 @@ export function StudioEditor({ settings, onExit, onPersisted, appearance = "ligh
                     </button>
                   ))}
                 </div>
+                  </div>}
+                  {styleCategory === "schemes" && <div className="px-4 pb-4">
+                    <StudioColorSchemes design={design} change={change} confirm={askConfirm}
+                      onNotice={(text, canUndo) => say("ok", text, canUndo ? { label: "Undo", run: () => setHist(undo) } : undefined)} />
                   </div>}
                   {styleCategory === "paymentIcons" && <div className="px-4 pb-4 space-y-4">
                     <p className="studio-hint">Checkout itself always offers the methods enabled in Settings › Payments.</p>

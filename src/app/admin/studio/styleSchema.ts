@@ -6,6 +6,7 @@ import { STATIC_SURFACES, writeDesignValue } from "../../features/site/designMod
 import { FONT_SELECT_OPTIONS } from "../../features/site/fonts";
 import { PHOTO_OUTLINE_OPTIONS, PHOTO_RATIO_OPTIONS } from "../../features/site/photoShapes";
 import { REGION_GROUPS, REGION_DEVICES, REGION_DEVICE_LABELS, REGION_SUFFIXES, regionKey, regionFieldDevice, type RegionDevice } from "../../features/site/storefrontRegions";
+import { ELEMENT_SCHEME_TARGETS } from "../../features/site/colorSchemes";
 
 // `defaultValue` is what the storefront itself uses when the key is unset, so an untouched slider or
 // toggle shows the real setting instead of its minimum / "off".
@@ -16,6 +17,14 @@ export type StyleField =
 
 export type StyleGroup = { id: string; title: string; hint?: string; fields: StyleField[] };
 
+/** "No scheme": the part keeps the theme's own colours. */
+export const NO_SCHEME = { value: "", label: "Theme colours (no scheme)" };
+/** A colour-scheme select (Theme settings › Colour schemes) with the design's current schemes as choices. */
+export function schemeFieldOptions(field: StyleField, schemes: { id: string; name: string }[]): StyleField {
+  if (!field.key.startsWith("elementSchemes.") || field.kind !== "select") return field;
+  return { ...field, options: [NO_SCHEME, ...schemes.map((s) => ({ value: s.id, label: s.name || s.id }))] };
+}
+
 const opts = (...v: string[]) => v.map((x) => ({ value: x, label: x[0].toUpperCase() + x.slice(1) }));
 const weights = ["300", "400", "500", "600", "700", "800", "900"].map((w) => ({ value: w, label: w }));
 
@@ -25,13 +34,13 @@ const weights = ["300", "400", "500", "600", "700", "800", "900"].map((w) => ({ 
 export const STYLE_TARGET_FIELDS: Record<string, RegExp> = {
   ...Object.fromEntries(REGION_GROUPS.flatMap(g => g.regions.map(r => [r.label, new RegExp(`^regions\\.${r.id}(Tablet|Mobile)?(${REGION_SUFFIXES.join("|")})$`)]))),
   "Announcement bar": /^(showAnnouncement|announcement)/,
-  "Card title & price": /^(productTitleColor|productPriceColor|cardTitle|cardPrice|catalogPriceStyle|catalogTitleTransform|catalogCardRuleWidth)/,
-  "Buy card": /^(pdpCard|pdpShowTag|pdpTag|pdpTitle|pdpPrice|pdpShowStock|pdpStock|productCta|addToBagLabel|showQtyStepper|showSocialShare|showBackInStock)/,
+  "Card title & price": /^(productTitleColor|productPriceColor|cardTitle|cardPrice|catalogPriceStyle|catalogTitleTransform|catalogCardRuleWidth|elementSchemes\.cards$)/,
+  "Buy card": /^(elementSchemes\.buyCard$|pdpCard|pdpShowTag|pdpTag|pdpTitle|pdpPrice|pdpShowStock|pdpStock|productCta|addToBagLabel|showQtyStepper|showSocialShare|showBackInStock)/,
   "Product title & price": /^(pdpTitle|pdpPrice|productTitleSize|productSubtitleWeight)/,
   "Product photos": /^(productPhotoOutline|pdpThumb|pdpPhoto|pdpShowCaption|productImage|productBorderRadius|showZoom)/,
   "Product details tabs": /^(pdpDetailsPlacement|pdpSpecsStyle|pdpTab|pdpPanel|productDetailsLayout|showSpecs)/,
   "Breadcrumb": /^(pdpShowBreadcrumb|pdpShowBackLink|pdpMeta)/,
-  "Bag heading": /^(cartDrawer(Title|Meta|ShowCount|Padding|Edge))/,
+  "Bag heading": /^(elementSchemes\.cartDrawer$|cartDrawer(Title|Meta|ShowCount|Padding|Edge))/,
   "Free-shipping bar": /^(showFreeShipBar|cartDrawerProgress)/,
   "Bag line items": /^(cartDrawer(ShowItemNumbers|ShowPreorder|ShowLineOptions|Thumb|GrayscaleThumbs|ItemTitleSize|ShowUnitPrice|ShowLineTotal|QtyStyle|RemoveStyle|Border|Muted))/,
   "Bag suggestion": /^(cartDrawer(ShowUpsell|UpsellShadow|Surface|GrayscaleThumbs))/,
@@ -95,6 +104,15 @@ export const STYLE_GROUPS: StyleGroup[] = [
       { key: "dangerColor", label: "Error / danger", kind: "color" },
       { key: "favoriteColor", label: "Wishlist heart", kind: "color" },
     ],
+  },
+  {
+    // The schemes themselves are edited in the scheme editor shown above these fields
+    // (StudioColorSchemes); each select lists the current schemes (schemeFieldOptions).
+    id: "schemes",
+    title: "Colour schemes",
+    hint: "Named colour sets. Give a section one in its Style tab › Colour scheme, or pick one for these parts of the shop — while a part follows a scheme, the scheme's colours replace that part's own colour settings.",
+    fields: (Object.entries(ELEMENT_SCHEME_TARGETS) as [string, { label: string }][]).map(([key, target]): StyleField => (
+      { key: `elementSchemes.${key}`, label: `${target.label} colour scheme`, kind: "select", options: [NO_SCHEME] })),
   },
   {
     id: "buttons",

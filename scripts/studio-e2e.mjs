@@ -401,6 +401,50 @@ await check("a Studio link opens the right page and tool", desktop, async page =
   if (pressed !== "true") throw new Error("the link did not open Theme settings");
 }, "#designer?b=paper-weather&tab=style");
 
+await check("a new colour scheme reaches a section in the preview, and deleting it warns", desktop, async page => {
+  await expectText(page, "Preview connected", 30000);
+  await page.getByRole("button", { name: "Theme settings", exact: true }).first().click();
+  await page.getByRole("button", { name: /^Colour schemes/ }).first().click();
+  const editor = page.locator("[data-studio-schemes]");
+  await editor.getByRole("button", { name: "Add colour scheme" }).click();
+  const scheme = editor.locator(".studio-scheme").last();
+  const id = await scheme.getAttribute("data-scheme-id");
+  await scheme.getByLabel("Scheme name").fill("Zine pink");
+  await scheme.locator("[data-scheme-role=background] input:not([type=color])").fill("#ffdde1");
+  await scheme.getByText(/Text on background \d/).waitFor({ timeout: 5000 });
+  // Give a new section that scheme from its Style tab.
+  await page.getByRole("button", { name: "Page layout", exact: true }).first().click();
+  await page.getByRole("button", { name: "Add section" }).first().click();
+  // (Page layout also lists the built-in "Newsletter …" parts, so pick from the Add section dialog.)
+  await page.getByRole("dialog").getByRole("button", { name: /^Newsletter/ }).first().click();
+  await page.getByRole("tablist", { name: "Section settings" }).getByRole("tab", { name: "Style" }).click();
+  await page.locator("[data-section-style-key=colorSchemeId] select").selectOption({ label: "Zine pink" });
+  const preview = () => page.frames().find(f => /preview=true/.test(f.url()));
+  const frame = preview();
+  if (!frame) throw new Error("no preview frame");
+  await frame.waitForFunction(schemeId => {
+    const el = document.querySelector(`[data-fm-section][data-scheme="${schemeId}"]`);
+    return el && getComputedStyle(el).getPropertyValue("--bg-color").trim() === "#ffdde1";
+  }, id, { timeout: 10000 });
+  await page.getByRole("button", { name: "Save draft" }).click();
+  await page.waitForFunction(() => window.__studioFixture.calls.some(c => c.method === "saveDesign"));
+  const saved = (await calls(page)).filter(c => c.method === "saveDesign").pop().args[0].design;
+  if (!saved.colorSchemes?.some(s => s.id === id && s.name === "Zine pink" && s.v === 2)) throw new Error("saved draft is missing the new scheme");
+  if (saved.heroPage.sections.find(s => s.type === "NewsletterSection")?.settings?.colorSchemeId !== id) throw new Error("the section did not save its scheme");
+  // Deleting a scheme in use asks first; the section then falls back to the theme colours.
+  await page.getByRole("button", { name: "Theme settings", exact: true }).first().click();
+  // Theme settings reopens on the category it was showing.
+  await page.locator("[data-studio-schemes]").waitFor({ timeout: 5000 });
+  const again = page.locator(`[data-studio-schemes] .studio-scheme[data-scheme-id="${id}"]`);
+  await again.getByText("Used by 1 section").waitFor({ timeout: 5000 });
+  await again.locator(".studio-scheme-head").click();
+  await again.getByRole("button", { name: "Delete" }).click();
+  const dialog = page.getByRole("dialog", { name: "Delete colour scheme?" });
+  await dialog.waitFor({ timeout: 5000 });
+  await dialog.getByRole("button", { name: "Delete scheme" }).click();
+  await frame.waitForFunction(() => document.querySelector("[data-fm-section]") && !document.querySelector("[data-fm-section][data-scheme]"), null, { timeout: 10000 });
+});
+
 await check("the wishlist page shows the one shop header and footer, listed in Page layout", desktop, async page => {
   await expectText(page, "Preview connected", 30000);
   const frame = page.frameLocator("iframe").first();

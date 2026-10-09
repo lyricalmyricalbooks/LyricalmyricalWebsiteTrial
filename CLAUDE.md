@@ -440,6 +440,16 @@ and fails if another file renders the navigation `<header>` or `footerPanel`; re
 
 **Shop card title & price:** Studio › Style › **Product cards & grid** has colour, size (desktop + phone), weight, font and letter-spacing controls for the card title and price (`productTitleColor`, `cardTitle*`, `productPriceColor`, `cardPrice*`), plus the boxed-tag and old-price colours. `features/site/cardTypography.ts` turns them into CSS (emitted by `StorefrontThemeStyle`); cards opt in with the `fm-card-title` / `fm-card-price-wrap` / `fm-card-price` / `fm-card-price-tag` / `fm-card-price-old` classes — the shop grid, collection, wishlist, search, related-books and recently-viewed cards and the **Product grid** / **Product showcase grid** sections do. When a Style card colour is set it wins over a section's own colour; empty = the section's colour. Add those classes to any new book card — `features/site/cardClasses.test.tsx` renders every section with sample books and fails on a book title without `fm-card-title`.
 
+**Colour schemes (2.5):** Studio › Theme settings › **Colour schemes** (`StudioColorSchemes.tsx`, pure edits in
+`studio/colorSchemeOps.ts`) edits `design.colorSchemes` — ten roles (background, surface, text, muted, accent, onAccent,
+border, buttonBg, buttonText, link) with a live swatch and WCAG badges. `features/site/colorSchemes.ts` `schemeCss()`
+(emitted first by `StorefrontOverrides`) writes `[data-scheme="<id>"]` variables using the existing token names;
+`SectionList` sets `data-scheme` from the section's Style tab › Colour scheme (`colorSchemeId`). `design.elementSchemes`
+(`cards` → `.fm-card`, `buyCard` → `.fm-pdp-card`, `cartDrawer` → `.fm-bag`) applies a scheme to those parts, and while
+it does their own colour controls give way (`elementScheme()` in `cartDrawerStyle` / `productPageStyle`) — every new
+book-card root needs the `fm-card` class. Schemes saved before 2.0 (no `v: 2`) keep their old background/text-only look
+until a colour is edited (render-equivalence guard in `colorSchemes.test.ts`). Header/footer schemes wait for 2.1.
+
 **Product page (catalogue card):** `features/site/BookDetail.tsx` renders the Riso "catalogue card" layout —
 breadcrumb, thumbnail rail + framed photo + "Fig. n" caption, one bordered buy card (tag, title, price,
 stock line | formats, qty, Add to bag, wishlist, share), then Description / Details / Reviews tabs (or

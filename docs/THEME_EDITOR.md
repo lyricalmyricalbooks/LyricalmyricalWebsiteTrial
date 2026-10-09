@@ -345,7 +345,31 @@ assistant, personalization/A-B tests, author/series/event pages, multi-language 
       and an e2e check (pick a page link and a book, assert the saved draft and the preview). Not done here: no page
       field uses `page` yet (available for 2.7/2.8); Theme settings' own URL fields (social links, mega-menu links)
       are unchanged. - [ ] 2.4 Media library + responsive images.
-- [ ] 2.5 Colour schemes 2.0. - [ ] 2.6 Section library 2.0 + new sections.
+- [x] 2.5 Colour schemes 2.0. A scheme (`design.colorSchemes[]`, `features/site/colorSchemes.ts`) has ten roles:
+      background, surface, text, muted, accent, onAccent, border, buttonBg, buttonText, link. `schemeCss(design)`, emitted
+      first by `StorefrontOverrides` on every surface, turns each into `[data-scheme="<id>"]` variables with the
+      storefront's existing token names (`--bg-color`, `--text-color`, `--fg-rgb`, `--surface(-rgb)`, `--muted(-rgb)`,
+      `--accent(-rgb)`, `--on-accent`, `--border-rgb`/`--border-color`, `--btn-bg`, `--btn-text`, `--link-color`,
+      `--rp-outline`; triplets comma-separated), so descendants follow without per-element edits. `SectionList` sets
+      `data-scheme` from the section's existing `colorSchemeId` and keeps the inline background/text it always painted.
+      `design.elementSchemes` (`cards` → `.fm-card`, now on every book-card root; `buyCard` → `.fm-pdp-card`;
+      `cartDrawer` → `.fm-bag[data-fm-store]`) puts a scheme's variables on those elements; while a part follows a
+      scheme its own colour controls give way (`elementScheme()` — `cartDrawerStyle` / `productPageStyle` skip their
+      palette keys, the bag's checkout background is outranked, and a card scheme outranks the card title/price
+      colour), so picking a scheme always shows. Header and footer are not
+      scheme targets yet (they are being rebuilt in 2.1). **Compatibility:** schemes saved before 2.0 (no `v: 2`) keep
+      exactly their old look — inline background/text only, no variables (`colorSchemes.test.ts` renders every saved
+      scheme in `__fixtures__/liveDesign.json` and the old purple defaults and compares the wrapper style, and checks
+      the published design gets no scheme CSS); the first colour edit upgrades a scheme to every role
+      (`upgradeScheme`). The starter schemes keep their ids and light/dark polarity but use Riso Noir colours (Paper,
+      Noir, Flare), all WCAG AA. Studio: Theme settings › Site-wide design › **Colour schemes** (`schemes` group:
+      `elementSchemes.*` selects whose options are the current schemes via `schemeFieldOptions`) with
+      `StudioColorSchemes.tsx` above them — add, rename, duplicate, reorder, delete, ten role pickers, live swatch and
+      contrast badges (text/background, button text/button, text on accent). Pure edits live in
+      `studio/colorSchemeOps.ts` (`colorSchemeOps.test.ts`); saving writes the list for all pages (clearing stale page
+      copies). Deleting a scheme in use asks first, then removes its `colorSchemeId` / `elementSchemes` references so
+      those parts fall back to theme colours (undoable). The buy card, bag and card-title click targets also show their
+      scheme choice in the element inspector. - [ ] 2.6 Section library 2.0 + new sections.
 - [ ] 2.7 Custom book fields + dynamic sources. - [ ] 2.8 Alternate templates. - [ ] 2.9 Product information as blocks.
 
 **Phase 3 — Theme management & quality**

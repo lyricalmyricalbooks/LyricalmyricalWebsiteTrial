@@ -22,6 +22,7 @@ import { buildNavItems, categoryNames } from "../features/site/navItems";
 import { contentMaxWidth } from "../features/site/headerNav";
 import { StorefrontThemeStyle } from "../features/site/StorefrontThemeStyle";
 import { StorefrontOverrides } from "../features/site/StorefrontOverrides";
+import { schemeButtonColors } from "../features/site/colorSchemes";
 import { googleFontHref } from "../features/site/fonts";
 import { useCurrency } from "../CurrencyContext";
 import { doc, setDoc } from "firebase/firestore/lite";
@@ -534,6 +535,8 @@ export default function MainSite({ setShowCatalog, showCatalog, setCurrentPage, 
   const storefrontAccent = storefrontDesign?.primaryColor || "#e8402a";
   const storefrontButtonBg = storefrontDesign?.buttonColor || storefrontAccent;
   const storefrontButtonText = storefrontDesign?.buttonTextColor || "#100f0d";
+  // Book cards following a colour scheme use its button roles (Theme settings › Colour schemes).
+  const cardButton = schemeButtonColors(storefrontDesign, "cards", { bg: storefrontButtonBg, text: storefrontButtonText });
   const storefrontMaxWidth = contentMaxWidth(storefrontDesign);
   // Default legacy storefronts into the requested photo-reference design. The
   // previous implementation only changed sites after a merchant manually applied
@@ -801,7 +804,7 @@ export default function MainSite({ setShowCatalog, showCatalog, setCurrentPage, 
                     : { duration: 0 }
                   }
                   // CSS transitions skip opacity/transform, which the entrance animation drives every frame.
-                  className={`group relative transition-[translate,background-color,border-color,box-shadow] duration-500 ${storefrontDesign?.productHoverEffect === "lift" ? "hover:-translate-y-2" : ""} ${cardStyle === "card" ? "fm-surface border border-white/10 p-3" : ""}`}
+                  className={`fm-card group relative transition-[translate,background-color,border-color,box-shadow] duration-500 ${storefrontDesign?.productHoverEffect === "lift" ? "hover:-translate-y-2" : ""} ${cardStyle === "card" ? "fm-surface border border-white/10 p-3" : ""}`}
                   style={cardStyle === "card" ? { borderRadius: storefrontCardRadius } : undefined}
                 >
                   <button
@@ -876,9 +879,9 @@ export default function MainSite({ setShowCatalog, showCatalog, setCurrentPage, 
                       <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-black/20 to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-300 flex flex-col justify-end p-6">
                         <span
                           style={{
-                            backgroundColor: storefrontButtonStyle === "solid" ? storefrontButtonBg : "transparent",
-                            color: storefrontButtonStyle === "solid" ? storefrontButtonText : storefrontButtonBg,
-                            border: storefrontButtonStyle !== "solid" ? `1px solid ${storefrontButtonBg}` : "none",
+                            backgroundColor: storefrontButtonStyle === "solid" ? cardButton.bg : "transparent",
+                            color: storefrontButtonStyle === "solid" ? cardButton.text : cardButton.bg,
+                            border: storefrontButtonStyle !== "solid" ? `1px solid ${cardButton.bg}` : "none",
                             borderRadius: storefrontButtonRadius,
                           }}
                           className={`w-full py-3 text-[10px] tracking-[0.2em] font-bold text-center transform translate-y-4 group-hover:translate-y-0 transition-all duration-300 store-btn-primary ${storefrontButtonShadow ? "shadow-xl" : ""} ${storefrontButtonUppercase ? "uppercase" : ""}`}

@@ -84,7 +84,7 @@ function WishlistContent() {
             const choice = quickAddChoice(book);
             const out = !choice.inStock;
             return (
-              <article key={book.id} className="group">
+              <article key={book.id} className="fm-card group">
                 <Link to={`/books/${slug}`} className="block">
                   <div {...regionProps("wishlistPhoto")} className="relative aspect-[3/4] fm-surface rounded-2xl overflow-hidden mb-3 border border-white/[0.05]">
                     <img loading="lazy" decoding="async"

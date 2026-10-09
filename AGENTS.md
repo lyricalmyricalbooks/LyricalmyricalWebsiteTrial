@@ -254,6 +254,13 @@ no literal colours in `RISO_STOREFRONT_CSS`, RGB triplet variables stay comma-se
 shopper-facing string needs a `COPY_SCHEMA` entry + `getCopy` call so it is editable in the theme
 editor (see `docs/THEME_EDITOR.md` › Riso Noir). Payment UI stays conventional and legible.
 
+Colour schemes (Studio › Theme settings › Colour schemes) are the way to give one part of the shop
+its own palette: a scheme's roles become `[data-scheme]` token variables (`schemeCss` in
+`features/site/colorSchemes.ts`, emitted by `StorefrontOverrides`). New storefront parts should read
+the shared tokens (`--bg-color`, `rgb(var(--fg-rgb))`, `var(--surface)`, `var(--accent)` …) rather
+than fixed design keys alone, so a scheme reaches them; new book cards carry `fm-card`. Never change
+how a saved scheme without `v: 2` renders — `colorSchemes.test.ts` guards that.
+
 ## Product page
 
 The book page is the Riso "catalogue card" layout; every part of it is a `pdp*` control in Studio ›
