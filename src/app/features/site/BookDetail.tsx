@@ -40,6 +40,7 @@ import { aspectRatioValue } from "./imageAspect";
 import { regionProps, regionVisible } from "./storefrontRegions";
 import { googleFontHref } from "./fonts";
 import { productPageCss, productPageFontNames } from "./productPageStyle";
+import { schemeButtonColors } from "./colorSchemes";
 
 import { findProduct } from "./productRoutes";
 const slugify = (s: string) => s.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/(^-|-$)/g, "");
@@ -173,6 +174,9 @@ export default function BookDetail() {
   // Merge top-level design with storefront-level overrides so tokens can be set
   // at either level (storefront wins).
   const tokenSource = { ...(settings?.design || {}), ...(storefrontDesign || {}) };
+  // Add to bag sits in the buy card: when the buy card follows a colour scheme, it uses the scheme's
+  // button roles (the inline --btn-* would otherwise override the variables schemeCss puts on the card).
+  const buyButton = schemeButtonColors(tokenSource, "buyCard", { bg: buttonBg, text: buttonText });
   // Same column as the header (Style › Layout › Content width) so the page lines up with the logo.
   const pageMaxWidth = contentMaxWidth(tokenSource);
 
@@ -922,10 +926,10 @@ export default function BookDetail() {
                       style={
                         !isOutOfStock && !added
                           ? {
-                              "--btn-bg": buttonStyle === "solid" ? buttonBg : "transparent",
-                              "--btn-text": buttonStyle === "solid" ? buttonText : buttonBg,
-                              "--btn-border": buttonStyle !== "solid" ? `1px solid ${buttonBg}` : "none",
-                              "--btn-shadow": buttonStyle === "solid" && buttonShadow ? `0 20px 60px ${buttonBg}50` : "none",
+                              "--btn-bg": buttonStyle === "solid" ? buyButton.bg : "transparent",
+                              "--btn-text": buttonStyle === "solid" ? buyButton.text : buyButton.bg,
+                              "--btn-border": buttonStyle !== "solid" ? `1px solid ${buyButton.bg}` : "none",
+                              "--btn-shadow": buttonStyle === "solid" && buttonShadow ? `0 20px 60px ${buyButton.bg}50` : "none",
                               borderRadius: buttonRadius,
                             } as React.CSSProperties
                           : { borderRadius: buttonRadius }

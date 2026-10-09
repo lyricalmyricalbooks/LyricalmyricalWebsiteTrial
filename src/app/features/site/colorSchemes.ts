@@ -197,6 +197,18 @@ export type ElementSchemeTarget = keyof typeof ELEMENT_SCHEME_TARGETS;
 export const elementScheme = (design: any, target: ElementSchemeTarget): ColorScheme | null =>
   findScheme(schemeList(design), design?.elementSchemes?.[target]);
 
+/**
+ * Button colours for a button inside a part that may follow a scheme. Buttons that paint the
+ * site-wide button colours inline (product page Add to bag, the shop card's hover button) would
+ * otherwise hide the scheme's Button background / Button text roles.
+ */
+export function schemeButtonColors(design: any, target: ElementSchemeTarget, own: { bg: string; text: string }): { bg: string; text: string } {
+  const s = elementScheme(design, target);
+  if (!s) return own;
+  const full = resolveScheme(s);
+  return { bg: cssValue(full.buttonBg), text: cssValue(full.buttonText) };
+}
+
 const triplet = (c: string) => { const rgb = parseColor(c); return rgb ? rgb.join(", ") : null; };
 // Scheme values come from the owner's design: keep them to one CSS value.
 const cssValue = (v: string) => String(v).replace(/[;{}<>\\]/g, "").trim();

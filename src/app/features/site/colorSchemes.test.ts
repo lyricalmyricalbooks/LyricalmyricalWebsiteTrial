@@ -8,7 +8,7 @@ import live from "./__fixtures__/liveDesign.json";
 import { layerDesign, STATIC_SURFACES, surfaceChain } from "./designModel";
 import {
   contrastLevel, contrastRatio, DEFAULT_COLOR_SCHEMES, ELEMENT_SCHEME_TARGETS, mixColors, parseColor, resolveScheme, schemeContrast,
-  schemeCss, schemeList, schemeVars, upgradeScheme, usesAllRoles, SCHEME_ROLES,
+  schemeButtonColors, schemeCss, schemeList, schemeVars, upgradeScheme, usesAllRoles, SCHEME_ROLES,
 } from "./colorSchemes";
 import { storefrontOverridesCss } from "./StorefrontOverrides";
 import { cartDrawerCss } from "./cartDrawerStyle";
@@ -143,6 +143,21 @@ describe("colour schemes 2.0", () => {
     // Card title/price colour (Product cards & grid) gives way to the card scheme's text inside a card.
     const cards = schemeCss({ colorSchemes: [noir], elementSchemes: { cards: noir.id } });
     expect(cards).toContain("[data-fm-store] .fm-card .fm-card-title,[data-fm-store] .fm-card .fm-card-price-wrap{color:var(--text-color) !important;}");
+  });
+
+  it("gives buttons painted inline the scheme's button roles", () => {
+    const own = { bg: "#b7b4b4", text: "#100f0d" };
+    expect(schemeButtonColors({ colorSchemes: [noir] }, "buyCard", own)).toBe(own);
+    const paper = DEFAULT_COLOR_SCHEMES[0];
+    const d = { colorSchemes: [paper, { ...noir, buttonBg: "#123456", buttonText: "#fedcba" }], elementSchemes: { buyCard: noir.id, cards: paper.id } };
+    expect(schemeButtonColors(d, "buyCard", own)).toEqual({ bg: "#123456", text: "#fedcba" });
+    expect(schemeButtonColors(d, "cards", own)).toEqual({ bg: paper.buttonBg, text: paper.buttonText });
+    // The buttons that set --btn-* / colours inline read them: Add to bag and the shop card's hover button.
+    const read = (f: string) => readFileSync(join(__dirname, "..", "..", f), "utf8");
+    expect(read("features/site/BookDetail.tsx")).toMatch(/"--btn-bg": buttonStyle === "solid" \? buyButton\.bg/);
+    expect(read("features/site/BookDetail.tsx")).toContain('schemeButtonColors(tokenSource, "buyCard"');
+    expect(read("components/MainSite.tsx")).toContain('schemeButtonColors(storefrontDesign, "cards"');
+    expect(read("components/MainSite.tsx")).toMatch(/backgroundColor: storefrontButtonStyle === "solid" \? cardButton\.bg/);
   });
 
   it("reaches every storefront surface through StorefrontOverrides", () => {
