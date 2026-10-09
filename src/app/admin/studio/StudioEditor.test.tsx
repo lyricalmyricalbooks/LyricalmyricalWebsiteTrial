@@ -129,7 +129,7 @@ describe("Studio editor (mounted with an in-memory API)", () => {
     await click(document.querySelector("[role=dialog] [data-media-id='m-riso-print']")!);
     expect(document.querySelector("[role=dialog]")).toBeNull();
     await click(buttons("Save draft")[0]);
-    const saved = fixture.calls.find(c => c.method === "updateSettings")?.args[0].design.heroPage.sections[0].settings;
+    const saved = fixture.calls.find(c => c.method === "saveDesign")?.args[0].design.heroPage.sections[0].settings;
     expect(saved.imageUrl__media).toMatchObject({ id: "m-riso-print", src: saved.imageUrl });
     expect(saved.imageUrl__media.srcset.map((v: any) => v.w)).toEqual([480, 960, 1600]);
 
