@@ -1163,3 +1163,25 @@ Grouped footer navigation defaults to Explore and Participate & connect, with po
   format mix uses each line's sold edition.
 - **Account:** email-link sign-in survives blocked storage; order rows count copies.
 - Deploy Functions with this frontend. No Firestore rule or index changes.
+
+## Pre-orders (8 October 2026)
+
+Books › edit › Inventory › **Pre-order** (`preorder: true`) sells a published book before its **Publication date**
+(`publishDate`, YYYY-MM-DD, Toronto calendar; empty = "date to be announced"). On release day it becomes an ordinary
+book by itself. One rule, `functions/preorder.js` ↔ `features/site/preorder.ts` (`preorder.parity.test.ts`). Stock,
+prices, holds and payment authority are unchanged: pre-orders use the book's normal inventory settings (stock caps
+pre-orders; backorders or untracked stock = unlimited). Both checkout item builders stamp each line with
+`preorder`/`releaseDate` from the catalog (`preorderLine`, a browser flag never sticks). Paid orders with a physical
+pre-order line wait in the **Awaiting release** queue (`queueOf`, Orders desk **Pre-orders** tab) until the latest
+release date, or until **Ready to ship now** (`fulfillmentAction("release_preorder")` → public `order.preorderReleasedAt` +
+`operations.preorderReleased`). Saving a book whose pre-order switch or date changed re-stamps the release date on its
+paid, unsent pre-order lines (`restampPreorderItems`, `adminApi.syncPreorderOrders`; switched off = released today);
+`dispatchProblem`, local handover and the server `labelProblem` refuse until then. The 3-day ship-late alert and the
+daily digest start counting when the printed pre-orders were released (`preorderClockStart`). E-books bought as a
+pre-order unlock on release (`downloadDigitalAsset` checks the line and the live book). Order emails get a Pre-order block (`preorderEmailLines`); the shop email subject says `[NEW PRE-ORDER]`.
+Storefront: product page stock line + **Pre-order** button, shop-card badge, bag/checkout line notes, a checkout
+summary notice (region `checkoutPreorder`), order-tracking note (region `trackingPreorder`), and `PreOrder` +
+`availabilityStarts` JSON-LD. Studio: Style › Badges & shop labels › **Pre-order badge** (`showPreorderBadge`), Cart
+drawer › **Pre-order note** (`cartDrawerShowPreorder`); words in Text & labels › Product page (`pdpPreorder*`,
+`preorderButton`, `preorderBadge`), Cart (`cartPreorder*`), Checkout (`coPreorderNotice*`), Order tracking
+(`trackPreorder*`). Mixed bags ship together on the latest release. Deploy Functions with the frontend.

@@ -23,6 +23,7 @@ import { useSiteData } from "../features/site/useSiteData";
 import { BootSplash } from "./BootSplash";
 import { buildStorefrontTokenVars, RISO_STOREFRONT_CSS, risoGrainCss, STOREFRONT_TOKEN_CSS } from "../features/site/themeTokens";
 import { getCopy } from "../features/site/storeCopy";
+import { preorderActive } from "../features/site/preorder";
 import { splitNavigation, buildNavItems, categoryNames, childCategories, parentOf } from "../features/site/navItems";
 import { NavDropdown } from "../features/site/NavDropdown";
 import { contentMaxWidth, navLineProps, navLinkStyle, useNavBelow, useNavFit } from "../features/site/headerNav";
@@ -842,6 +843,7 @@ export default function MainSite({ setShowCatalog, showCatalog, setCurrentPage, 
   const priceOnHover = storefrontDesign?.showPriceOnHover === true;
   const showSoldOutBadge = storefrontDesign?.showSoldOutBadge ?? true;
   const showSaleBadge = storefrontDesign?.showSaleBadge ?? true;
+  const showPreorderBadge = storefrontDesign?.showPreorderBadge ?? true;
   const saleBadgeLabel = storefrontDesign?.saleBadgeLabel || "SALE";
   const showNewBadge = storefrontDesign?.showNewBadge ?? false;
   const newBadgeLabel = storefrontDesign?.newBadgeLabel || "NEW";
@@ -1417,6 +1419,16 @@ export default function MainSite({ setShowCatalog, showCatalog, setCurrentPage, 
                             className="text-[8px] tracking-widest px-2 py-1 uppercase border border-white/20"
                           >
                             {soldOutLabel}
+                          </span>
+                        )}
+                        {!isOutOfStock && showPreorderBadge && preorderActive(item) && (
+                          <span
+                            data-studio-target="style:labels|copy:Product page"
+                            data-studio-label="Pre-order badge"
+                            style={{ backgroundColor: storefrontDesign?.badgeBgPrimary || "var(--accent, #e8402a)", color: storefrontDesign?.badgeTextPrimary || "var(--on-accent, #100f0d)" }}
+                            className="fm-preorder-badge text-[8px] font-bold tracking-widest px-2 py-1 uppercase border border-white/10 rounded-sm"
+                          >
+                            {getCopy(activeDesign, "preorderBadge")}
                           </span>
                         )}
                         {!isOutOfStock && onSale && showSaleBadge && (

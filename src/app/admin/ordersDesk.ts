@@ -1,8 +1,8 @@
 // Orders desk (split view): which orders show in each view, in what order, and
 // which one opens next. Pure; the queues themselves come from fulfillment.queueOf.
-import { queueOf } from "./fulfillment";
+import { queueOf, preorderShipDate } from "./fulfillment";
 
-export type DeskView = "needs" | "shipped" | "all";
+export type DeskView = "needs" | "preorders" | "shipped" | "all";
 
 // Work the shop must do, most urgent first.
 export const NEEDS_ME_QUEUES = ["Needs attention", "Ready to pack", "Ready to ship", "Ready for pickup", "Ready for local delivery"];
@@ -26,6 +26,8 @@ export function deskOrders(orders: any[], view: DeskView, query = "", showTest =
       // Problems first, then oldest paid first (the order that has waited longest).
       .sort((a, b) => NEEDS_ME_QUEUES.indexOf(queueOf(a)) - NEEDS_ME_QUEUES.indexOf(queueOf(b)) || time(a) - time(b));
   }
+  // Paid pre-orders waiting for their release date, soonest release first.
+  if (view === "preorders") return base.filter((o) => queueOf(o) === "Awaiting release").sort((a, b) => (preorderShipDate(a) || "9999").localeCompare(preorderShipDate(b) || "9999") || time(a) - time(b));
   if (view === "shipped") return base.filter((o) => SHIPPED_QUEUES.includes(queueOf(o))).sort((a, b) => time(b) - time(a));
   return base.slice().sort((a, b) => time(b) - time(a));
 }
@@ -33,6 +35,7 @@ export function deskOrders(orders: any[], view: DeskView, query = "", showTest =
 export function deskCounts(orders: any[], showTest = false) {
   return {
     needs: deskOrders(orders, "needs", "", showTest).length,
+    preorders: deskOrders(orders, "preorders", "", showTest).length,
     shipped: deskOrders(orders, "shipped", "", showTest).length,
     all: deskOrders(orders, "all", "", showTest).length,
     waitingPayment: (orders || []).filter((o) => o && (showTest || o.isTest !== true) && queueOf(o) === "Unpaid" && o.paymentStatus === "pending").length,
@@ -60,6 +63,7 @@ export function rowStatus(o: any): { tone: "danger" | "warning" | "info" | "succ
   if (q === "Ready to ship") return { tone: "warning", text: "● Label & ship" };
   if (q === "Ready for pickup") return { tone: "warning", text: "● Hand over at pickup" };
   if (q === "Ready for local delivery") return { tone: "warning", text: "● Deliver" };
+  if (q === "Awaiting release") return { tone: "info", text: preorderShipDate(o) ? `◷ Pre-order · ships ${preorderShipDate(o)}` : "◷ Pre-order · date to be announced" };
   if (q === "In transit") return { tone: "info", text: "● On the way" };
   if (o.paymentStatus === "refunded") return { tone: "neutral", text: "✕ Refunded" };
   if (q === "Completed") return { tone: "success", text: "✓ Done" };

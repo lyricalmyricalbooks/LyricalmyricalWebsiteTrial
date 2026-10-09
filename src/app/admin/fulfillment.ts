@@ -1,6 +1,7 @@
 import { cleanTrackingLink } from "../lib/tracking";
+import { waitingPreorderLines, shipDateOf } from "../features/site/preorder";
 // Publisher workflow state is private; public order/payment records remain authoritative.
-export const WORK_QUEUES = ["Needs attention", "Ready to pack", "Ready to ship", "Ready for pickup", "Ready for local delivery", "In transit", "Completed", "Unpaid", "All orders"];
+export const WORK_QUEUES = ["Needs attention", "Ready to pack", "Ready to ship", "Ready for pickup", "Ready for local delivery", "Awaiting release", "In transit", "Completed", "Unpaid", "All orders"];
 const terminal = (o: any) => o.status === "cancelled" || ["refunded", "refund_pending"].includes(o.paymentStatus) || ["cancelled", "refunded"].includes(o.fulfillmentStatus);
 // Firestore does not guarantee map key order. Compare the address fields that
 // drive shipping in a fixed order so equivalent addresses do not look stale.
@@ -48,6 +49,9 @@ export function queueOf(o: any): string {
  // An open chargeback on an order not yet sent or handed over: hold the books until it is
  // settled. Sent parcels stay In transit so delivery proof and tracking can still be recorded.
  if (disputeOpen(o)) return "Needs attention";
+ // Paid pre-orders wait here until their release date (or "Ready to ship now"), then join the
+ // normal queues by themselves. A hold or address problem is still dealt with on release.
+ if (awaitingRelease(o) && !["ready_for_pickup", "ready_for_delivery"].includes(o.fulfillmentStatus)) return "Awaiting release";
  if (o.fulfillmentStatus === "ready_for_pickup") return "Ready for pickup";
  if (o.fulfillmentStatus === "ready_for_delivery") return "Ready for local delivery";
  const needsAddressReview = method !== "pickup" && (addressIssues(o).length || o.operations?.addressReviewed !== addressKey(o));
@@ -55,6 +59,10 @@ export function queueOf(o: any): string {
  if (o.operations?.packed !== packingKey(o)) return "Ready to pack";
  return method === "pickup" ? "Ready for pickup" : method === "local_delivery" ? "Ready for local delivery" : "Ready to ship";
 }
+/** Physical pre-order lines still waiting for their release date (see features/site/preorder.ts). */
+export const awaitingRelease = (o: any) => waitingPreorderLines(o, o?.operations || {}).length > 0;
+/** The date a waiting pre-order order can ship ("" = not announced yet). */
+export const preorderShipDate = (o: any) => shipDateOf(waitingPreorderLines(o, o?.operations || {}));
 /** A card dispute the shop hasn't won or closed yet. */
 export const disputeOpen = (o: any) => !!o?.disputeStatus && !["won", "lost", "warning_closed", "closed", "charge_refunded"].includes(String(o.disputeStatus));
 export function dispatchProblem(o: any): string {
@@ -66,6 +74,7 @@ export function dispatchProblem(o: any): string {
  if (o.customerRequest?.type === "return" && o.customerRequest.status === "open") return "Resolve the active return before dispatching the order.";
  if (disputeOpen(o)) return "This payment is disputed. Don't ship until the dispute is settled in Stripe.";
  if (o.operations?.hold) return `Order on hold: ${o.operations.hold}`;
+ if (q === "Awaiting release") return `Pre-order: releases ${preorderShipDate(o) || "on a date not yet announced"}. Press "Ready to ship now" if the books have arrived.`;
  if (addressIssues(o).length || o.operations?.addressReviewed !== addressKey(o)) return "Review and confirm the shipping address first.";
  if (o.operations?.packed !== packingKey(o)) return "Complete the packing checklist first.";
  return "";

@@ -10,7 +10,9 @@ import {
   daysInTransit,
   isOverdueInTransit,
   packingInfo,
+  preorderShipDate,
 } from "./fulfillment";
+import { formatReleaseDate } from "../features/site/preorder";
 import {
   Checkbox,
   PrimaryButton,
@@ -39,6 +41,8 @@ type Props = {
   onHandedOver?: () => void;
   onLocalAdvance: () => void;
   onRelease: () => void;
+  /** Pre-ordered books arrived early: let an "Awaiting release" order be packed now. */
+  onReleasePreorder?: () => void;
 };
 export function FulfillmentWorkbench({
   order,
@@ -58,6 +62,7 @@ export function FulfillmentWorkbench({
   onHandedOver,
   onLocalAdvance,
   onRelease,
+  onReleasePreorder,
   books,
 }: Props) {
   const queue = queueOf(order);
@@ -103,6 +108,23 @@ export function FulfillmentWorkbench({
           <SecondaryButton disabled={busy} onClick={onRelease}>
             Release hold
           </SecondaryButton>
+        </div>
+      )}
+      {queue === "Awaiting release" && (
+        <div className="fw-notice" role="status">
+          <div>
+            <strong>Pre-order — waiting for release</strong>
+            <p>
+              {preorderShipDate(order)
+                ? `Ships from ${formatReleaseDate(preorderShipDate(order), "en-CA")}. It moves to Ready to pack on that day by itself.`
+                : "The release date hasn't been announced. Setting it in Books › edit › Inventory updates this order; press Ready to ship now when the books arrive."}
+            </p>
+          </div>
+          {onReleasePreorder && !order.isTest && (
+            <SecondaryButton disabled={busy} onClick={onReleasePreorder}>
+              Ready to ship now
+            </SecondaryButton>
+          )}
         </div>
       )}
       {queue === "Unpaid" && (
@@ -261,6 +283,7 @@ export function FulfillmentWorkbench({
                           .filter(Boolean)
                           .join(" · ")}
                         {isDigitalItem(item) ? " · Digital" : ""}
+                        {item.preorder ? ` · Pre-order${item.releaseDate ? ` (releases ${formatReleaseDate(item.releaseDate, "en-CA")})` : ""}` : ""}
                       </span>
                       {info.shelf && !isDigitalItem(item) && (
                         <span className="fw-item-shelf">Shelf {info.shelf}</span>

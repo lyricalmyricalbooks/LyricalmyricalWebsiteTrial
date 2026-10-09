@@ -1,4 +1,5 @@
 const { isPhysicalItem } = require("./localFulfillment");
+const { waitingPreorderLines, shipDateOf } = require("./preorder");
 // Kept in parity with admin/fulfillment.ts; money-spending label operations recheck fresh records.
 // The admin stores these exact strings when the address is reviewed / items are packed.
 const addressKey = order => {
@@ -17,6 +18,8 @@ function labelProblem(order, operations = {}) {
  if (order.customerRequest?.type === "return" && order.customerRequest.status === "open") return "Resolve the active return before buying a fulfillment label.";
  if (order.disputeStatus && !["won", "lost", "warning_closed", "closed", "charge_refunded"].includes(String(order.disputeStatus))) return "This payment is disputed. Don't buy a label until the dispute is settled in Stripe.";
  if (operations.hold) return "Release the fulfillment hold before buying a label.";
+ const waiting = waitingPreorderLines(order, operations);
+ if (waiting.length) { const date = shipDateOf(waiting); return `This order includes a pre-order that releases ${date || "on a date not yet announced"}. Press "Ready to ship now" if the books have arrived.`; }
  if (operations.addressReviewed !== addressKey(order)) return "Review the address before buying a label.";
  if (operations.packed !== packingKey(order)) return "Complete the packing checklist before buying a label.";
  return "";

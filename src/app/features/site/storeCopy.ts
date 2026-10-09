@@ -51,6 +51,8 @@ export const COPY_SCHEMA: CopyGroup[] = [
   {
     group: "Cart",
     fields: [
+      { key: "cartPreorder", label: "Pre-order note under a book", default: "Pre-order · ships {date}", hint: "Also shown in the checkout order summary. Use {date} for the release date." },
+      { key: "cartPreorderTba", label: "Pre-order note (no date yet)", default: "Pre-order · release date to be announced" },
       { key: "cartEstimateHeading", label: "Shipping preview · Heading", default: "Preview shipping" },
       { key: "cartEstimateCountry", label: "Shipping preview · Country", default: "Country" },
       { key: "cartEstimatePostal", label: "Shipping preview · Postal", default: "Postal / ZIP code" },
@@ -155,6 +157,10 @@ export const COPY_SCHEMA: CopyGroup[] = [
       { key: "pdpCaptionCount", label: "Photo caption counter", default: "{n} of {total}", hint: "Use {n} for the photo number and {total} for how many photos." },
       { key: "pdpInStock", label: "Stock line (plenty left)", default: "In stock" },
       { key: "pdpBackorder", label: "Stock line (backorder)", default: "Out of stock · ships when restocked", hint: "Shown when a book is sold out but set to keep selling (Books › Inventory › Allow backorders)." },
+      { key: "pdpPreorder", label: "Stock line (pre-order)", default: "Pre-order · ships {date}", hint: "Shown while a book is on pre-order (Books › Inventory › Pre-order). Use {date} for the release date." },
+      { key: "pdpPreorderTba", label: "Stock line (pre-order, no date yet)", default: "Pre-order · release date to be announced", hint: "Shown for a pre-order with no publication date set." },
+      { key: "preorderButton", label: "Pre-order button", default: "PRE-ORDER", hint: "Replaces the Add to bag button text while a book is on pre-order." },
+      { key: "preorderBadge", label: "Pre-order badge (book cards)", default: "Pre-order", hint: "Small badge on shop cards. Turn it off in Theme settings › Badges & shop labels." },
       { key: "pdpInStockCount", label: "Stock line (few left)", default: "In stock · {count} left", hint: "Shown at or below the “only N left” threshold. Use {count} for the number left." },
       { key: "pdpPhotosAria", label: "Thumbnails — screen-reader label", default: "Photos" },
       { key: "pdpDetailsAria", label: "Details tabs — screen-reader label", default: "Product information" },
@@ -377,6 +383,8 @@ export const COPY_SCHEMA: CopyGroup[] = [
   {
     group: "Order tracking",
     fields: [
+      { key: "trackPreorder", label: "Pre-order note", multiline: true, default: "Pre-order: your parcel ships when the last book is released on {date}.", hint: "Shown on a paid order that is waiting for a release. Use {date} for the release date." },
+      { key: "trackPreorderTba", label: "Pre-order note (no date yet)", multiline: true, default: "Pre-order: your parcel ships once the release date is announced and the book is out." },
       { key: "trackReturnHeading", label: "Return progress heading", default: "Your return" },
       { key: "trackReturn_approved", label: "Return approved", default: "Return approved — follow the instructions below." },
       { key: "trackReturn_rejected", label: "Return rejected", default: "Return request declined — see the explanation below." },
@@ -641,6 +649,8 @@ export const COPY_SCHEMA: CopyGroup[] = [
       { key: "coEstimated", label: "Delivery estimate", default: "Preliminary carrier estimate: {days} business days in transit after dispatch", hint: "Use {days} for profile-based transit timing; address-specific carrier estimates appear after you enter your address." },
       { key: "coFree", label: "Free shipping label", default: "Free" },
       { key: "coShipChoose", label: "Shipping not chosen yet (order summary)", default: "Choose an option" },
+      { key: "coPreorderNotice", label: "Pre-order notice (order summary)", multiline: true, default: "Your order includes a pre-order. Everything ships together when the last book is released on {date}.", hint: "Use {date} for the latest release date in the bag." },
+      { key: "coPreorderNoticeTba", label: "Pre-order notice (no date yet)", multiline: true, default: "Your order includes a pre-order. Everything ships together once its release date is announced and the book is out." },
       { key: "coPaypalOption", label: "PayPal payment option", default: "PayPal" },
       { key: "coDiscountRejected", label: "Discount code refused at payment", default: "Your discount code couldn’t be used and has been removed: {reason} Review your total and try again.", hint: "Use {reason} for why the code was refused." },
       { key: "coNoPayment", label: "No payment method message", multiline: true, default: "No payment method is currently available. Please contact the store before placing your order." },
