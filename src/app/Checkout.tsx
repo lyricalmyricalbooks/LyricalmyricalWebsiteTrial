@@ -9,6 +9,7 @@ import { useState, useEffect, useMemo, useRef } from "react";
 import { Link } from "react-router";
 import { useCart, catalogUnitPrice, repriceCart } from "./CartContext";
 import { amountIn, orderMoney, totalNeedsConfirming } from "./features/site/orderMoney";
+import { intentIdOf, mayHaveGoneThrough, paymentSettled, reusableCardOrder, type PendingCardOrder } from "./features/site/cardAttempt";
 import { POLICY_KEYS, policySlug, policyTitle } from "./features/site/policyPages";
 import {
   ChevronLeft, Tag, ShieldCheck, X, AlertCircle, CreditCard,
@@ -197,6 +198,11 @@ function previousAttempt(): string | undefined {
 function rememberAttempt(orderId: string) {
   try { sessionStorage.setItem(ATTEMPT_KEY, orderId); } catch { /* storage blocked */ }
 }
+// The attempt became an order (paid, paying or placed): a later purchase in this tab is a new one,
+// not a retry the server should compare with it.
+function forgetAttempt(orderId: string) {
+  try { if (sessionStorage.getItem(ATTEMPT_KEY) === orderId) sessionStorage.removeItem(ATTEMPT_KEY); } catch { /* storage blocked */ }
+}
 
 export function Checkout() {
   const { cart, cartTotal, cartCount, clearCart, setCart } = useCart();
@@ -218,6 +224,8 @@ export function Checkout() {
   const [paymentProcessing, setPaymentProcessing] = useState(false);
   const [confirmSlow, setConfirmSlow] = useState(false);
   const [manualOrderReturn, setManualOrderReturn] = useState(false);
+  // The server refused a retry because the shopper's earlier attempt was already paid: this is that order.
+  const [previousPaidReturn, setPreviousPaidReturn] = useState(false);
   const [orderNumber, setOrderNumber]   = useState("");
 
   const [discountCode, setDiscountCode]       = useState("");
@@ -271,7 +279,7 @@ export function Checkout() {
   const [cardState, setCardState] = useState<"loading" | "ready" | "error">("loading");
   const [cardFormAttempt, setCardFormAttempt] = useState(0);
   const [inlineAttemptStarted, setInlineAttemptStarted] = useState(false);
-  const pendingCardOrder = useRef<{ key: string; orderId: string; clientSecret: string } | null>(null);
+  const pendingCardOrder = useRef<PendingCardOrder | null>(null);
   const stripePublicKey: string = (settings?.payments?.testMode
     ? settings?.payments?.stripe?.testPublicKey
     : settings?.payments?.stripe?.publicKey) || "";
@@ -1116,8 +1124,14 @@ export function Checkout() {
   // A 400 from checkout carries the server's reason (stock, edition, delivery): show it.
   const serverRefusal = (response: Response, data: any) => {
     const message = typeof data?.error === "string" ? data.error.trim() : "";
+    // The shopper's earlier attempt already took their money: show that order instead of charging again.
+    if (response.status === 409 && data?.code === "previous_attempt_paid" && typeof data.previousOrderId === "string" && data.previousOrderId) {
+      return Object.assign(new CopyError(checkoutDesign, "coPreviousPaid"), { previousPaidOrderId: data.previousOrderId as string });
+    }
     if (response.status !== 400 && response.status !== 409) return null;
-    return message ? new CopyError(checkoutDesign, "coServerRefused", { reason: message }) : null;
+    // Per-shopper hold cap (functions/stockHolds.js HOLD_LIMITS): the shop's own words.
+    if (data?.code === "hold_limit") return new CopyError(checkoutDesign, "coHoldLimit");
+    return message ?new CopyError(checkoutDesign, "coServerRefused", { reason: message }) : null;
   };
 
   const completePurchase = async () => {
@@ -1198,7 +1212,7 @@ export function Checkout() {
         const valData = await valResponse.json();
         // If verification is temporarily unavailable, publisher review remains required.
         addressVerified = valData.isValid === true && valData.unverified !== true;
-        addressError = addressVerified ? "" : (valData.messages || []).map((m: any) => m.text).join(", ");
+        addressError = addressVerified ? "" : (valData.messages || []).map((m: any) => m.text).join(", ").slice(0, 2000);
       }
 
       const isManual = selectedPaymentMethod.startsWith("manual_");
@@ -1217,7 +1231,7 @@ export function Checkout() {
         // Lets the server stop the abandoned-cart email once this order is paid.
         ...(checkoutCartId ? { cartId: checkoutCartId } : {}),
         customerId: currentUser?.uid || null,
-        referralSource: referralSource || "direct",
+        referralSource: (referralSource || "direct").slice(0, 200),
         ...(checkoutDesign.showOrderNote && orderNote.trim() ? { orderNote: orderNote.trim().slice(0, 500) } : {}),
         addressVerified,
         addressError,
@@ -1260,7 +1274,8 @@ export function Checkout() {
       
       // The code is part of the key: removing a refused code must make a fresh order, even when the total is unchanged.
       const cardKey = JSON.stringify([orderData.items, orderData.total, orderData.customer, currency, fulfillmentSelection, orderData.appliedDiscount?.code || null, giftCards.map(card => card.code)]);
-      const reuse = payingByCardForm && pendingCardOrder.current?.key === cardKey ? pendingCardOrder.current : null;
+      // Same bag = same order; its PaymentIntent only while the server's holds are still alive.
+      const reuse = payingByCardForm ? reusableCardOrder(pendingCardOrder.current, cardKey) : null;
       let orderId: string;
 
       // Gift cards are taken when the payment is confirmed: a manual payment (days later) can't use them.
@@ -1356,9 +1371,11 @@ export function Checkout() {
         // have created a payment. Do not offer a competing hosted route.
         setInlineAttemptStarted(true);
         let clientSecret = reuse?.clientSecret || "";
+        let intentAmount = reuse?.clientSecret ? reuse.amount : undefined;
+        let intentCurrency = reuse?.clientSecret ? reuse.currency : undefined;
         // Remember the order before asking for a payment, so a retry reuses it instead of
         // leaving another unpaid order behind.
-        pendingCardOrder.current = { key: cardKey, orderId, clientSecret };
+        pendingCardOrder.current = reuse?.clientSecret ? reuse : { key: cardKey, orderId, clientSecret: "", createdAt: Date.now() };
         if (!clientSecret) {
           const intentResponse = await functionFetch("createStripeCheckoutSession", {
             method: "POST",
@@ -1371,14 +1388,15 @@ export function Checkout() {
             setInlineAttemptStarted(false);
             throw discountRejection(intentData) || serverRefusal(intentResponse, intentData) || new CopyError(checkoutDesign, "coStripeError");
           }
+          const madeAttempt: PendingCardOrder = { key: cardKey, orderId, clientSecret: intentData.clientSecret, createdAt: Date.now(), amount: Number(intentData.amount), currency: String(intentData.currency || currency).toLowerCase() };
           // The server prices from the live catalog. If that differs from the total on screen,
           // stop before charging so the shopper confirms the real amount.
           // Small gaps are rounding (the server rounds per line) or today's exchange rate; only a real
           // difference stops here. The order and payment are kept, so pressing Pay again confirms the
           // amount shown in the message instead of starting over.
           const shownMinor = Math.round(convertPrice(finalTotal) * 100);
-          if (totalNeedsConfirming(Number(intentData.amount), shownMinor)) {
-            pendingCardOrder.current = { key: cardKey, orderId, clientSecret: intentData.clientSecret };
+          if (totalNeedsConfirming(Number(intentData.amount), shownMinor, String(intentData.currency || currency))) {
+            pendingCardOrder.current = madeAttempt;
             setInlineAttemptStarted(false);
             setNotice({ tone: "error", text: c("coTotalChanged", { amount: amountIn(Number(intentData.amount) / 100, intentData.currency) }) });
             return;
@@ -1388,10 +1406,32 @@ export function Checkout() {
           const formMode = /^pk_live_/.test(String(stripePublicKey || "")) ? "live" : /^pk_test_/.test(String(stripePublicKey || "")) ? "test" : null;
           if (intentData.stripeMode && formMode && intentData.stripeMode !== formMode) throw new CopyError(checkoutDesign, "coStripeError");
           clientSecret = intentData.clientSecret;
-          pendingCardOrder.current = { key: cardKey, orderId, clientSecret };
+          intentAmount = madeAttempt.amount;
+          intentCurrency = madeAttempt.currency;
+          pendingCardOrder.current = madeAttempt;
         }
+        // Stripe confirms only when the card form's amount is exactly the PaymentIntent's (the
+        // server rounds per line, so the screen total can be a few cents off).
+        if (Number(intentAmount) > 0) cardFormRef.current!.setAmount(Number(intentAmount), intentCurrency || currency);
         const result = await cardFormRef.current!.confirm(clientSecret, successUrl);
         if (result.error) {
+          cardFormRef.current?.releaseAmount();
+          // A reused payment that fails for a reason other than the card (already paid in another
+          // tab, a lost connection) may have gone through: ask the server before inviting another try.
+          if (reuse?.clientSecret && mayHaveGoneThrough(result.errorType)) {
+            const statusRes = await functionFetch("createStripeCheckoutSession", {
+              method: "POST",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify({ action: "status", orderId, paymentIntentId: intentIdOf(clientSecret) }),
+            }).catch(() => null);
+            const statusData = statusRes && statusRes.ok ? await statusRes.json().catch(() => null) : null;
+            if (paymentSettled(statusData?.status)) {
+              pendingCardOrder.current = null;
+              purchaseNavigating.current = true;
+              window.location.href = `${successUrl}&payment_intent=${encodeURIComponent(intentIdOf(clientSecret))}`;
+              return;
+            }
+          }
           setNotice({ tone: "error", text: result.error });
           return;
         }
@@ -1402,6 +1442,13 @@ export function Checkout() {
       }
 
     } catch (err: any) {
+      if (err?.previousPaidOrderId) {
+        // Never charge twice: open the earlier, paid order's confirmation instead.
+        pendingCardOrder.current = null;
+        purchaseNavigating.current = true;
+        window.location.href = `${window.location.origin}${import.meta.env.BASE_URL}checkout?success=true&order_id=${encodeURIComponent(err.previousPaidOrderId)}&previous_paid=true`;
+        return;
+      }
       if (err?.nothingToCharge) {
         // Pressing Pay again places the order with nothing to charge (the server checks its own total).
         serverSaysFree.current = true;
@@ -1454,13 +1501,15 @@ export function Checkout() {
     const stripeIntentId = params.get("payment_intent") || "";
     // Drop the one-time return flags so a refresh doesn't replay this landing.
     const isManualReturn = params.get("manual") === "true";
-    const settledUrl = `${window.location.pathname}?order_id=${encodeURIComponent(oid)}&success=true${isManualReturn ? "&manual=true" : ""}`;
+    const isPreviousPaid = params.get("previous_paid") === "true";
+    const settledUrl = `${window.location.pathname}?order_id=${encodeURIComponent(oid)}&success=true${isManualReturn ? "&manual=true" : ""}${isPreviousPaid ? "&previous_paid=true" : ""}`;
     // A PayPal return keeps its token in the URL until the capture has run, so a
     // refresh mid-capture retries it instead of losing the payment.
     if (!isPayPalReturn) window.history.replaceState(null, "", settledUrl);
     setOrderNumber(oid);
     setIsSuccess(true);
     setManualOrderReturn(isManualReturn);
+    setPreviousPaidReturn(isPreviousPaid);
 
     // Orders aren't publicly readable: the server returns this one for the email it was placed with.
     const lookupEmail = (() => { try { return localStorage.getItem("last_customer_email") || ""; } catch { return ""; } })();
@@ -1471,6 +1520,7 @@ export function Checkout() {
           if (cancelled) return;
           if (order) setSuccessOrder(order);
           clearCart();
+          forgetAttempt(oid);
           const email = order?.customer?.email || localStorage.getItem("last_customer_email") || "";
           const recoveryCartId = sessionStorage.getItem("fm_checkout_cart_id") || `active_${email.toLowerCase()}`;
           abandonedCartApi.markRecovered(recoveryCartId);
@@ -1498,9 +1548,11 @@ export function Checkout() {
           if (statusData?.status === "complete") {
             setPaymentReceived(true);
             clearCart();
+            forgetAttempt(oid);
           } else if (statusData?.status === "processing") {
             setPaymentProcessing(true);
             clearCart();
+            forgetAttempt(oid);
           }
         }
         if (isPayPalReturn) {
@@ -1531,6 +1583,7 @@ export function Checkout() {
           if (order?.paymentStatus === "paid") {
             setPaymentConfirmed(true);
             clearCart();
+            forgetAttempt(oid);
             funnelApi.track("purchase");
             const email = order.customer?.email || localStorage.getItem("last_customer_email") || "";
             const recoveryCartId = sessionStorage.getItem("fm_checkout_cart_id") || `active_${email.toLowerCase()}`;
@@ -1540,6 +1593,7 @@ export function Checkout() {
           }
           if (order?.paymentStatus === "pending") {
             clearCart();
+            forgetAttempt(oid);
             funnelApi.track("purchase");
             const email = order.customer?.email || localStorage.getItem("last_customer_email") || "";
             const recoveryCartId = sessionStorage.getItem("fm_checkout_cart_id") || `active_${email.toLowerCase()}`;
@@ -1585,6 +1639,7 @@ export function Checkout() {
             </div>
             <h2 className="fm-track-display text-6xl sm:text-8xl mt-6 break-words">{c("coThanks")}</h2>
             <p className="fm-track-mono mt-5 border-t-2 fm-track-rule pt-4">{c("coOrderNumber", { number: orderNumber })}</p>
+            {previousPaidReturn && <div className="fm-track-notice mt-4" role="status"><p>{c("coPreviousPaid")}</p></div>}
             {!isManual && (
               <p className="text-sm leading-6 text-white/70 mt-4" role="status">
                 {paymentConfirmed

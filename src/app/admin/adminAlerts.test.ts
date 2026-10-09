@@ -72,6 +72,10 @@ describe("operational alerts", () => {
     expect(rows.find(a => a.id === "label-purchase-uncertain")?.orderIds).toEqual(["label"]);
     expect(rows.find(a => a.id === "email-failed")?.action).toBe("notifications");
   });
+  it("does not alarm when Gmail missed but the backup sender delivered", () => {
+    const rows = buildAdminAlerts([], null, now, [{ id: "g", status: "fallback", at: ago(10) }, { id: "r", status: "sent", at: ago(10) }]);
+    expect(rows.find(a => a.id === "email-failed")).toBeUndefined();
+  });
 });
 
 it("surfaces provider reconciliation without claiming it marks an order paid", () => {

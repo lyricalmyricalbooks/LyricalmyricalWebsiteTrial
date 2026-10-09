@@ -1118,6 +1118,25 @@ limits what one code can take off an order ("20% off, up to $15"). The server en
 - **Not changed on purpose:** rate-limit IP source (verify the real X-Forwarded-For shape first), sales-tax model
   (shipping tax / printed-book rebate need the owner's accountant).
 
+## Anonymous-abuse hardening (9 October 2026)
+
+- **Contact form isn't a relay:** `onContactMessage` sends the visitor's "Message received" copy at most once per
+  address per 24 h and never echoes their subject/message (name only, escaped; old templates' `{{subject}}`/`{{message}}`
+  render blank). The shop notification is capped at 5 per sender per hour (the rest stay in Messages). Counters:
+  server-only `contact-email-throttle/{purpose}_<sha256(email)>` (`functions/emailThrottle.js`).
+- **Welcome email:** `onCustomerCreated` sends only when `admin.auth().getUser(uid)` has that same email, verified.
+  `customers/{uid}` rules allow only `uid,email,name,phone,defaultAddress`, bounded, with `email` = the token email.
+- **Stock-hold caps** (`functions/stockHolds.js` `HOLD_LIMITS`): a checkout start (`reserveCheckout`, manual path) may
+  not push one shopper past 10 copies of a held book, 50 held units or 3 open unpaid checkouts (email hash), or one
+  connection past 20 / 100 / 10 (IP hash, `clientIpOf`). Counted in server-only `stock-hold-owners/{e_|ip_<hash>}`;
+  a shopper's own retry replaces the earlier attempt; payment-time renewals are never capped. Refusal =
+  `HoldLimitError` (code `hold_limit`) → Text & labels › Checkout › `coHoldLimit`.
+- **Rules:** public `pages` reads need `status == "published"` (`publicStorefrontData.mjs` uses a runQuery filter);
+  `analytics/{YYYY-MM-DD}` writes only for that day (±1 day) with `date` = id; `reviewContacts` only in the same batch
+  as their new pending review; guest orders bound `customer`, `metadata`, `referralSource`, `addressError` sizes
+  (per-line quantity stays the server's 1–99 clamp: rules can't loop). Check rules changes with
+  `scripts/firestore-rules-emulator.mjs` (header says how). Deploy rules + Functions with the frontend.
+
 ## Bug sweep #4 (7 October 2026)
 
 - **Reviews:** public reads only `status == "approved"`; reviewer emails live in admin-only `reviewContacts/{reviewId}`
@@ -1384,3 +1403,26 @@ for display in `features/site/promotions.ts` / `discountMath.ts` (`*.parity.test
   Order detail › **Mark resolved** (`resolvePaymentMismatch`). `refundOrder` refuses a full refund once a gift card the
   order bought has been spent. Admin alert `gift-cards-not-issued` flags paid gift-card orders with no card after 10 min.
   A box set's pre-order state follows the latest pre-order book inside it (`combinedPreorder`).
+
+## Payment-integrity audit fixes (9 October 2026)
+
+- **Exact card amount:** `StripeCardForm` exposes `setAmount(minor, currency)` / `releaseAmount()`. Checkout pins the
+  Elements amount to the server PaymentIntent's `amount`/`currency` before every `confirm` (a reused intent too); the
+  screen-total effect can't overwrite it during the attempt, and a changed amount is re-submitted before confirming.
+- **Reused intents age out:** the remembered card attempt (`features/site/cardAttempt.ts`, `reusableCardOrder`) keeps its
+  PaymentIntent for 25 minutes (holds last 30); after that Pay asks the server again on the same order (re-price, renew
+  holds, cancel the old intent). A non-card confirm error on a reused intent asks `action: "status"` and opens the
+  success page when Stripe says complete/processing.
+- **No paying twice:** `releaseSupersededAttempt` returns `{ paidOrderId }` when the shopper's own earlier attempt is paid,
+  PayPal-captured, `reconciliationPending` or Stripe-taken (`previousAttemptPaid`, `paymentGuards.js`); card, hosted,
+  PayPal, free and manual checkout then refuse with 409 `previous_attempt_paid` + `previousOrderId` before touching the
+  new order. Checkout opens that order's confirmation (`?previous_paid=true`) with Text & labels › Checkout ›
+  **Earlier attempt already paid** (`coPreviousPaid`). The success landing forgets the tab's attempt once it is bought.
+  A `payment_in_progress` refusal is now decided before the order is re-priced, so it never rewrites gift cards.
+- **Gift cards:** paid transactions read the cards in `chargedRedemptions(order)` (what the live payment was created for).
+- **Failed refunds:** `charge.refund.updated` (in `REQUIRED_WEBHOOK_EVENTS`) with status failed/canceled, and the reversal
+  sweep (refund_pending, `amount_refunded` 0, `failedRefundId`), call `revertFailedRefund`: back to paid (status from
+  `preRefund`, saved by `applyOrderRefund`), restocked copies taken back, discount use and revenue re-counted, restored
+  gift-card amounts re-debited, `refundRequest` cleared, timeline note — once. Run **Fix webhook** after deploying.
+- **Totals:** `totalNeedsConfirming(server, shown, currency)` allows 5¢ in CAD and max(5¢, 1%) in USD/EUR. Customer
+  emails' Total (`chargedTotalFmt`) and the Orders CSV `ChargedAmount` use `expectedAmountMinor`/`expectedCurrency` when set.

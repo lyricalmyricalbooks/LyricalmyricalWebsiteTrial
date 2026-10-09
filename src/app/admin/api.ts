@@ -1,4 +1,4 @@
-import { keepLiveStock } from "./bookStockMerge";
+import { changedBookFields } from "./bookStockMerge";
 import { BOOK_FIELDS_DOC, cleanBookFields, type BookFieldDef } from "../features/site/bookFields";
 import { alternatesFor, type AltBase, type AlternateTemplate } from "../features/site/templateAlternates";
 import { newOrderAccessKey, rememberOrderAccess, savedOrderAccess, orderAccessHeaders } from "../lib/orderAccessClient";
@@ -212,7 +212,9 @@ export const adminApi = {
   /**
    * `loaded` = the book as the editor first showed it. When given, stock the owner didn't
    * change keeps its live value (read in the same transaction), so a sale made while the
-   * editor was open is never undone by saving (keepLiveStock).
+   * editor was open is never undone by saving (keepLiveStock), and only the fields the owner
+   * changed in the editor are written (changedBookFields) — a field changed elsewhere while
+   * the editor was open (another tab, the catalog list, an import) keeps its live value.
    */
   updateBook: async (id: string, book: any, loaded?: any) => {
     const docRef = doc(db, "books", id);
@@ -223,9 +225,16 @@ export const adminApi = {
     if (loaded) {
       dataToSave = await runTransaction(db, async tx => {
         const snap = await tx.get(docRef);
-        const merged = snap.exists() ? keepLiveStock(dataToSave, loaded, snap.data()) : dataToSave;
-        tx.update(docRef, { ...merged, updatedAt: new Date().toISOString() });
-        return merged;
+        if (!snap.exists()) {
+          tx.update(docRef, { ...dataToSave, updatedAt: new Date().toISOString() });
+          return dataToSave;
+        }
+        const live = snap.data();
+        const changes = changedBookFields(dataToSave, loaded, live);
+        const updatedAt = new Date().toISOString();
+        tx.update(docRef, { ...changes, updatedAt });
+        // What the book is now: the live record with this save's changes on top.
+        return { ...live, ...changes, updatedAt };
       });
     } else {
       await updateDoc(docRef, {
@@ -1333,6 +1342,21 @@ export const adminApi = {
     });
     const result = await response.json();
     if (!response.ok) throw new Error(result.error || "Failed to load Canada Post rates.");
+    return result;
+  },
+
+  // After an uncertain label purchase the order stays locked; once the owner has checked
+  // Shippo (no label bought, or it was voided there) this lets a new label be bought.
+  clearLabelPurchaseLock: async (orderId: string) => {
+    const idToken = await auth.currentUser?.getIdToken();
+    if (!idToken) throw new Error("You must be signed in as admin.");
+    const response = await functionFetch("createShippingLabel", {
+      method: "POST",
+      headers: { "Content-Type": "application/json", "Authorization": `Bearer ${idToken}` },
+      body: JSON.stringify({ orderId, mode: "clearPurchaseLock" }),
+    });
+    const result = await response.json().catch(() => ({}));
+    if (!response.ok) throw new Error(result.error || "Couldn't allow a new label.");
     return result;
   },
 

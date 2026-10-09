@@ -800,3 +800,26 @@ A published book with `preorder: true` sells before its `publishDate` (see CLAUD
 `functions/preorder.js` and `features/site/preorder.ts` identical (`preorder.parity.test.ts`). Pre-orders never change
 stock, price or payment authority; the server stamps `preorder`/`releaseDate` on order lines from the catalog, and the
 **Awaiting release** queue plus `labelProblem` keep parcels back until release or **Ready to ship now**.
+
+## Payment-integrity audit fixes (9 October 2026)
+
+- **Exact card amount:** `StripeCardForm` exposes `setAmount(minor, currency)` / `releaseAmount()`. Checkout pins the
+  Elements amount to the server PaymentIntent's `amount`/`currency` before every `confirm` (a reused intent too); the
+  screen-total effect can't overwrite it during the attempt, and a changed amount is re-submitted before confirming.
+- **Reused intents age out:** the remembered card attempt (`features/site/cardAttempt.ts`, `reusableCardOrder`) keeps its
+  PaymentIntent for 25 minutes (holds last 30); after that Pay asks the server again on the same order (re-price, renew
+  holds, cancel the old intent). A non-card confirm error on a reused intent asks `action: "status"` and opens the
+  success page when Stripe says complete/processing.
+- **No paying twice:** `releaseSupersededAttempt` returns `{ paidOrderId }` when the shopper's own earlier attempt is paid,
+  PayPal-captured, `reconciliationPending` or Stripe-taken (`previousAttemptPaid`, `paymentGuards.js`); card, hosted,
+  PayPal, free and manual checkout then refuse with 409 `previous_attempt_paid` + `previousOrderId` before touching the
+  new order. Checkout opens that order's confirmation (`?previous_paid=true`) with Text & labels › Checkout ›
+  **Earlier attempt already paid** (`coPreviousPaid`). The success landing forgets the tab's attempt once it is bought.
+  A `payment_in_progress` refusal is now decided before the order is re-priced, so it never rewrites gift cards.
+- **Gift cards:** paid transactions read the cards in `chargedRedemptions(order)` (what the live payment was created for).
+- **Failed refunds:** `charge.refund.updated` (in `REQUIRED_WEBHOOK_EVENTS`) with status failed/canceled, and the reversal
+  sweep (refund_pending, `amount_refunded` 0, `failedRefundId`), call `revertFailedRefund`: back to paid (status from
+  `preRefund`, saved by `applyOrderRefund`), restocked copies taken back, discount use and revenue re-counted, restored
+  gift-card amounts re-debited, `refundRequest` cleared, timeline note — once. Run **Fix webhook** after deploying.
+- **Totals:** `totalNeedsConfirming(server, shown, currency)` allows 5¢ in CAD and max(5¢, 1%) in USD/EUR. Customer
+  emails' Total (`chargedTotalFmt`) and the Orders CSV `ChargedAmount` use `expectedAmountMinor`/`expectedCurrency` when set.

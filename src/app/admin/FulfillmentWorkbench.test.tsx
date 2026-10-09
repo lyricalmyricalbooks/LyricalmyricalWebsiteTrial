@@ -35,6 +35,19 @@ const render = (o: any, checked = new Set<number>()) =>
       onRelease={() => {}}
     />,
   );
+describe("stuck label purchase", () => {
+  it("offers the owner a way to allow a new label after checking Shippo", () => {
+    const o = base();
+    o.operations = { addressReviewed: addressKey(o), packed: packingKey(o), labelPurchasePending: true };
+    const html = renderToStaticMarkup(
+      <FulfillmentWorkbench order={o} checked={new Set()} busy={false} onCheck={() => {}} onReview={() => {}} onCorrect={() => {}}
+        onPack={() => {}} onLabel={() => {}} onDispatch={() => {}} onLocalAdvance={() => {}} onRelease={() => {}} onClearLabelLock={() => {}} />,
+    );
+    expect(html).toContain("A label purchase needs checking");
+    expect(html).toContain("I&#x27;ve checked Shippo — allow a new label");
+    expect(html).not.toContain("Buy Shippo label");
+  });
+});
 describe("focused publisher workflow", () => {
   it("starts at the address with no premature shipping actions", () => {
     const html = render(base());

@@ -99,3 +99,13 @@ test('a full Stripe refund of an order whose gift card fell short clears the ale
   expect(app.docs.orders.o1.giftCardConflict.resolvedAt).toBeTruthy();
   expect(app.docs.orders.o1.paymentStatus).toBe('unpaid');
 });
+
+test('reads the cards the live payment was charged with, even when a re-pricing listed other cards', async () => {
+  // The payment in flight was made with gc2; a later re-pricing left only gc1 on giftCardRedemptions.
+  const app = harness({ ...order(), giftCardRedemptions: [{ id: 'gc1', minor: 500 }], chargedGiftCards: [{ id: 'gc2', minor: 500 }] }, card(800));
+  app.docs.giftCards.gc2 = { balanceMinor: 900, enabled: true, holds: {}, history: [] };
+  expect(await app.markStripeOrderPaid('o1', session, { message: 'paid' })).toBe(true);
+  expect(app.docs.orders.o1.giftCardConflict).toBeUndefined();
+  expect(app.docs.giftCards.gc2.balanceMinor).toBe(400);
+  expect(app.docs.giftCards.gc1.balanceMinor).toBe(800);
+});

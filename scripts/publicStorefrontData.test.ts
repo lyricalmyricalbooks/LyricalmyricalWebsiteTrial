@@ -1,5 +1,20 @@
 import { expect, it } from 'vitest';
-import { decodeValue, publishedFingerprint } from './publicStorefrontData.mjs';
+import { decodeValue, publishedFingerprint, readPublishedPages } from './publicStorefrontData.mjs';
+
+it('reads pages with a status == "published" query, the only public read firestore.rules allow', async () => {
+  const calls: any[] = [];
+  const fetchImpl = async (url: string, init: any) => {
+    calls.push({ url, init });
+    return { ok: true, json: async () => [{ readTime: 'now' }, { document: { name: 'projects/p/databases/(default)/documents/pages/about', fields: { status: { stringValue: 'published' }, title: { stringValue: 'About' } }, updateTime: 't' } }] };
+  };
+  const pages = await readPublishedPages('https://firestore.googleapis.com/v1/projects/p/databases/(default)/documents/', fetchImpl as any);
+  expect(calls[0].url).toBe('https://firestore.googleapis.com/v1/projects/p/databases/(default)/documents:runQuery');
+  expect(calls[0].init.method).toBe('POST');
+  const query = JSON.parse(calls[0].init.body).structuredQuery;
+  expect(query.from).toEqual([{ collectionId: 'pages' }]);
+  expect(query.where.fieldFilter).toEqual({ field: { fieldPath: 'status' }, op: 'EQUAL', value: { stringValue: 'published' } });
+  expect(pages).toEqual([{ id: 'about', status: 'published', title: 'About', _updateTime: 't' }]);
+});
 const source = () => ({ books: [{ id: 'one', title: 'Book', status: 'published', stockLevel: 2 }, { id: 'draft', status: 'draft', title: 'Draft' }], pages: [{ id: 'page', status: 'published', body: 'Published' }], settings: { design: { categories: [{ name: 'Books' }] }, draftDesign: { color: 'draft' } } });
 it('decodes nested public settings and photo arrays without losing booleans or numeric prices', () => {
   expect(decodeValue({ mapValue: { fields: { price: { doubleValue: 3.5 }, hidden: { booleanValue: false }, photos: { arrayValue: { values: [{ mapValue: { fields: { altText: { stringValue: 'Cover' } } } }] } } } } })).toEqual({ price: 3.5, hidden: false, photos: [{ altText: 'Cover' }] });

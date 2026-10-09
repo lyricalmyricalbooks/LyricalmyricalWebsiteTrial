@@ -75,6 +75,17 @@ test('becoming paid sends exactly one customer email and one shop email', async 
   expect(toShop[0].html).toMatch(/href="[^"]*\/admin#orders\/o1"[^>]*>Fulfil this order/);
 });
 
+test('the customer email total is exactly what the card was charged, not total × rate', async () => {
+  const app = harness();
+  // 3.39 CAD × 0.7299 = 2.474… → "US$2.47", but the PaymentIntent (per-line rounding) was 248 cents.
+  const paid = order({ paymentStatus: 'paid', checkoutCurrency: 'USD', exchangeRate: 0.7299, expectedAmountMinor: 248, expectedCurrency: 'usd' });
+  await app.exports.onOrderUpdated(updated(order({ paymentStatus: 'unpaid' }), paid));
+  const toCustomer = app.sent.filter((m) => m.to === 'reader@example.com');
+  expect(toCustomer).toHaveLength(1);
+  expect(toCustomer[0].html).toContain('US$2.48');
+  expect(toCustomer[0].html).not.toContain('US$2.47');
+});
+
 test('a sandbox order marks the shop email [TEST]', async () => {
   const app = harness();
   await app.exports.onOrderUpdated(updated(order({ paymentStatus: 'unpaid' }), order({ paymentStatus: 'paid', isTest: true, sandboxPayment: true })));

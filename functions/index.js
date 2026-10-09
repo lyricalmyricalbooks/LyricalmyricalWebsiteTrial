@@ -23,7 +23,7 @@ const { risoButton, risoLayout } = require("./emailTheme");
 const Stripe = require("stripe");
 const { calculateShipping, applyStockDelta } = require("./orderMath");
 const { quoteShipping, pickQuote, parseWeightGrams } = require("./shippingEngine");
-const { labelProblem, addressKey: guardAddressKey } = require("./fulfillmentGuard");
+const { labelProblem, addressKey: guardAddressKey, shippoTransactionOutcome } = require("./fulfillmentGuard");
 const { buildOrderDigest, TRANSIT_DAYS } = require("./orderDigest");
 const { checkoutRate } = require("./checkoutRate");
 const { canadaPostLabelRates, isCanadaPostRate } = require("./labelRates");
@@ -34,16 +34,17 @@ const { addOnSelection, bundleComponents, bundleAvailable, isGiftCardProduct, gi
 const { MAX_CARDS_PER_ORDER, GIFT_CARD_MESSAGES, GiftCardError, newGiftCardCode, normalizeGiftCardCode, giftCardId, last4, giftCardProblem, availableMinor, allocateGiftCards, chargedRedemptions, reserveGiftCards, releaseGiftCards, readGiftCards, debitShortfall, writeGiftCardChange, cardsForOrder, withHistory } = require("./giftCards");
 const { readBooks, writeStock } = require("./inventory");
 const { resolveCountry } = require("./shippingGeo");
-const { REQUIRED_WEBHOOK_EVENTS, modesToTry, intentAsSession, paidIntentOrderId, webhookEndpointReport, signingSecrets, reversalState, ordersDueReversalCheck } = require("./stripeRecovery");
-const { orderMoneyFmt, refundAmountText, withoutTrackingLines } = require("./emailMoney");
+const { REQUIRED_WEBHOOK_EVENTS, modesToTry, intentAsSession, paidIntentOrderId, webhookEndpointReport, signingSecrets, reversalState, ordersDueReversalCheck, failedRefundId } = require("./stripeRecovery");
+const { orderMoneyFmt, chargedTotalFmt, refundAmountText, withoutTrackingLines } = require("./emailMoney");
 const { optOutId, unsubscribeToken, tokenMatches, footerAddress, normEmail: normMarketingEmail } = require("./marketingOptOut");
-const { checkoutCurrencyOf, paidAmountCheck, toMinor, discountDateState, purchaseProblem, paypalCreateRequestId, lateFailureMayMarkFailed, refundProviderOf, paypalReversalCaptureId, discountUsedUp, checkoutRefusal, manualPaidRefusal, stripeIntentKey, cancelRefusal, mismatchResolved, stripePaymentTaken, paypalRefundedTotalMinor } = require("./paymentGuards");
+const { checkoutCurrencyOf, paidAmountCheck, toMinor, discountDateState, purchaseProblem, paypalCreateRequestId, lateFailureMayMarkFailed, refundProviderOf, paypalReversalCaptureId, discountUsedUp, checkoutRefusal, manualPaidRefusal, stripeIntentKey, cancelRefusal, mismatchResolved, stripePaymentTaken, previousAttemptPaid, paypalRefundedTotalMinor } = require("./paymentGuards");
 const { canViewOrder, publicOrderView } = require("./orderAccess");
 const { returnTransition, publicReturn, returnRestockItems } = require("./returns");
 const { orderRequestProblem, orderRequestRecord, privacyRequestRecord } = require("./customerRequests");
-const { hitLimit, LIMITS } = require("./rateLimit");
+const { hitLimit, LIMITS, clientIpOf } = require("./rateLimit");
 const { reserveStock, releaseStock, releaseStockForOrder, StockHoldError, holdOwner } = require("./stockHolds");
 const { preorderActive, preorderLine, preorderEmailLines } = require("./preorder");
+const { claimEmailSend } = require("./emailThrottle");
 
 admin.initializeApp();
 const db = admin.firestore();
@@ -268,7 +269,7 @@ function customerTotalsTable(order) {
           ${order.tax ? `<tr><td colspan="2" style="padding:8px 0;text-align:right;color:#666;">Tax</td><td style="text-align:right;">${m(order.tax)}</td></tr>` : ""}
           ${order.discount ? `<tr><td colspan="2" style="padding:8px 0;text-align:right;color:#0a7;">${discountLabel(order)}</td><td style="text-align:right;color:#0a7;">−${m(order.discount)}</td></tr>` : ""}
           ${order.giftCardAmount ? `<tr><td colspan="2" style="padding:8px 0;text-align:right;color:#666;">Gift card${(order.giftCardRedemptions || []).length > 1 ? "s" : ""} ${escapeHtml((order.giftCardRedemptions || []).map(r => `••••${r.last4 || ""}`).join(", "))}</td><td style="text-align:right;">−${m(order.giftCardAmount)}</td></tr>` : ""}
-          <tr><td colspan="2" style="padding:12px 0;text-align:right;font-weight:bold;">Total</td><td style="text-align:right;font-weight:bold;">${m(order.total)}</td></tr>
+          <tr><td colspan="2" style="padding:12px 0;text-align:right;font-weight:bold;">Total</td><td style="text-align:right;font-weight:bold;">${chargedTotalFmt(order)}</td></tr>
         </table>
       `;
 }
@@ -312,6 +313,36 @@ async function logEmailAttempt(entry) {
     await db.collection("emailLog").add({ ...entry, at: new Date().toISOString() });
   } catch (err) {
     console.warn("Could not write emailLog entry:", err);
+  }
+}
+
+// One order email of each kind, even when Firestore re-runs the trigger: the send is claimed
+// first in the server-only `email-claims` collection (firestore.rules deny every client) and
+// the claim is released when the send fails, so a retry can still deliver it.
+const emailClaimId = (orderId, kind) => `${orderId}_${kind}`.replace(/[^A-Za-z0-9_-]/g, "-").slice(0, 400);
+async function sendOrderEmailOnce(orderId, kind, message) {
+  const ref = db.collection("email-claims").doc(emailClaimId(orderId, kind));
+  let claimed = true;
+  try {
+    claimed = await db.runTransaction(async tx => {
+      const snap = await tx.get(ref);
+      if (snap.exists) return false;
+      tx.set(ref, { orderId, kind, claimedAt: new Date().toISOString() });
+      return true;
+    });
+  } catch (err) {
+    // Without a claim store we cannot tell; a rare duplicate beats a lost order email.
+    console.warn(`Could not claim ${kind} email for ${orderId}; sending anyway:`, err);
+  }
+  if (!claimed) {
+    console.log(`${kind} email for ${orderId} was already sent; skipping duplicate.`);
+    return null;
+  }
+  try {
+    return await sendEmail(message);
+  } catch (err) {
+    await ref.delete().catch(releaseErr => console.warn(`Could not release ${kind} email claim for ${orderId}:`, releaseErr));
+    throw err;
   }
 }
 
@@ -370,6 +401,7 @@ async function sendEmail({ to, subject, html, secret }) {
   } catch (err) {
     console.warn("Could not read adminSecrets/gmail:", err);
   }
+  let gmailProblem = "";
   if (gmailPass) {
     try {
       if (html && !/<html[\s>]/i.test(html)) {
@@ -387,12 +419,15 @@ async function sendEmail({ to, subject, html, secret }) {
       return { id: info.messageId || null };
     } catch (err) {
       console.error("Gmail SMTP send failed, falling back to Resend:", err);
-      await logEmailAttempt({ to: recipients, subject: String(subject || ""), status: "failed", from: ADMIN_TO, keySource: "gmail",
-        error: `Gmail SMTP rejected the send (${err?.message || err}). Re-enter the Gmail app password in Settings › Notifications › Gmail sending; falling back to Resend.` });
+      gmailProblem = `Gmail SMTP rejected the send (${err?.message || err}). Re-enter the Gmail app password in Settings › Notifications › Gmail sending.`;
+      // Not a failure yet: Resend below may still deliver it. Only the final outcome counts as "failed".
+      await logEmailAttempt({ to: recipients, subject: String(subject || ""), status: "fallback", from: ADMIN_TO, keySource: "gmail",
+        error: `${gmailProblem} Trying the backup sender (Resend).` });
     }
   }
   const fail = async (message, extra = {}) => {
-    await logEmailAttempt({ to: recipients, subject: String(subject || ""), status: "failed", error: message, from: fromEmail, keySource, ...extra });
+    const error = gmailProblem ? `${message} (${gmailProblem})` : message;
+    await logEmailAttempt({ to: recipients, subject: String(subject || ""), status: "failed", error, from: fromEmail, keySource, ...extra });
     throw new Error(message);
   };
 
@@ -1074,37 +1109,51 @@ async function recalculateOrder(orderRef, order, checkoutCurrency, orderId = "")
 // order; their own earlier unpaid attempt must not keep the last copy held against them for
 // 30 minutes. The browser names that earlier order; it is released only when it is still
 // unpaid and belongs to the same customer email.
+// Returns { paidOrderId } when that earlier attempt already took (or is taking) the shopper's
+// money: the caller refuses the new attempt (refusePreviousAttemptPaid) so nobody pays twice.
 async function releaseSupersededAttempt(req, email, currentOrderId) {
   const prevId = req.body?.previousOrderId;
-  if (typeof prevId !== "string" || !prevId || prevId.includes("/") || prevId === currentOrderId) return;
+  if (typeof prevId !== "string" || !prevId || prevId.includes("/") || prevId === currentOrderId) return {};
   try {
     const snap = await db.collection("orders").doc(prevId).get();
-    if (!snap.exists) return;
+    if (!snap.exists) return {};
     const prev = snap.data();
     const same = String(prev.customer?.email || "").trim().toLowerCase() === String(email || "").trim().toLowerCase();
-    if (!same || prev.paymentStatus !== "unpaid" || checkoutRefusal(prev)) return;
-    // A payment that may have gone through (webhook not here yet) keeps its hold, so the
-    // retry can't sell the same last copy twice.
-    if (prev.reconciliationPending || prev.paypalCaptureId) return;
+    if (!same) return {};
+    // Paid, or a payment that may have gone through (webhook not here yet): keep its hold and
+    // stop this retry, so the shopper isn't charged twice and the last copy isn't sold twice.
+    if (previousAttemptPaid(prev, null, null)) return { paidOrderId: prevId };
+    if (prev.paymentStatus !== "unpaid" || checkoutRefusal(prev)) return {};
     const intentId = String(prev.stripePaymentIntentId || ""), sessionId = String(prev.stripeCheckoutSessionId || "");
     if (intentId.startsWith("pi_") || sessionId.startsWith("cs_")) {
       const { stripe, requestOptions } = await getStripeClientForMode(prev.stripeMode === "test" ? "test" : "live", prev.stripeAccountId || null);
       const intent = intentId.startsWith("pi_") ? await stripe.paymentIntents.retrieve(intentId, {}, requestOptions) : null;
       const session = sessionId.startsWith("cs_") ? await stripe.checkout.sessions.retrieve(sessionId, {}, requestOptions) : null;
-      if (stripePaymentTaken(intent, session)) return;
-      if (intent && !["requires_payment_method", "canceled"].includes(intent.status)) return;
+      if (previousAttemptPaid(prev, intent, session)) return { paidOrderId: prevId };
+      if (intent && !["requires_payment_method", "canceled"].includes(intent.status)) return {};
     }
     await releaseStock(db, prevId, prev.items || []);
     await releaseGiftCards(db, prevId, [...chargedRedemptions(prev), ...(prev.giftCardRedemptions || [])]);
   } catch (err) {
     console.warn(`Could not release superseded attempt ${prevId}:`, err.message);
   }
+  return {};
+}
+
+// 409 for a retry whose earlier attempt already has the shopper's money. The browser opens that
+// order's confirmation (Text & labels › Checkout › coPreviousPaid) instead of charging again.
+function refusePreviousAttemptPaid(res, superseded) {
+  if (!superseded?.paidOrderId) return false;
+  res.status(409).json({ error: "Your earlier payment for this order already went through.", code: "previous_attempt_paid", previousOrderId: superseded.paidOrderId });
+  return true;
 }
 
 // Holds the order's tracked stock, then its gift-card amounts, for the payment window.
 // A gift card that can no longer cover its part gives the stock back and throws GiftCardError.
-async function reserveCheckout(orderId, items, order, giftCardRedemptions, testMode) {
-  await reserveStock(db, orderId, items, Date.now(), holdOwner(order));
+// A shopper starting checkout is held to the per-shopper caps (stockHolds HOLD_LIMITS, keyed by
+// email and, with `req`, the connecting address); HoldLimitError is a StockHoldError ("hold_limit").
+async function reserveCheckout(orderId, items, order, giftCardRedemptions, testMode, req = null) {
+  await reserveStock(db, orderId, items, Date.now(), holdOwner(order), { limits: true, ip: req ? clientIpOf(req) : "" });
   if (!(giftCardRedemptions || []).length) return;
   try {
     await reserveGiftCards(db, orderId, giftCardRedemptions, { testMode, owner: holdOwner(order) });
@@ -1200,7 +1249,7 @@ async function markOrderPaidFromPayPal(orderId, paypalData) {
       discountRef = db.collection("discounts").doc(order.appliedDiscount.id);
       discountDoc = await transaction.get(discountRef);
     }
-    const giftCards = sandbox ? new Map() : await readGiftCards(transaction, db, order.giftCardRedemptions);
+    const giftCards = sandbox ? new Map() : await readGiftCards(transaction, db, chargedRedemptions(order));
     const now = new Date().toISOString();
     if (!sandbox && !settleGiftCards(transaction, orderRef, orderId, order, giftCards, "PayPal", now)) {
       transaction.update(orderRef, { paypalCaptureId: paypalData.captureId || null });
@@ -1256,6 +1305,8 @@ exports.createPayPalOrder = onBrowserRequest(
       const refusal = checkoutRefusal(order);
       if (refusal === "paid") return res.status(409).json({ error: "Order is already paid" });
       if (refusal) return res.status(409).json({ error: "This order was cancelled. Please start a new order from your bag.", code: "order_closed" });
+      // Before anything is re-priced or held: the shopper's earlier attempt may already be paid.
+      if (refusePreviousAttemptPaid(res, await releaseSupersededAttempt(req, order.customer?.email, orderId))) return;
       let priced;
       try {
         priced = await recalculateOrder(orderRef, order, currency, orderId);
@@ -1265,10 +1316,9 @@ exports.createPayPalOrder = onBrowserRequest(
       if (!(priced.convertedTotal > 0)) return res.status(400).json({ error: "Your gift card covers this order. Review your bag and place the order again.", code: "nothing_to_charge" });
       const config = await getPayPalConfig();
       if (!config.testMode) {
-        await releaseSupersededAttempt(req, order.customer?.email, orderId);
         try {
           // Priced lines (with box-set parts), not the browser's lines.
-          await reserveCheckout(orderId, priced.items, order, priced.giftCardRedemptions, config.testMode);
+          await reserveCheckout(orderId, priced.items, order, priced.giftCardRedemptions, config.testMode, req);
         } catch (holdErr) {
           if (holdErr instanceof StockHoldError) return res.status(409).json({ error: holdErr.message, code: holdErr.code });
           if (holdErr instanceof GiftCardError) return res.status(409).json({ error: holdErr.message, code: "gift_card_rejected" });
@@ -1491,8 +1541,8 @@ exports.createStripeCheckoutSession = onBrowserRequest(
         for (const cartKey of [order.cartId, `active_${order.customer.email}`].filter(Boolean)) {
           await db.collection('abandoned-carts').doc(cartKey).update({ recovered: true, recoveredAt: now }).catch(() => {});
         }
-        await releaseSupersededAttempt(req, order.customer.email, orderId);
-        await reserveStock(db, orderId, items, Date.now(), holdOwner(order));
+        if (refusePreviousAttemptPaid(res, await releaseSupersededAttempt(req, order.customer.email, orderId))) return;
+        await reserveStock(db, orderId, items, Date.now(), holdOwner(order), { limits: true, ip: clientIpOf(req) });
         try {
           await db.collection('orders').doc(orderId).create({ ...order, ...trusted, orderId, trackingKey, paymentStatus: 'pending', status: 'pending_payment', paymentMethod: manual.name, paymentInstructions: manual.instructions || '', createdAt: now, updatedAt: now, activity: [{ type: 'event', message: 'Order created', createdAt: now }] });
         } catch (createErr) {
@@ -1501,7 +1551,7 @@ exports.createStripeCheckoutSession = onBrowserRequest(
         }
         return res.status(200).json({ orderId, trackingKey, shipping: trusted.shipping, tax: trusted.tax, total: trusted.total, fulfillment: trusted.fulfillment });
       } catch (err) {
-        return res.status(400).json({ error: err.message });
+        return res.status(400).json({ error: err.message, ...(err.code === "hold_limit" ? { code: err.code } : {}) });
       }
     }
 
@@ -1530,18 +1580,18 @@ exports.createStripeCheckoutSession = onBrowserRequest(
           return res.status(400).json({ error: "This order can't be completed without payment." });
         }
         // The shopper's own earlier attempt gives back its holds first, so it can't block this one.
-        await releaseSupersededAttempt(req, freeOrder.customer?.email, freeId);
+        if (refusePreviousAttemptPaid(res, await releaseSupersededAttempt(req, freeOrder.customer?.email, freeId))) return;
         const priced = await recalculateOrder(freeRef, freeOrder, checkoutCurrencyOf(req.body.currency) || "cad", freeId);
         // A test-mode gift card is a rehearsal: it can't pay for a real order on its own.
         if (priced.testCardUsed) return res.status(400).json({ error: "Gift card error: This test gift card can only be used with a test card payment.", code: "gift_card_rejected" });
         if (Math.round(Number(priced.total) * 100) !== 0) {
           return res.status(400).json({ error: "This order has a total to pay. Review your bag and choose a payment method.", code: "total_changed" });
         }
-        const paidNow = await completeOrderWithoutCard(freeId, priced.giftCardAmount > 0 ? "Order paid in full with a gift card." : "Free order completed — nothing to charge.");
+        const paidNow = await completeOrderWithoutCard(freeId, priced.giftCardAmount > 0 ? "Order paid in full with a gift card." : "Free order completed — nothing to charge.", { req });
         if (!paidNow) return res.status(409).json({ error: "Your gift card balance changed. Review your order and try again.", code: "gift_card_rejected" });
         return res.status(200).json({ paid: true });
       } catch (err) {
-        return res.status(400).json({ error: err.message, ...(err.code && /^(gift_card|discount_)/.test(err.code) ? { code: err.code.startsWith("gift_card") ? "gift_card_rejected" : err.code } : {}) });
+        return res.status(400).json({ error: err.message, ...(err.code && /^(gift_card|discount_|hold_limit)/.test(err.code) ? { code: err.code.startsWith("gift_card") ? "gift_card_rejected" : err.code } : {}) });
       }
     }
 
@@ -1625,30 +1675,6 @@ exports.createStripeCheckoutSession = onBrowserRequest(
       const testMode = settings.payments?.testMode || false;
       const stripeSettings = await withPrivateStripeKeys(settings.payments?.stripe);
 
-      await orderRef.update({
-        // Lower-case so "one use per customer" cannot be dodged by changing the email's capitalisation.
-        ...(order.customer?.email ? { "customer.email": String(order.customer.email).trim().toLowerCase() } : {}),
-        items: items.map(({ shippingProfileId, ...rest }) => rest),
-        subtotal: subtotalTrusted,
-        discount: discountAmount,
-        appliedDiscount: appliedDiscount,
-        shipping: shippingCost,
-        ...(shippingMethodCharged ? { shippingMethod: shippingMethodCharged } : {}),
-        shippingEstimate,
-        fulfillment,
-        tax: taxCost,
-        giftCardAmount,
-        giftCardRedemptions,
-        total: finalTotal,
-        checkoutCurrency: checkoutCurrency.toUpperCase(),
-        exchangeRate: exchangeRate,
-        stripeMode: testMode ? "test" : "live",
-        clientIp: clientIp,
-        ipCountry: ipCountry || null,
-        ipCountryMatchesShipping: ipCountryMatchesShipping,
-        updatedAt: new Date().toISOString()
-      });
-
       // 5. Stripe checkout parameters
       const stripeSecret = testMode 
         ? stripeSettings.testSecretKey 
@@ -1723,24 +1749,13 @@ exports.createStripeCheckoutSession = onBrowserRequest(
         return;
       }
 
-      // Sandbox sessions rehearse payment only; they do not reserve or consume live stock or gift cards.
-      if (!testMode) {
-        await releaseSupersededAttempt(req, order.customer?.email, orderId);
-        try {
-          await reserveCheckout(orderId, items, order, giftCardRedemptions, testMode);
-        } catch (holdErr) {
-          if (holdErr instanceof StockHoldError || holdErr instanceof GiftCardError) {
-            res.status(409).json({ error: holdErr.message, code: holdErr instanceof GiftCardError ? "gift_card_rejected" : holdErr.code });
-            return;
-          }
-          throw holdErr;
-        }
-      }
+      // The shopper's earlier attempt already has their money: refuse before this order is touched.
+      if (refusePreviousAttemptPaid(res, await releaseSupersededAttempt(req, order.customer?.email, orderId))) return;
 
-      // Payment Element on the checkout page: charge the same server-priced
-      // total through a PaymentIntent instead of a Checkout Session.
+      // A retry on the same order replaces its earlier unfinished PaymentIntent, so two tabs can't both pay.
+      // Checked before the order is re-priced: a refused retry must leave the amounts (and gift cards)
+      // of the payment that is still in progress exactly as they were.
       if (paymentElement) {
-        // A retry on the same order replaces its earlier unfinished PaymentIntent, so two tabs can't both pay.
         if (order.stripePaymentIntentId) {
           try {
             const previous = await stripe.paymentIntents.retrieve(order.stripePaymentIntentId);
@@ -1764,6 +1779,48 @@ exports.createStripeCheckoutSession = onBrowserRequest(
             return;
           }
         }
+      }
+
+      await orderRef.update({
+        // Lower-case so "one use per customer" cannot be dodged by changing the email's capitalisation.
+        ...(order.customer?.email ? { "customer.email": String(order.customer.email).trim().toLowerCase() } : {}),
+        items: items.map(({ shippingProfileId, ...rest }) => rest),
+        subtotal: subtotalTrusted,
+        discount: discountAmount,
+        appliedDiscount: appliedDiscount,
+        shipping: shippingCost,
+        ...(shippingMethodCharged ? { shippingMethod: shippingMethodCharged } : {}),
+        shippingEstimate,
+        fulfillment,
+        tax: taxCost,
+        giftCardAmount,
+        giftCardRedemptions,
+        total: finalTotal,
+        checkoutCurrency: checkoutCurrency.toUpperCase(),
+        exchangeRate: exchangeRate,
+        stripeMode: testMode ? "test" : "live",
+        clientIp: clientIp,
+        ipCountry: ipCountry || null,
+        ipCountryMatchesShipping: ipCountryMatchesShipping,
+        updatedAt: new Date().toISOString()
+      });
+
+      // Sandbox sessions rehearse payment only; they do not reserve or consume live stock or gift cards.
+      if (!testMode) {
+        try {
+          await reserveCheckout(orderId, items, order, giftCardRedemptions, testMode, req);
+        } catch (holdErr) {
+          if (holdErr instanceof StockHoldError || holdErr instanceof GiftCardError) {
+            res.status(409).json({ error: holdErr.message, code: holdErr instanceof GiftCardError ? "gift_card_rejected" : holdErr.code });
+            return;
+          }
+          throw holdErr;
+        }
+      }
+
+      // Payment Element on the checkout page: charge the same server-priced
+      // total through a PaymentIntent instead of a Checkout Session.
+      if (paymentElement) {
         const amount = chargeMinor;
         const intent = await stripe.paymentIntents.create({
           amount,
@@ -2211,7 +2268,7 @@ async function markStripeOrderPaid(orderId, session, opts = {}) {
         discountRef = db.collection("discounts").doc(order.appliedDiscount.id);
         discountDoc = await transaction.get(discountRef);
       }
-      const giftCards = sandbox ? new Map() : await readGiftCards(transaction, db, order.giftCardRedemptions);
+      const giftCards = sandbox ? new Map() : await readGiftCards(transaction, db, chargedRedemptions(order));
       // A gift card that can no longer pay its part keeps the order unpaid (like a stock conflict).
       if (!sandbox && !settleGiftCards(transaction, orderRef, orderId, order, giftCards, "Stripe", now)) {
         transaction.update(orderRef, stripeTransaction);
@@ -2343,6 +2400,8 @@ async function applyOrderRefund(orderId, { provider, refundId = null, amountMino
       ...(provider === "dispute" && order.customerRequest?.status === "open" ? { customerRequest: { ...order.customerRequest, status: "handled" } } : {}),
       ...(order.returnProgress && order.returnProgress.state !== "rejected" && provider !== "dispute" ? { returnProgress: { ...order.returnProgress, state: done ? "completed" : "refund_pending", updatedAt: now }, customerRequest: { ...order.customerRequest, status: "handled" } } : {}),
       status: "cancelled",
+      // What the order looked like before the refund, so a refund the bank later rejects can be undone.
+      preRefund: { status: order.status || null, returnProgress: order.returnProgress || null, customerRequest: order.customerRequest || null },
       refund: {
         id: refundId,
         provider,
@@ -2359,7 +2418,8 @@ async function applyOrderRefund(orderId, { provider, refundId = null, amountMino
       ...(amountMinor != null ? { refundedAmountMinor: amountMinor } : {}),
       ...(shouldRestock ? {
         inventoryRestockedAt: now,
-        restockedItems: itemList.map(item => ({ id: item.id, variantId: item.variantId || null, quantity: Number(item.quantity) || 0 })),
+        restockedItems: itemList.map(item => ({ id: item.id, variantId: item.variantId || null, quantity: Number(item.quantity) || 0,
+          ...(Array.isArray(item.components) && item.components.length ? { components: item.components.map(part => ({ id: part.id, variantId: part.variantId || null, quantity: Number(part.quantity) || 1 })) } : {}) })),
       } : {}),
       ...(discountRef ? { discountUsageReversedAt: now } : {}),
       ...(shouldRestoreGiftCards ? { giftCardsRestoredAt: now } : {}),
@@ -2387,6 +2447,82 @@ async function applyOrderRefund(orderId, { provider, refundId = null, amountMino
     }, { merge: true });
   }
   return { alreadyRecorded };
+}
+
+// A refund Stripe accepted (order went to refund_pending, stock back, discount use and revenue
+// reversed) that then failed at the bank: the customer still paid, so undo exactly what
+// applyOrderRefund did, once. Only for a refund_pending order; the "failed" refund is recorded.
+async function revertFailedRefund(orderId, { refundId = null, source = "" } = {}) {
+  const orderRef = db.collection("orders").doc(orderId);
+  let revenue = null;
+  let reverted = false;
+  await db.runTransaction(async transaction => {
+    revenue = null;
+    reverted = false;
+    const snap = await transaction.get(orderRef);
+    if (!snap.exists) return;
+    const order = snap.data();
+    if (order.paymentStatus !== "refund_pending") return;
+    // Another refund on this order failed, not the one it is waiting for.
+    if (refundId && order.refund?.id && order.refund.id !== refundId) return;
+    const now = new Date().toISOString();
+    const sandboxPaid = order.sandboxPayment === true;
+    const restocked = order.inventoryRestockedAt != null && Array.isArray(order.restockedItems) ? order.restockedItems : [];
+    const books = restocked.length ? await readBooks(transaction, db, restocked) : new Map();
+    const discountRef = order.discountUsageReversedAt != null && order.appliedDiscount?.id ? db.collection("discounts").doc(order.appliedDiscount.id) : null;
+    const discountDoc = discountRef ? await transaction.get(discountRef) : null;
+    const charged = order.giftCardsRestoredAt ? chargedRedemptions(order) : [];
+    const cards = charged.length ? await readGiftCards(transaction, db, charged) : new Map();
+    const voided = order.giftCardsVoidedAt ? await readGiftCards(transaction, db, order.giftCardsIssued) : new Map();
+    const giftShort = charged.length ? debitShortfall(charged, cards) : null;
+    const notes = [];
+
+    if (restocked.length && writeStock(transaction, db, restocked, books, -1, now)) notes.push("some of the restocked copies had already sold, so stock may be oversold");
+    if (discountRef && discountDoc?.exists) transaction.update(discountRef, { usageCount: (Number(discountDoc.data().usageCount) || 0) + 1, updatedAt: now });
+    if (charged.length && !giftShort) writeGiftCardChange(transaction, db, orderId, charged, cards, -1, now);
+    if (giftShort) notes.push("a gift card's balance was spent after the refund, so its part could not be taken back — reconcile it in Gift cards");
+    for (const [cardId, card] of voided) {
+      const last = Array.isArray(card.history) ? card.history[card.history.length - 1] : null;
+      if (card.enabled !== false || !last || last.type !== "disabled" || last.orderId !== orderId) continue;
+      transaction.update(db.collection("giftCards").doc(cardId), { enabled: true, history: withHistory(card, { type: "enabled", minor: 0, orderId, reason: "Refund failed", at: now }), updatedAt: now });
+    }
+    const before = order.preRefund || {};
+    transaction.update(orderRef, {
+      paymentStatus: "paid",
+      status: before.status && before.status !== "cancelled" ? before.status : "processing",
+      ...(before.returnProgress ? { returnProgress: before.returnProgress } : {}),
+      ...(before.customerRequest ? { customerRequest: before.customerRequest } : {}),
+      refund: { ...(order.refund || {}), status: "failed", failedAt: now },
+      refundFailedAt: now,
+      refundRequest: null,
+      refundedAt: null,
+      refundedAmountMinor: null,
+      preRefund: null,
+      ...(restocked.length ? { inventoryRestockedAt: null, restockedItems: null } : {}),
+      ...(discountRef ? { discountUsageReversedAt: null } : {}),
+      ...(charged.length && !giftShort ? { giftCardsRestoredAt: null } : {}),
+      ...(voided.size ? { giftCardsVoidedAt: null } : {}),
+      updatedAt: now,
+      activity: [...(order.activity || []), {
+        type: "event",
+        message: `Stripe refund failed${source ? ` (${source})` : ""}: the customer was not refunded. The order is paid again${restocked.length ? "; restocked copies taken back out of stock" : ""}${notes.length ? `; ${notes.join("; ")}` : ""}. Refund again or contact the customer.`,
+        createdAt: now,
+      }],
+    });
+    reverted = true;
+    revenue = sandboxPaid ? null : { amount: Number(order.total) || 0, paidDay: typeof order.paidAt === "string" ? order.paidAt.split("T")[0] : null };
+  });
+  if (revenue) {
+    const day = revenue.paidDay || new Date().toISOString().split("T")[0];
+    await db.collection("analytics").doc(day).set({
+      date: day,
+      orders: admin.firestore.FieldValue.increment(1),
+      revenue: admin.firestore.FieldValue.increment(revenue.amount),
+      refunds: admin.firestore.FieldValue.increment(-1),
+      refundedRevenue: admin.firestore.FieldValue.increment(-revenue.amount),
+    }, { merge: true });
+  }
+  return { reverted };
 }
 
 // Brings a paid order in line with what Stripe says happened to its charge after
@@ -2474,6 +2610,12 @@ async function checkStripeReversal(orderId, order, source) {
         dispute = list.data[0] || null;
       }
       await db.collection("orders").doc(orderId).update({ stripeCheckedAt: new Date().toISOString() });
+      // A pending refund that moved no money: ask Stripe whether it failed (missed charge.refund.updated).
+      if (order.paymentStatus === "refund_pending" && Number(charge.amount_refunded) === 0) {
+        const refunds = await stripe.refunds.list({ payment_intent: pi, limit: 10 });
+        const failed = failedRefundId(order, charge, refunds?.data || []);
+        if (failed) await revertFailedRefund(orderId, { refundId: failed === "unknown" ? null : failed, source });
+      }
       return await syncStripeReversal(orderId, { charge, dispute, source });
     } catch (err) {
       if (err?.code === "resource_missing" || err?.statusCode === 404 || err?.type === "StripeAuthenticationError") continue;
@@ -3003,6 +3145,24 @@ exports.stripeWebhook = onRequest(
       }
     }
 
+    // A refund the bank rejected after Stripe accepted it: the order goes back to paid.
+    if (event.type === "charge.refund.updated") {
+      const refund = event.data.object;
+      const paymentIntentId = typeof refund.payment_intent === "string" ? refund.payment_intent : refund.payment_intent?.id || null;
+      if (paymentIntentId && ["failed", "canceled"].includes(String(refund.status))) {
+        try {
+          const snap = await db.collection("orders")
+            .where("stripePaymentIntentId", "==", paymentIntentId).limit(1).get();
+          if (!snap.empty) await revertFailedRefund(snap.docs[0].id, { refundId: refund.id || null, source: `Stripe webhook${refund.failure_reason ? `: ${String(refund.failure_reason).replace(/_/g, " ")}` : ""}` });
+        } catch (err) {
+          console.error("Failed to sync charge.refund.updated:", err);
+          await recordWebhookProcessingFailure(event, err);
+          res.status(500).send(`Refund sync failure: ${err.message}`);
+          return;
+        }
+      }
+    }
+
     // Refunds issued directly from the Stripe Dashboard (or by any other path)
     // arrive as charge.refunded — sync them back so the order, inventory, and
     // analytics don't drift out of "paid".
@@ -3331,7 +3491,7 @@ exports.downloadDigitalAsset = onRequest(
       res.redirect(signedUrl);
     } catch (err) {
       console.error("Download redirection failed:", err);
-      res.status(500).send(`Server error: ${err.message}`);
+      res.status(500).send("Sorry, the download could not be prepared right now. Please try again in a few minutes, or reply to your order email for help.");
     }
   }
 );
@@ -3396,7 +3556,7 @@ const DEFAULT_NOTIFICATIONS = {
   },
   contact_reply: {
     subject: "We got your message",
-    body: "Hi {{customer_name}},\n\nThanks for getting in touch with Lyricalmyrical Books! We've received your message and will reply as soon as we can.\n\nYour message:\n{{message}}",
+    body: "Hi {{customer_name}},\n\nThanks for getting in touch with Lyricalmyrical Books! We've received your message and will reply as soon as we can.",
     buttonText: "",
     signoff: "Warmly,\nThe Lyricalmyrical Team",
     enabled: true
@@ -3760,7 +3920,7 @@ exports.onOrderUpdated = onDocumentUpdated(
         order_url: await trackUrl(),
         button_url: await trackUrl(),
         items_table: itemsTable,
-        total_price: orderMoneyFmt(order.total, order)
+        total_price: chargedTotalFmt(order)
       }, combinedSection);
 
       const adminOrderUrl = siteLink(`/admin#orders/${orderId}`);
@@ -3782,7 +3942,7 @@ exports.onOrderUpdated = onDocumentUpdated(
       `;
 
       try {
-        await sendEmail({
+        await sendOrderEmailOnce(orderId, "orderConfirmed", {
           to: order.customer.email,
           subject: compiled.subject,
           html: compiled.html,
@@ -3794,7 +3954,7 @@ exports.onOrderUpdated = onDocumentUpdated(
       // The shop's one email per paid order (Settings › Notifications › new-order alert).
       // It goes out even when the customer's address is rejected.
       if (notificationSettings.new_order_admin?.enabled !== false) try {
-        await sendEmail({
+        await sendOrderEmailOnce(orderId, "shopNewOrder", {
           to: ADMIN_TO,
           subject: `${order.sandboxPayment ? "[TEST] " : ""}[NEW ${preorderLines.length ? "PRE-ORDER" : "ORDER"}] ${order.orderId || orderId} · paid · ${moneyFmt(order.total)} · ${order.customer.name}`,
           html: adminPaidHtml,
@@ -3839,8 +3999,10 @@ exports.onOrderUpdated = onDocumentUpdated(
         </div>
       `;
 
+      // A first dispatch sends once; each admin "Resend shipping email" (its own stamp) sends once more.
+      const shippedKind = becameShipped ? "shipped" : `shippedResend_${after.shippingEmailRequestedAt}`;
       try {
-        await sendEmail({
+        await sendOrderEmailOnce(orderId, shippedKind, {
           to: after.customer.email,
           subject: compiled.subject,
           html: compiled.html,
@@ -3851,7 +4013,7 @@ exports.onOrderUpdated = onDocumentUpdated(
       }
       // The shop's own copy goes out even when the customer's address is rejected (first dispatch only).
       if (becameShipped) try {
-        await sendEmail({
+        await sendOrderEmailOnce(orderId, "shopShipped", {
           to: ADMIN_TO,
           subject: `[SHIPPED] ${after.orderId || orderId} · ${after.customer?.name}`,
           html: shippedAdminHtml,
@@ -3885,7 +4047,7 @@ exports.onOrderUpdated = onDocumentUpdated(
       });
 
       try {
-        await sendEmail({
+        await sendOrderEmailOnce(orderId, `delivery_${deliveryStatus}`, {
           to: after.customer.email,
           subject: compiled.subject,
           html: compiled.html,
@@ -3914,7 +4076,7 @@ exports.onOrderUpdated = onDocumentUpdated(
       });
 
       try {
-        await sendEmail({
+        await sendOrderEmailOnce(orderId, "cancelled", {
           to: after.customer.email,
           subject: compiled.subject,
           html: compiled.html,
@@ -3964,7 +4126,7 @@ exports.onOrderUpdated = onDocumentUpdated(
       });
 
       try {
-        await sendEmail({
+        await sendOrderEmailOnce(orderId, "refunded", {
           to: after.customer.email,
           subject: compiled.subject,
           html: compiled.html,
@@ -4526,6 +4688,27 @@ exports.createShippingLabel = onBrowserRequest(
       const order = orderDoc.data();
       const operationsRef = db.collection("order-operations").doc(orderId);
       const operations = (await operationsRef.get()).data() || {};
+      // The owner checked Shippo after an uncertain purchase and confirmed no label was bought
+      // (or voided it there): unlock buying a new one. Recorded in the private order history.
+      if (mode === "clearPurchaseLock") {
+        const now = new Date().toISOString();
+        const cleared = await db.runTransaction(async tx => {
+          const fresh = (await tx.get(operationsRef)).data() || {};
+          if (!fresh.labelPurchasePending) return false;
+          tx.set(operationsRef, {
+            labelPurchasePending: false,
+            labelPurchaseClearedAt: now,
+            labelPurchaseClearedBy: adminUser.email || "admin",
+            updatedAt: now,
+            activity: admin.firestore.FieldValue.arrayUnion({ type: "event", createdAt: now,
+              message: `Owner checked Shippo and allowed a new label purchase (pending purchase started ${fresh.labelPurchaseStartedAt || "earlier"} cleared).` }),
+          }, { merge: true });
+          return true;
+        });
+        if (!cleared) { res.status(409).json({ error: "No label purchase is waiting to be checked. Reload the order." }); return; }
+        res.status(200).json({ cleared: true });
+        return;
+      }
       const preparationProblem = labelProblem(order, operations);
       if (preparationProblem) { res.status(409).json({ error: preparationProblem }); return; }
       // A transaction claims any money-spending request. Uncertain failures remain
@@ -4540,6 +4723,18 @@ exports.createShippingLabel = onBrowserRequest(
         tx.set(operationsRef, { labelPurchasePending: true, labelPurchaseStartedAt: new Date().toISOString() }, { merge: true });
       });
       const completePurchase = async () => operationsRef.set({ labelPurchasePending: false }, { merge: true });
+      // Shippo answered with a definite refusal (status ERROR): no label was bought, so the
+      // lock is released (with a history entry) and Shippo's own reasons reach the owner.
+      // Anything uncertain (network errors, QUEUED/WAITING) keeps the lock for reconciliation.
+      const failedPurchase = async transaction => {
+        const outcome = shippoTransactionOutcome(transaction);
+        if (outcome.definiteFailure) {
+          const now = new Date().toISOString();
+          await operationsRef.set({ labelPurchasePending: false, updatedAt: now,
+            activity: admin.firestore.FieldValue.arrayUnion({ type: "event", createdAt: now, message: `Shippo refused the label purchase; no label was bought. ${outcome.message}` }) }, { merge: true });
+        }
+        return new Error(outcome.message);
+      };
       if (order.isTest === true) {
         res.status(400).json({ error: "Test orders are excluded from fulfillment." });
         return;
@@ -4635,10 +4830,7 @@ exports.createShippingLabel = onBrowserRequest(
         }
         await claimPurchase();
         const transaction = await callShippo("transactions/", "POST", { rate: chosenRate.object_id, async: false }, shippoToken);
-        if (transaction.status !== "SUCCESS") {
-          const messages = (transaction.messages || []).map(message => message.text).join(", ");
-          throw new Error(`Transaction creation failed: ${transaction.status} - ${messages}`);
-        }
+        if (transaction.status !== "SUCCESS") throw await failedPurchase(transaction);
         const trackingNumber = transaction.tracking_number;
         const trackingCarrier = transaction.tracking_provider || "Canada Post";
         const labelUrl = transaction.label_url;
@@ -4756,10 +4948,7 @@ exports.createShippingLabel = onBrowserRequest(
         async: false
       }, shippoToken);
 
-      if (transaction.status !== "SUCCESS") {
-        const messages = (transaction.messages || []).map(m => m.text).join(", ");
-        throw new Error(`Transaction creation failed: ${transaction.status} - ${messages}`);
-      }
+      if (transaction.status !== "SUCCESS") throw await failedPurchase(transaction);
 
       const trackingNumber = transaction.tracking_number;
       const trackingCarrier = transaction.tracking_provider;
@@ -4961,7 +5150,7 @@ exports.onOrderCreated = onDocumentCreated(
         payment_method: order.paymentMethod || "",
         button_url: await orderTrackUrl(orderId, order),
         items_table: itemsTable,
-        total_price: orderMoneyFmt(order.total, order)
+        total_price: chargedTotalFmt(order)
       }, additionalSection);
 
       try {
@@ -4998,7 +5187,11 @@ exports.onContactMessage = onDocumentCreated(
         <p style="white-space:pre-wrap;border-left:3px solid #ccc;padding-left:12px;">${escContact(m.message)}</p>
         ${m.page ? `<p style="color:#888;font-size:12px;">Sent from ${escContact(m.page)}</p>` : ""}
       </div>`;
-    try {
+    // A flood from one sender can't burn the shop's sending quota: past the hourly cap the
+    // message still waits in Messages (status stays "new"), it just isn't emailed.
+    const notifyOwner = await claimEmailSend(db, "ownerNotify", m.email, { failOpen: true });
+    if (!notifyOwner) console.warn("Contact message not emailed to the shop: sender over the hourly limit");
+    if (notifyOwner) try {
       await sendEmail({
         to: ADMIN_TO,
         subject: `[CONTACT] ${String(m.subject || m.name || "New message").slice(0, 120)}`,
@@ -5017,13 +5210,18 @@ exports.onContactMessage = onDocumentCreated(
     // Confirmation to the visitor (Settings › Notifications › Contact form › Message received).
     const notificationSettings = await loadNotificationSettings();
     if (notificationSettings.contact_reply?.enabled === false) return;
+    // Anyone can type any address into the form, so this email must not be a relay: at most
+    // one per address per day, and none of the visitor's own text (subject/message) is echoed
+    // back; only the name, escaped and shortened. Older saved templates that still use
+    // {{subject}}/{{message}} get blanks.
+    if (!(await claimEmailSend(db, "visitorReply", m.email))) return;
     // compileEmailTemplate escapes and keeps "$" literal itself.
     const safe = (v) => String(v == null ? "" : v);
     const compiled = compileEmailTemplate("contact_reply", notificationSettings, {
-      customer_name: safe(m.name || "there"),
+      customer_name: safe(m.name || "there").replace(/\s+/g, " ").trim().slice(0, 60) || "there",
       email: safe(m.email),
-      subject: safe(m.subject),
-      message: safe(m.message),
+      subject: "",
+      message: "",
     });
     try {
       await sendEmail({
@@ -5043,6 +5241,21 @@ exports.onCustomerCreated = onDocumentCreated(
   async event => {
     const customer = event.data?.data() || {};
     if (!customer.email) return;
+    // Only welcome the signed-in account's own, verified address: a profile doc names any
+    // email it likes, so the address must match the Auth user behind the uid (email-link
+    // sign-in verifies it). Anything else would let anyone mail a stranger.
+    let authUser = null;
+    try {
+      authUser = await admin.auth().getUser(event.params?.customerId);
+    } catch (err) {
+      console.warn("Welcome email skipped: no matching account", err?.code || "");
+      return;
+    }
+    const authEmail = String(authUser?.email || "").trim().toLowerCase();
+    if (!authUser?.emailVerified || !authEmail || authEmail !== String(customer.email).trim().toLowerCase()) {
+      console.warn("Welcome email skipped: profile email is not the account's verified email");
+      return;
+    }
 
     const notificationSettings = await loadNotificationSettings();
     if (notificationSettings.customer_welcome?.enabled === false) {
@@ -5063,7 +5276,7 @@ exports.onCustomerCreated = onDocumentCreated(
         html: compiled.html,
         secret: RESEND_API_KEY.value(),
       });
-      console.log(`Welcome email successfully sent to customer: ${customer.email}`);
+      console.log("Welcome email sent to a new customer");
     } catch (err) {
       console.error("Welcome email failed", err);
     }
@@ -5480,7 +5693,7 @@ exports.onBookUpdated = onDocumentUpdated(
 // ──────────────────────────────────────────────────────────────
 // Marks an order paid when no card or PayPal payment is involved (manual payment confirmed
 // by the admin, or a $0 order): stock out once, discount use counted once, revenue recorded.
-async function completeOrderWithoutCard(orderId, message, { reserve = true } = {}) {
+async function completeOrderWithoutCard(orderId, message, { reserve = true, req = null } = {}) {
   const orderRef = db.collection("orders").doc(orderId);
   let paidTotal = null;
   const initial = await orderRef.get();
@@ -5489,7 +5702,7 @@ async function completeOrderWithoutCard(orderId, message, { reserve = true } = {
   // since sold (the stock write below flags oversold for the owner).
   if (reserve && initial.exists && initial.data().paymentStatus !== "paid") {
     const pending = initial.data();
-    await reserveCheckout(orderId, pending.items || [], pending, pending.giftCardRedemptions, (await shopTestMode()));
+    await reserveCheckout(orderId, pending.items || [], pending, pending.giftCardRedemptions, (await shopTestMode()), req);
   }
 
   await db.runTransaction(async transaction => {
@@ -5505,7 +5718,7 @@ async function completeOrderWithoutCard(orderId, message, { reserve = true } = {
     const discountRef = order.appliedDiscount?.id && order.discountUsageCountedAt == null
       ? db.collection("discounts").doc(order.appliedDiscount.id) : null;
     const discountDoc = discountRef ? await transaction.get(discountRef) : null;
-    const giftCards = await readGiftCards(transaction, db, order.giftCardRedemptions);
+    const giftCards = await readGiftCards(transaction, db, chargedRedemptions(order));
     if (!settleGiftCards(transaction, orderRef, orderId, order, giftCards, "Checkout", new Date().toISOString())) return;
 
     const downloadToken = crypto.randomBytes(32).toString("hex");
@@ -5643,14 +5856,22 @@ exports.unpaidPaymentSweep = onSchedule(
     }
 
     if (!found.length) return;
+    // Stamp only after the alert really went out: a failed send leaves the orders
+    // unstamped so the next sweep (15 minutes later) tries the alert again.
+    try {
+      await sendEmail({
+        to: ADMIN_TO,
+        subject: `⚠ Stripe webhook missed ${found.length} paid order${found.length === 1 ? "" : "s"}`,
+        html: alertHtml(found),
+        secret: RESEND_API_KEY.value(),
+      });
+    } catch (err) {
+      console.error("unpaidPaymentSweep: alert email failed; will retry on the next sweep:", err.message);
+      return;
+    }
     const at = new Date().toISOString();
-    await Promise.all(found.map((f) => db.collection("orders").doc(f.orderId).update({ paymentAlertSentAt: at })));
-    await sendEmail({
-      to: ADMIN_TO,
-      subject: `⚠ Stripe webhook missed ${found.length} paid order${found.length === 1 ? "" : "s"}`,
-      html: alertHtml(found),
-      secret: RESEND_API_KEY.value(),
-    });
+    await Promise.all(found.map((f) => db.collection("orders").doc(f.orderId).update({ paymentAlertSentAt: at })
+      .catch(err => console.error(`unpaidPaymentSweep: could not stamp ${f.orderId}:`, err.message))));
   }
 );
 

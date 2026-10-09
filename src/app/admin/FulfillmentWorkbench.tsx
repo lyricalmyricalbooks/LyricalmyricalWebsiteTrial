@@ -44,6 +44,8 @@ type Props = {
   onRelease: () => void;
   /** Pre-ordered books arrived early: let an "Awaiting release" order be packed now. */
   onReleasePreorder?: () => void;
+  /** Owner checked Shippo after an uncertain label purchase: unlock buying a new label. */
+  onClearLabelLock?: () => void;
 };
 export function FulfillmentWorkbench({
   order,
@@ -63,6 +65,7 @@ export function FulfillmentWorkbench({
   onLocalAdvance,
   onRelease,
   onReleasePreorder,
+  onClearLabelLock,
   books,
 }: Props) {
   const queue = queueOf(order);
@@ -347,17 +350,26 @@ export function FulfillmentWorkbench({
             </div>
           </div>
           {labelPending && active && !order.labelUrl ? (
-            <p className="fw-problems" role="alert">
-              A label purchase needs checking.{" "}
-              <a
-                href="https://app.goshippo.com/orders"
-                target="_blank"
-                rel="noopener noreferrer"
-              >
-                Open Shippo
-              </a>{" "}
-              before trying again.
-            </p>
+            <>
+              <p className="fw-problems" role="alert">
+                A label purchase needs checking.{" "}
+                <a
+                  href="https://app.goshippo.com/orders"
+                  target="_blank"
+                  rel="noopener noreferrer"
+                >
+                  Open Shippo
+                </a>{" "}
+                before trying again.
+              </p>
+              {onClearLabelLock && (
+                <div className="fw-actions">
+                  <SecondaryButton disabled={busy} onClick={onClearLabelLock}>
+                    I've checked Shippo — allow a new label
+                  </SecondaryButton>
+                </div>
+              )}
+            </>
           ) : (
             shippingActive && (
               <>

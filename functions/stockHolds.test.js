@@ -1,4 +1,4 @@
-import { test, expect } from "vitest";
+import { describe, test, expect } from "vitest";
 import { createRequire } from "node:module";
 const { activeHolds, heldUnits, linesByBook, reserveStock, StockHoldError, HOLD_MS, holdOwner } = createRequire(import.meta.url)("./stockHolds");
 
@@ -90,4 +90,78 @@ test("a shopper's retry replaces their earlier hold, so another paid shopper sti
   db.docs["books/b1"].stockLevel = 1; // Ada paid ada2
   delete db.docs["stock-holds/b1"].holds.ada2;
   await expect(reserveStock(db, "bob1", [{ id: "b1", quantity: 1 }], now + 1, bob)).resolves.toBeUndefined();
+});
+
+// Per-shopper caps (HOLD_LIMITS): a script can't lock the catalogue by opening unpaid checkouts.
+describe("per-shopper hold caps", () => {
+  const { HOLD_LIMITS, HoldLimitError, releaseStock, holderLimitProblem } = createRequire(import.meta.url)("./stockHolds");
+  const books = n => Object.fromEntries(Array.from({ length: n }, (_, i) => [`books/b${i}`, { title: `Book ${i}`, trackInventory: true, stockLevel: 500 }]));
+  const ada = holdOwner({ customer: { email: "ada@example.com" } });
+
+  test("one shopper can't hold more than the per-book cap of a scarce book", async () => {
+    const db = fakeDb(books(1));
+    const err = await reserveStock(db, "o1", [{ id: "b0", quantity: HOLD_LIMITS.owner.perBook + 1 }], 1000, ada, { limits: true }).catch(e => e);
+    expect(err).toBeInstanceOf(HoldLimitError);
+    expect(err).toBeInstanceOf(StockHoldError); // existing 409 handling covers it
+    expect(err.code).toBe("hold_limit");
+    expect(db.docs["stock-holds/b0"]).toBeUndefined();
+    await expect(reserveStock(db, "o1", [{ id: "b0", quantity: HOLD_LIMITS.owner.perBook }], 1000, ada, { limits: true })).resolves.toBeUndefined();
+  });
+
+  test("one shopper can't keep more than the cap of unpaid checkouts open at once", async () => {
+    const db = fakeDb(books(10));
+    for (let i = 0; i < HOLD_LIMITS.owner.orders; i++) {
+      await reserveStock(db, `o${i}`, [{ id: `b${i}`, quantity: 1 }], 1000, ada, { limits: true });
+    }
+    await expect(reserveStock(db, "extra", [{ id: "b9", quantity: 1 }], 1000, ada, { limits: true })).rejects.toBeInstanceOf(HoldLimitError);
+    // Once those holds expire the shopper can check out again.
+    await expect(reserveStock(db, "extra", [{ id: "b9", quantity: 1 }], 1000 + HOLD_MS + 1, ada, { limits: true })).resolves.toBeUndefined();
+  });
+
+  test("a total-units cap applies across one shopper's checkouts", () => {
+    const limits = { perBook: 10, units: 15, orders: 5 };
+    expect(holderLimitProblem({ a: { books: { x: 10 } } }, { y: 5 }, limits)).toBe("");
+    expect(holderLimitProblem({ a: { books: { x: 10 } } }, { y: 6 }, limits)).toBe("units");
+    expect(holderLimitProblem({ a: { books: { x: 6 } } }, { x: 5 }, limits)).toBe("perBook");
+  });
+
+  test("a shopper's own retries replace their earlier attempt instead of counting against the cap", async () => {
+    const db = fakeDb(books(2));
+    for (let i = 0; i < HOLD_LIMITS.owner.orders + 3; i++) {
+      await expect(reserveStock(db, `retry${i}`, [{ id: "b0", quantity: HOLD_LIMITS.owner.perBook }], 1000 + i, ada, { limits: true })).resolves.toBeUndefined();
+    }
+    expect(Object.keys(db.docs[`stock-hold-owners/e_${ada}`].orders)).toEqual([`retry${HOLD_LIMITS.owner.orders + 2}`]);
+  });
+
+  test("different emails from one connection share the looser connection cap", async () => {
+    const db = fakeDb(books(1));
+    const ip = "203.0.113.9";
+    let held = 0, i = 0;
+    while (held + 5 <= HOLD_LIMITS.ip.perBook) {
+      const owner = holdOwner({ customer: { email: `bot${i}@example.com` } });
+      await reserveStock(db, `bot${i++}`, [{ id: "b0", quantity: 5 }], 1000, owner, { limits: true, ip });
+      held += 5;
+    }
+    const owner = holdOwner({ customer: { email: "bot-next@example.com" } });
+    await expect(reserveStock(db, "bot-next", [{ id: "b0", quantity: 5 }], 1000, owner, { limits: true, ip })).rejects.toBeInstanceOf(HoldLimitError);
+    // The raw address is never stored.
+    expect(JSON.stringify(db.docs)).not.toContain(ip);
+  });
+
+  test("releasing an order frees its place in the shopper's count", async () => {
+    const db = fakeDb(books(10));
+    const now = Date.now();
+    for (let i = 0; i < HOLD_LIMITS.owner.orders; i++) {
+      await reserveStock(db, `o${i}`, [{ id: `b${i}`, quantity: 1 }], now, ada, { limits: true });
+    }
+    await releaseStock(db, "o0", [{ id: "b0", quantity: 1 }]);
+    expect(Object.keys(db.docs[`stock-hold-owners/e_${ada}`].orders)).not.toContain("o0");
+    await expect(reserveStock(db, "o9", [{ id: "b9", quantity: 1 }], now, ada, { limits: true })).resolves.toBeUndefined();
+  });
+
+  test("payment-time renewals and untracked books are never capped", async () => {
+    const db = fakeDb({ ...books(1), "books/e": { title: "Ebook", trackInventory: false } });
+    await expect(reserveStock(db, "paid", [{ id: "b0", quantity: 40 }], 1000, ada)).resolves.toBeUndefined();
+    await expect(reserveStock(db, "ebook", [{ id: "e", quantity: 99 }], 1000, ada, { limits: true })).resolves.toBeUndefined();
+  });
 });

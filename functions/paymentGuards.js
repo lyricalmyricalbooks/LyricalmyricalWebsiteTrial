@@ -138,6 +138,16 @@ function stripePaymentTaken(intent, session) {
   if (intent && ["succeeded", "processing", "requires_capture"].includes(intent.status)) return true;
   return !!(session && (session.payment_status === "paid" || session.status === "complete"));
 }
+// The shopper's own earlier checkout attempt already has their money (or Stripe/PayPal says it is
+// on its way): a retry on a new order would charge them twice. `intent`/`session` are that attempt's
+// Stripe objects when it has them. A cancelled or refunded attempt is the shop's to reconcile.
+function previousAttemptPaid(prev, intent, session) {
+  if (!prev || prev.status === "cancelled" || prev.status === "refunded") return false;
+  if (prev.paymentStatus === "paid") return true;
+  if (prev.paymentStatus !== "unpaid") return false;
+  if (prev.reconciliationPending || prev.paypalCaptureId) return true;
+  return stripePaymentTaken(intent, session);
+}
 function mismatchResolved(order) {
   return !!(order && order.paymentMismatch && order.paymentMismatch.resolvedAt);
 }
@@ -163,7 +173,7 @@ function stripeIntentKey(orderId, amountMinor, currency, previousIntentId) {
   return `pi-${orderId}-${String(currency || "").toLowerCase()}-${Math.round(Number(amountMinor))}-${previousIntentId || "first"}`;
 }
 
-module.exports = { cancelRefusal, mismatchResolved, stripePaymentTaken, checkoutRefusal, manualPaidRefusal, stripeIntentKey, discountUsedUp, refundProviderOf, paypalReversalCaptureId, paypalCreateRequestId, lateFailureMayMarkFailed, purchaseProblem, CHECKOUT_CURRENCIES, checkoutCurrencyOf, paidAmountCheck, toMinor, shopDate, discountDateState, releaseArrived };
+module.exports = { cancelRefusal, mismatchResolved, stripePaymentTaken, previousAttemptPaid, checkoutRefusal, manualPaidRefusal, stripeIntentKey, discountUsedUp, refundProviderOf, paypalReversalCaptureId, paypalCreateRequestId, lateFailureMayMarkFailed, purchaseProblem, CHECKOUT_CURRENCIES, checkoutCurrencyOf, paidAmountCheck, toMinor, shopDate, discountDateState, releaseArrived };
 
 /**
  * PayPal sends one PAYMENT.CAPTURE.REFUNDED per refund, carrying only that refund's amount.

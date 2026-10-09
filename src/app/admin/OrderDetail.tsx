@@ -6,6 +6,7 @@ import {
   packingKey,
   queueOf,
   dispatchProblem,
+  defaultRestockOnRefund,
   matchesCustomerService,
   suggestedParcelWeightLb,
 } from "./fulfillment";
@@ -85,7 +86,7 @@ export function OrderDetail({
   const [isBuyingLabel, setIsBuyingLabel] = useState(false);
   const [isVoiding, setIsVoiding] = useState(false);
   const voidingRef = useRef(false);
-  const [restockOnRefund, setRestockOnRefund] = useState(true);
+  const [restockOnRefund, setRestockOnRefund] = useState(false);
   const [refundReason, setRefundReason] = useState("Customer request");
   const [working, setWorking] = useState(false);
   const [checked, setChecked] = useState<Set<number>>(new Set());
@@ -364,6 +365,22 @@ export function OrderDetail({
     }
   };
 
+  const [confirmClearLabelLock, setConfirmClearLabelLock] = useState(false);
+  const handleClearLabelLock = async () => {
+    setConfirmClearLabelLock(false);
+    if (working) return;
+    setWorking(true);
+    try {
+      await adminApi.clearLabelPurchaseLock(orderId);
+      toast.success("You can buy a new label now");
+    } catch (err: any) {
+      toast.error(err?.message || "Couldn't allow a new label.");
+    } finally {
+      await loadOrder();
+      setWorking(false);
+    }
+  };
+
   const perform = async (
     action: "review" | "pack" | "hold" | "release" | "release_preorder" | "local_transition",
     payload: any = {},
@@ -525,7 +542,11 @@ export function OrderDetail({
                         {
                           label: "Refund order",
                           tone: "danger" as const,
-                          onSelect: () => setShowRefund(true),
+                          onSelect: () => {
+                            // Default for this order: shipped/delivered books aren't back on the shelf.
+                            setRestockOnRefund(defaultRestockOnRefund(order));
+                            setShowRefund(true);
+                          },
                         },
                       ]
                     : order.paymentStatus !== "refunded" &&
@@ -606,6 +627,7 @@ export function OrderDetail({
           }}
           onRelease={() => perform("release")}
           onReleasePreorder={() => perform("release_preorder")}
+          onClearLabelLock={() => setConfirmClearLabelLock(true)}
         />
         <aside className="rp-stack" aria-label="Order summary">
           {order.paymentMismatch && !order.paymentMismatch.resolvedAt && order.paymentStatus !== "paid" && (
@@ -1387,6 +1409,14 @@ export function OrderDetail({
         message={`${money(order.total)} — ${isManualPayment ? "Refund this paid manual order?" : "Refund this paid order through Stripe?"}${restockOnRefund ? " The purchased quantities will also be restocked." : ""} This action is irreversible.`}
         onConfirm={handleRefund}
         onCancel={() => setConfirming(null)}
+      />
+      <ConfirmDialog
+        open={confirmClearLabelLock}
+        title="Allow a new label?"
+        confirmLabel="Allow a new label"
+        message="Only continue if you've checked this order in Shippo and no label was bought (or you voided it there). Otherwise you may pay for two labels. This is recorded in the order's history."
+        onConfirm={handleClearLabelLock}
+        onCancel={() => setConfirmClearLabelLock(false)}
       />
       <ConfirmDialog
         open={confirming === "cancel"}

@@ -68,6 +68,10 @@ export const awaitingRelease = (o: any) => waitingPreorderLines(o, o?.operations
 export const preorderShipDate = (o: any) => shipDateOf(waitingPreorderLines(o, o?.operations || {}));
 /** A card dispute the shop hasn't won or closed yet. */
 export const disputeOpen = (o: any) => !!o?.disputeStatus && !["won", "lost", "warning_closed", "closed", "charge_refunded"].includes(String(o.disputeStatus));
+// Books that already left the shop (sent, out for delivery, delivered, collected) aren't back on
+// the shelf, so a refund only restocks them by default before dispatch or hand-over.
+export const LEFT_THE_SHOP_STATUSES = ["shipped", "out_for_delivery", "delivered", "collected"];
+export const defaultRestockOnRefund = (o: any) => !LEFT_THE_SHOP_STATUSES.includes(String(o?.fulfillmentStatus || ""));
 export function dispatchProblem(o: any): string {
  if (o.isTest) return "Test orders cannot be fulfilled.";
  if (terminal(o) || o.paymentStatus !== "paid") return "Only active paid orders can be dispatched.";

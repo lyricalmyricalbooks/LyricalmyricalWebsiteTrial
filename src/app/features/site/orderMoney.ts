@@ -17,10 +17,13 @@ export function orderMoney(cad: number | undefined, order: any, fallback: (cad: 
 
 /**
  * True when the server's charge (minor units) differs from the total on screen by more than
- * rounding and a day's exchange-rate drift: 5 cents or 1%, whichever is larger. The server
- * rounds each line, shipping and tax separately, so a few cents of difference is normal.
+ * rounding: the server rounds each line, shipping and tax separately, so a few cents is normal.
+ * CAD (the catalog currency) has no exchange rate, so only 5 cents is allowed. USD/EUR also
+ * allow a day's exchange-rate drift: 5 cents or 1%, whichever is larger.
  */
-export function totalNeedsConfirming(serverMinor: number, shownMinor: number): boolean {
+export function totalNeedsConfirming(serverMinor: number, shownMinor: number, currency?: string): boolean {
   if (!Number.isFinite(serverMinor) || !Number.isFinite(shownMinor)) return false;
-  return Math.abs(serverMinor - shownMinor) > Math.max(5, Math.round(shownMinor * 0.01));
+  const converted = String(currency || "CAD").toUpperCase() !== "CAD";
+  const allowed = converted ? Math.max(5, Math.round(shownMinor * 0.01)) : 5;
+  return Math.abs(serverMinor - shownMinor) > allowed;
 }
