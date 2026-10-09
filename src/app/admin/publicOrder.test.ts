@@ -11,6 +11,9 @@ vi.mock("firebase/auth", () => ({ signInWithPopup: vi.fn(), signOut: vi.fn(), on
 vi.mock("firebase/storage", () => ({ ref: vi.fn(), uploadBytes: vi.fn(), getDownloadURL: vi.fn() }));
 vi.mock("firebase/database", () => ({ ref: vi.fn(), get: vi.fn() }));
 vi.mock("../../lib/firebase", () => ({ appCheck: null, db: {}, auth: { currentUser: null }, storage: {}, googleProvider: {} }));
+vi.mock("../../lib/firebaseApp", () => ({ app: {}, db: {}, appCheck: null, authState: { loaded: true } }));
+vi.mock("../../lib/firestoreLite", () => ({ liteDb: {} }));
+vi.mock("firebase/firestore/lite", () => import("firebase/firestore"));
 vi.mock("../../lib/legacyFirebase", () => ({ legacyDb: {}, legacyAuth: {} }));
 import { adminApi } from "./api";
 

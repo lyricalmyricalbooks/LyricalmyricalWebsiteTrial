@@ -11,6 +11,8 @@
 //   fm-pdp-qty          quantity stepper           fm-pdp-sq           square icon buttons
 //   fm-pdp-tabs / -tab / -panel  details tabs     fm-pdp-record       catalogue-record specs
 
+import { elementScheme } from "./colorSchemes";
+
 const S = "[data-fm-store]";
 const clean = (v: any) => String(v).replace(/[;{}<>]/g, "");
 const font = (name: any) => `'${String(name).replace(/['"\\;{}<>]/g, "")}', sans-serif`;
@@ -41,10 +43,15 @@ export function productPageCss(design: any): string {
   const outlineW = has(d.pdpCardBorderWidth) ? `${num(d, "pdpCardBorderWidth", 2, 0, 6)}px` : "var(--rp-outline-w, 2px)";
   const photoW = has(d.pdpPhotoBorderWidth) ? `${num(d, "pdpPhotoBorderWidth", 2, 0, 6)}px` : "var(--rp-outline-w, 2px)";
   const outline = "var(--rp-outline, rgb(var(--fg-rgb)))";
-  const cardBorder = color(d, "pdpCardBorderColor", outline);
+  // Theme settings › Colour schemes › Product page buy card: while the buy card follows a scheme, the
+  // scheme's colours (tokens on .fm-pdp-card, from schemeCss) replace the card's own colour controls.
+  const schemed = Boolean(elementScheme(d, "buyCard"));
+  const cardTint = (key: string, fallback: string) => (schemed ? fallback : color(d, key, fallback));
+  const cardBorder = cardTint("pdpCardBorderColor", outline);
   const photoBorder = color(d, "pdpPhotoBorderColor", outline);
   const divider = color(d, "pdpCardDividerColor", "rgba(var(--border-rgb), 0.45)");
-  const shadow = color(d, "pdpCardShadowColor", "var(--accent)");
+  const cardDivider = cardTint("pdpCardDividerColor", "rgba(var(--border-rgb), 0.45)");
+  const shadow = cardTint("pdpCardShadowColor", "var(--accent)");
   const offset = num(d, "pdpCardShadowOffset", 8, 0, 16);
   const pad = num(d, "pdpCardPadding", 24, 8, 48);
   const metaFont = font(has(d.pdpMetaFont) ? d.pdpMetaFont : "DM Mono");
@@ -80,15 +87,15 @@ export function productPageCss(design: any): string {
   css += `${S} .fm-pdp-caption{display:flex;justify-content:space-between;gap:12px;padding:9px 12px;border:${photoW} solid ${photoBorder};border-top:0;}`;
 
   // The buy card.
-  css += `${S} .fm-pdp-card{width:100%;background:${color(d, "pdpCardBg", "var(--surface)")};border:${outlineW} solid ${cardBorder};box-shadow:${offset}px ${offset}px 0 ${shadow};border-radius:var(--rp-card-radius, 0);}`;
-  css += `${S} .fm-pdp-card-section{display:flex;flex-direction:column;gap:16px;padding:${pad}px;border-top:1px solid ${divider};}`;
+  css += `${S} .fm-pdp-card{width:100%;background:${cardTint("pdpCardBg", "var(--surface)")};border:${outlineW} solid ${cardBorder};box-shadow:${offset}px ${offset}px 0 ${shadow};border-radius:var(--rp-card-radius, 0);}`;
+  css += `${S} .fm-pdp-card-section{display:flex;flex-direction:column;gap:16px;padding:${pad}px;border-top:1px solid ${cardDivider};}`;
   css += `${S} .fm-pdp-card-section:first-child{border-top:0;}`;
   css += `${S} .fm-pdp-tag{display:inline-flex;align-items:center;gap:8px;padding:7px 12px;font-size:10px;font-weight:900;letter-spacing:.3em;text-transform:uppercase;line-height:1;}`;
   css += `${S} .fm-pdp-tag[data-style="filled"]{background:var(--badge-bg-primary, var(--accent));color:var(--badge-text-primary, var(--on-accent));}`;
   css += `${S} .fm-pdp-tag[data-style="outline"]{border:2px solid currentColor;color:rgb(var(--fg-rgb));}`;
-  css += `${S} .fm-pdp-title{margin:0;font-family:${titleFont};font-weight:400;line-height:.98;overflow-wrap:anywhere;text-wrap:balance;color:${color(d, "pdpTitleColor", "rgb(var(--fg-rgb))")};${titleCase}}`;
+  css += `${S} .fm-pdp-title{margin:0;font-family:${titleFont};font-weight:400;line-height:.98;overflow-wrap:anywhere;text-wrap:balance;color:${cardTint("pdpTitleColor", "rgb(var(--fg-rgb))")};${titleCase}}`;
   css += sizeRules(`${S} .fm-pdp-title`, num(d, "pdpTitleSize", 0, 0, 120), num(d, "pdpTitleSizeMobile", 0, 0, 96), "var(--pdp-title-auto, clamp(34px, 4.6vw, 62px))");
-  css += `${S} .fm-pdp-price{font-family:${priceFont};font-weight:400;line-height:1;letter-spacing:.01em;font-variant-numeric:tabular-nums;color:${color(d, "pdpPriceColor", "rgb(var(--fg-rgb))")};}`;
+  css += `${S} .fm-pdp-price{font-family:${priceFont};font-weight:400;line-height:1;letter-spacing:.01em;font-variant-numeric:tabular-nums;color:${cardTint("pdpPriceColor", "rgb(var(--fg-rgb))")};}`;
   css += sizeRules(`${S} .fm-pdp-price`, num(d, "pdpPriceSize", 0, 0, 96), num(d, "pdpPriceSizeMobile", 0, 0, 80), "clamp(34px, 5vw, 60px)");
   css += `${S} .fm-pdp-stock{display:inline-flex;align-items:center;gap:8px;}`;
   css += `${S} .fm-pdp-stock::before{content:"";width:10px;height:10px;flex:none;background:${stockDot};}`;
@@ -103,7 +110,7 @@ export function productPageCss(design: any): string {
   css += `${S} .fm-pdp-qty button{width:44px;display:grid;place-items:center;background:transparent;}`;
   css += `${S} .fm-pdp-qty button:hover:not(:disabled){background:var(--surface-2);}`;
   css += `${S} .fm-pdp-qty button:disabled{opacity:.3;}`;
-  css += `${S} .fm-pdp-qty output{min-width:40px;display:grid;place-items:center;font-family:${metaFont};font-size:15px;border-inline:1px solid ${divider};}`;
+  css += `${S} .fm-pdp-qty output{min-width:40px;display:grid;place-items:center;font-family:${metaFont};font-size:15px;border-inline:1px solid ${cardDivider};}`;
   css += `${S} .fm-pdp-sq{width:52px;height:52px;flex:none;display:grid;place-items:center;background:transparent;border:2px solid rgba(var(--border-rgb), 0.6);color:rgb(var(--fg-rgb));}`;
   css += `${S} .fm-pdp-sq:hover{border-color:rgb(var(--fg-rgb));}`;
 

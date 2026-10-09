@@ -1,11 +1,11 @@
 import { sectionSpacingCss } from "./sectionSpacing";
 import { Component, useEffect, type ReactNode } from "react";
-import { motion } from "motion/react";
+import { m } from "motion/react";
 import { useNavigate } from "react-router";
 import * as Sections from "./SectionComponents";
 import { hexToRgbTriplet } from "../features/site/themeTokens";
 import { googleFontHref } from "../features/site/fonts";
-import { DEFAULT_COLOR_SCHEMES } from "../features/site/colorSchemes";
+import { findScheme, schemeList } from "../features/site/colorSchemes";
 import { resolveSectionSharedBlocks } from "../features/site/sharedBlocks";
 import { UP_TO } from "../features/site/breakpoints";
 import { SectionDesignContext } from "./sectionCopy";
@@ -141,14 +141,14 @@ function SectionReveal({ animation, enableAnimations, children }: any) {
   const initial = initials[mode];
   if (!initial) return children;
   return (
-    <motion.div
+    <m.div
       initial={initial}
       whileInView={{ opacity: 1, x: 0, y: 0, scale: 1 }}
       viewport={{ once: true, margin: "-80px" }}
       transition={{ duration: 0.9, ease: [0.215, 0.61, 0.355, 1] }}
     >
       {children}
-    </motion.div>
+    </m.div>
   );
 }
 
@@ -222,7 +222,8 @@ export function SectionList({
 }: SectionListProps) {
   const list = (sections || []).filter((section: any) => section.visible !== false && sectionInWindow(section));
   if (list.length === 0) return null;
-  const schemes: any[] = colorSchemes && colorSchemes.length > 0 ? colorSchemes : DEFAULT_COLOR_SCHEMES;
+  // The scheme list this stack was given (a page's own, else the design's), else the starter schemes.
+  const schemes: any[] = schemeList({ colorSchemes });
 
   return (
     <SectionDesignContext.Provider value={design || null}>
@@ -232,7 +233,9 @@ export function SectionList({
         if (!SectionComponent) return null;
 
         const s = { ...resolveSectionSharedBlocks(section.settings || {}, sharedBlocks), __sectionId: section.id, __sharedBlocks: sharedBlocks };
-        const scheme = s.colorSchemeId ? schemes.find((sc: any) => sc.id === s.colorSchemeId) : null;
+        // Style tab › Colour scheme. `data-scheme` picks up the scheme's variables (schemeCss, emitted by
+        // StorefrontOverrides); the inline background/text is what every scheme has always painted.
+        const scheme: any = findScheme(schemes, s.colorSchemeId);
         const wrapperCls =
           [
             "relative",
@@ -255,6 +258,7 @@ export function SectionList({
             data-section={dataSection}
             data-section-id={section.id}
             data-fm-section={section.id}
+            data-scheme={scheme?.id || undefined}
             className={wrapperCls}
             style={{
               paddingTop: s.paddingTop != null ? `${s.paddingTop}px` : undefined,

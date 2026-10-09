@@ -1,6 +1,6 @@
 import { catName, categoryNames } from "./navItems";
 import { recommendedBooks, editionFacts } from "./merchandising";
-import { motion, AnimatePresence } from "motion/react";
+import { m, AnimatePresence } from "motion/react";
 import { Fragment, useEffect, useState } from "react";
 import toast from "react-hot-toast";
 import { useParams, Link, useNavigate, useLocation } from "react-router";
@@ -12,9 +12,9 @@ import {
 import { useCart, catalogUnitPrice, lineQuantityCap, backorderable } from "../../CartContext";
 import { useCurrency } from "../../CurrencyContext";
 import { useSiteData } from "./useSiteData";
-import { StorefrontPageHeader } from "./StorefrontPageHeader";
+import { StoreHeader } from "./StoreHeader";
 import { contentMaxWidth } from "./headerNav";
-import { SiteFooter } from "../../components/MainSite";
+import { StoreFooter } from "./StoreFooter";
 import { TemplateSections, GlobalSections } from "../../components/sectionRender";
 import { getCopy } from "./storeCopy";
 import { preorderActive, releaseDateOf, formatReleaseDate } from "./preorder";
@@ -40,6 +40,7 @@ import { aspectRatioValue } from "./imageAspect";
 import { regionProps, regionVisible } from "./storefrontRegions";
 import { googleFontHref } from "./fonts";
 import { productPageCss, productPageFontNames } from "./productPageStyle";
+import { schemeButtonColors } from "./colorSchemes";
 
 import { findProduct } from "./productRoutes";
 import { bookAddOns, isBundle, isGiftCardProduct, saleActive, saleEndDate, type GiftCardDetails } from "./promotions";
@@ -183,6 +184,9 @@ export default function BookDetail() {
   // Merge top-level design with storefront-level overrides so tokens can be set
   // at either level (storefront wins).
   const tokenSource = { ...(settings?.design || {}), ...(storefrontDesign || {}) };
+  // Add to bag sits in the buy card: when the buy card follows a colour scheme, it uses the scheme's
+  // button roles (the inline --btn-* would otherwise override the variables schemeCss puts on the card).
+  const buyButton = schemeButtonColors(tokenSource, "buyCard", { bg: buttonBg, text: buttonText });
   // Same column as the header (Style › Layout › Content width) so the page lines up with the logo.
   const pageMaxWidth = contentMaxWidth(tokenSource);
 
@@ -516,13 +520,13 @@ export default function BookDetail() {
         style={{ backgroundColor: settings?.design?.backgroundColor || "#050508" }}
       >
         <div className="flex flex-col items-center gap-5">
-          <motion.div
+          <m.div
             animate={{ scale: [1, 1.08, 1], opacity: [0.4, 1, 0.4] }}
             transition={{ duration: 2, repeat: Infinity }}
             className="w-14 h-14 rounded-[1.2rem] bg-white/[0.06] border border-white/10 flex items-center justify-center"
           >
             <Package size={20} className="text-white/50" />
-          </motion.div>
+          </m.div>
           <p className="text-white/30 text-[9px] font-black tracking-[0.5em] uppercase">{getCopy(settings?.design, "bookLoading")}</p>
         </div>
       </div>
@@ -586,7 +590,7 @@ export default function BookDetail() {
       )}
 
       {/* ── the same header + footer as the rest of the shop ── */}
-      <StorefrontPageHeader design={settings?.design} pages={pages} books={books} />
+      <StoreHeader design={settings?.design} pages={pages} books={books} />
 
       {/* ── hero layout ── */}
       <main className="relative z-10">
@@ -672,7 +676,7 @@ export default function BookDetail() {
                       )}
 
                       <AnimatePresence mode="wait">
-                        <motion.img
+                        <m.img
                           key={activePhoto}
                           src={activeUrl}
                           alt={(activeUrl === photos[activePhoto]?.url && photos[activePhoto]?.altText?.trim()) || getCopy(settings?.design, "bookPhotoAlt", { title: book.title, n: activePhoto + 1 })}
@@ -942,7 +946,7 @@ export default function BookDetail() {
                         </button>
                       </div>
                     )}
-                    <motion.button
+                    <m.button
                       data-section="buttons"
                       onClick={handleAddToCart}
                       disabled={isOutOfStock}
@@ -951,7 +955,8 @@ export default function BookDetail() {
                         !isOutOfStock && !added && productCtaAnimation === "pulse"
                           ? { scale: [1, 1.02, 1] }
                           : !isOutOfStock && !added && productCtaAnimation === "glow"
-                          ? { boxShadow: [`0 0 0px ${buttonBg}00`, `0 0 20px ${buttonBg}50`, `0 0 0px ${buttonBg}00`] }
+                          // .custom-btn draws box-shadow from --btn-shadow with !important, so the glow animates that variable.
+                          ? { "--btn-shadow": [`0 0 0px ${buttonBg}00`, `0 0 20px ${buttonBg}50`, `0 0 0px ${buttonBg}00`] } as any
                           : {}
                       }
                       transition={
@@ -966,7 +971,7 @@ export default function BookDetail() {
                       }
                       className={`${productCtaWidth === "full" ? "flex-1 min-w-[170px]" : "px-8"} min-h-[52px] flex items-center justify-center gap-3 ${
                         productCtaSize === "medium" ? "py-3" : "py-4"
-                      } text-[10px] font-black tracking-[0.3em] transition-all duration-300 ${
+                      } text-[10px] font-black tracking-[0.3em] transition-colors duration-300 ${
                         isOutOfStock
                           ? "bg-white/[0.06] text-white/25 cursor-not-allowed border border-white/[0.06]"
                           : added
@@ -976,10 +981,10 @@ export default function BookDetail() {
                       style={
                         !isOutOfStock && !added
                           ? {
-                              "--btn-bg": buttonStyle === "solid" ? buttonBg : "transparent",
-                              "--btn-text": buttonStyle === "solid" ? buttonText : buttonBg,
-                              "--btn-border": buttonStyle !== "solid" ? `1px solid ${buttonBg}` : "none",
-                              "--btn-shadow": buttonStyle === "solid" && buttonShadow ? `0 20px 60px ${buttonBg}50` : "none",
+                              "--btn-bg": buttonStyle === "solid" ? buyButton.bg : "transparent",
+                              "--btn-text": buttonStyle === "solid" ? buyButton.text : buyButton.bg,
+                              "--btn-border": buttonStyle !== "solid" ? `1px solid ${buyButton.bg}` : "none",
+                              "--btn-shadow": buttonStyle === "solid" && buttonShadow ? `0 20px 60px ${buyButton.bg}50` : "none",
                               borderRadius: buttonRadius,
                             } as React.CSSProperties
                           : { borderRadius: buttonRadius }
@@ -992,7 +997,7 @@ export default function BookDetail() {
                       ) : (
                         <><ShoppingBag size={14} /> {isPreorder ? getCopy(settings?.design, "preorderButton") : (storefrontDesign.addToBagLabel || settings?.design?.addToBagLabel || getCopy(settings?.design, "addToBagLabel"))}</>
                       )}
-                    </motion.button>
+                    </m.button>
 
                     <button
                       type="button"
@@ -1126,12 +1131,12 @@ export default function BookDetail() {
                   const relStock = relChoice.inStock ? 999 : 0;
                   const relPrice = getBookPrice(rel);
                   return (
-                    <motion.article
+                    <m.article
                       key={rel.id}
                       initial={{ opacity: 0, y: 20 }}
                       animate={{ opacity: 1, y: 0 }}
                       transition={{ delay: i * 0.07 }}
-                      className="group"
+                      className="fm-card group"
                     >
                       <Link to={`/books/${relSlug}`}>
                         <div className="relative fm-surface rounded-[1.5rem] overflow-hidden mb-4 border border-white/[0.05] group-hover:border-white/[0.12] transition-all shadow-xl" style={{ aspectRatio: productImageAspect }}>
@@ -1168,7 +1173,7 @@ export default function BookDetail() {
                           </p>
                         )}
                       </Link>
-                    </motion.article>
+                    </m.article>
                   );
                 })}
               </div>
@@ -1189,7 +1194,7 @@ export default function BookDetail() {
         <GlobalSections design={settings?.design} books={books} />
 
       </main>
-      <SiteFooter settings={settings} pages={pages} />
+      <StoreFooter settings={settings} pages={pages} />
     </div>
   );
 }

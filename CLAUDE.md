@@ -33,7 +33,8 @@ originally generated from a Figma design ("Artsy Website for Publisher").
   **Radix UI** primitives in `src/app/components/ui/`.
 - **MUI** and **motion** (Framer Motion successor) are also present for some
   components/animations.
-- **Firebase 11** client SDK (`src/lib/firebase.ts`, project
+- **Firebase 11** client SDK (`src/lib/firebaseApp.ts` app + App Check; `src/lib/firebase.ts` full Firestore + Auth;
+  `src/lib/firestoreLite.ts` shopper Firestore Lite — see *Storefront bundle* below, project
   `lyricalmyrical-web-v2`). A secondary "legacy" Firebase project is used for
   inventory sync (`src/lib/legacyFirebase.ts`).
 - **Stripe** for checkout, **Resend** for transactional email, **Shippo** for
@@ -195,7 +196,8 @@ For larger categories, use Edit › Assigned here in groups of up to 400 first.
 **Find anything:** the Studio top bar **Find** button (or Ctrl/Cmd+K) searches every Style control, Text & labels
 string, Menus panel, page, section and action (`studio/studioSearch.ts` + `StudioSearch.tsx`; `goToResult` in
 `StudioEditor.tsx` navigates). It indexes `STYLE_GROUPS` and `COPY_SCHEMA`, so new controls are findable with no extra
-work — give them clear labels. **Auto-fit for phones** (`studio/autoMobile.ts`) fills phone/tablet values from the
+work — give them clear labels. It also lists the parts of the previewed page and books, opens on commands for the current selection
+(`contextCommands`), then Recent and Shortcuts; `>` searches commands only (`paletteGroups`). **Auto-fit for phones** (`studio/autoMobile.ts`) fills phone/tablet values from the
 desktop design: Sections tab › *Auto-fit page for phones*, or section › Layout & style › *Phone & tablet layout*.
 
 Studio's Sections outline supports sortable sections and blocks. Canvas clicks
@@ -275,7 +277,7 @@ My themes in `savedThemes/{id}`; never add draft or theme data back to public `s
 saves go through `admin/themeStore.ts` (revision-checked; `ThemeConflictError` → merge or the conflict dialog).
 Admin tools that change one design field outside Studio call `draftFieldUpdate`. Shopper code reads settings
 with `adminApi.getPublicSettings()`, never `getSettings()` (which also reads admin-only key flags).
-Deploy Firestore rules before (or with) the frontend; until then Studio safely stays on the legacy fields.
+There is no public fallback any more (1.7): the first open copies an older public `draftDesign`/`savedThemes` across once and removes them; refused access raises `ThemeStoreUnavailableError` and Studio says so. `themeWrite` never writes a draft to `settings/website`. The fixture/tests swap storage with `setThemeBackend` (saves are recorded as `saveDesign`).
 
 **One design resolver (0.5):** storefront code must resolve page designs only through
 `features/site/designModel.ts` (`layerDesign`, or the `resolve*Design` helpers in `surfaceDesign.ts`) — never
@@ -288,6 +290,15 @@ published design snapshot.
 with `say("ok", text, { label: "Undo", run })`, permanent ones use Riso `useConfirm`, names use `usePrompt`. Name every
 edit: `change(fn, { label, coalesce })`. Add shortcuts to `studio/shortcuts.ts` (the cheat sheet reads the same table).
 Link into Studio with `studioHash()` from `lib/studioLocation.ts` (`/admin#designer?…`); What's new links can carry `studio`.
+
+**Pickers & catalog sources (2.3):** section/block fields of kind `link`, `book`, `books`, `category`, `page`, `video`,
+`font` render Studio pickers (`studio/StudioPickers.tsx`, pure choices in `studio/pickers.ts`, data from
+`StudioPickerProvider` in `StudioEditor`). They save the same strings as the old text boxes (hrefs like `/page/<slug>`,
+`/collections/<slug>`, `/books/<storefront slug>`; comma-separated slugs; category names) — no migration, `siteHref` still
+adds the sub-path. Never add a url-like section/block field as `text` (`sectionFieldKinds.test.ts`). Catalog sections pick
+books only through `features/site/merchandising.ts` `selectBooks` / `sectionBookQuery` / `pickBook` (Studio: **Which books**
+= all · featured · books I pick · shop category · newest · on sale · pre-orders, plus **Order**); without
+`productSource`/`productSort` the result equals the old one (`catalogSources.test.ts`, `catalogSources.render.test.tsx`).
 
 **Page structure (1.3/1.4):** Studio › Page layout lists the page the preview actually rendered — Header · Page · Footer ·
 Pop-overs — from the bridge's `STRUCTURE` scan (`studio/pageStructure.ts`, `StudioStructure.tsx`). Any new storefront part
@@ -382,7 +393,7 @@ section/block contract, and the Studio 2.0 roadmap.
 in `PageView.tsx`) sets eyebrow, title size/case/colour, text size/colour, alignment and column
 width for every custom page. Each "Page content" section follows it unless its **Style this page on
 its own** switch (`ownStyle`) is on; pages without that section render the same component. Default is the Riso "Ruled" layout (Option D): no small "Page" label (`pageShowEyebrow`
-off), the title lined up with the header (`pageWidth: "header"`, same width as `StorefrontPageHeader`), a line
+off), the title lined up with the header (`pageWidth: "header"`, same width as the `StoreHeader` row), a line
 under it (`pageShowRule`, `pageRuleColor/Width/Spacing`) and a readable text column (`pageTextMeasure`). Title
 font/size px (desktop + phone)/weight and top spacing are `pageTitleFont`, `pageTitleSizePx*`, `pageTitleWeight`,
 `pageTopSpacing`; the Page content section has the same fields for "Style this page on its own".
@@ -416,7 +427,28 @@ category — the standalone `CollectionPage` is no longer routed.
 
 **One storefront shell:** `MainSite` renders a single Riso header/footer for every view; the Home view swaps the catalog grid for `design.heroPage.sections`. Studio › Sections (Home) › **Show a Home page** toggles `showHero` (off = open straight on the catalog). The legacy hero header/`HeroCarousel` were removed — don't re-add a second header.
 
+**One header & footer (Studio 2.0 · 2.1):** `features/site/StoreHeader.tsx` is the only storefront header and
+`features/site/StoreFooter.tsx` the only footer. MainSite passes `shop={…}` (in-page category picking, logo → Home,
+masthead layout, logo alignment, sticker pills, transparent header, wishlist count, light/dark toggle, Ctrl/⌘+K);
+product and custom pages use page mode (routed links). Wishlist, account, order tracking and 404 render inside
+`StoreChrome` (header + footer around the page; its title bar becomes a plain row via `useInStoreChrome`), switched by
+Style › Header & announcement bar › **Show the shop header & footer on wishlist, account, order tracking and missing
+pages** (`showStoreChromeOnUtilityPages`, default on). Checkout keeps its own `checkoutHeader`. Add header/footer
+features there only — `storeChrome.parity.test.tsx` checks every Studio hook against `__fixtures__/storeChromeHooks.json`
+and fails if another file renders the navigation `<header>` or `footerPanel`; refresh the fixture
+(`UPDATE_STORE_CHROME_HOOKS=1`) only for an intended hook change.
+
 **Shop card title & price:** Studio › Style › **Product cards & grid** has colour, size (desktop + phone), weight, font and letter-spacing controls for the card title and price (`productTitleColor`, `cardTitle*`, `productPriceColor`, `cardPrice*`), plus the boxed-tag and old-price colours. `features/site/cardTypography.ts` turns them into CSS (emitted by `StorefrontThemeStyle`); cards opt in with the `fm-card-title` / `fm-card-price-wrap` / `fm-card-price` / `fm-card-price-tag` / `fm-card-price-old` classes — the shop grid, collection, wishlist, search, related-books and recently-viewed cards and the **Product grid** / **Product showcase grid** sections do. When a Style card colour is set it wins over a section's own colour; empty = the section's colour. Add those classes to any new book card — `features/site/cardClasses.test.tsx` renders every section with sample books and fails on a book title without `fm-card-title`.
+
+**Colour schemes (2.5):** Studio › Theme settings › **Colour schemes** (`StudioColorSchemes.tsx`, pure edits in
+`studio/colorSchemeOps.ts`) edits `design.colorSchemes` — ten roles (background, surface, text, muted, accent, onAccent,
+border, buttonBg, buttonText, link) with a live swatch and WCAG badges. `features/site/colorSchemes.ts` `schemeCss()`
+(emitted first by `StorefrontOverrides`) writes `[data-scheme="<id>"]` variables using the existing token names;
+`SectionList` sets `data-scheme` from the section's Style tab › Colour scheme (`colorSchemeId`). `design.elementSchemes`
+(`cards` → `.fm-card`, `buyCard` → `.fm-pdp-card`, `cartDrawer` → `.fm-bag`) applies a scheme to those parts, and while
+it does their own colour controls give way (`elementScheme()` in `cartDrawerStyle` / `productPageStyle`) — every new
+book-card root needs the `fm-card` class. Schemes saved before 2.0 (no `v: 2`) keep their old background/text-only look
+until a colour is edited (render-equivalence guard in `colorSchemes.test.ts`). Header/footer schemes wait for 2.1.
 
 **Product page (catalogue card):** `features/site/BookDetail.tsx` renders the Riso "catalogue card" layout —
 breadcrumb, thumbnail rail + framed photo + "Fig. n" caption, one bordered buy card (tag, title, price,
@@ -456,8 +488,8 @@ Additional › **Storefront elements**.
 string. A registry type with **no identically named renderer renders nothing**
 ("added but doesn't show up"). Adding a section = registry schema **+** matching
 renderer **+** storefront mapping **+** library entry **+** verify on the live
-storefront. Theme data persists as `design` (live) / `draftDesign` (draft) via
-`adminApi.updateSettings(..., { publish })`.
+storefront. Theme data persists as `design` (live, public `settings/website`) and the private
+draft in `themes/workspace`, both written only through `admin/themeStore.ts`.
 
 ## Deployment
 
@@ -709,6 +741,20 @@ Preview canvases retain their selected viewport width (1200px desktop, 820px tab
 390px phone) in a scrollable canvas, so narrow editor windows cannot activate the
 wrong breakpoint while the owner edits a different device.
 
+## Storefront bundle (9 October 2026)
+
+The shopper entry bundle must stay free of Firebase Auth, the full Firestore SDK and `admin/api.ts`.
+Storefront reads/writes use **Firestore Lite** (`lib/firestoreLite.ts` `liteDb` + functions from
+`firebase/firestore/lite` — never mix its refs/snapshots with the full SDK) via `lib/publicApi.ts`
+(books, settings, pages, shipping profiles, visits; `adminApi` re-exports these). Admin, Checkout and
+Account keep the full SDK from `lib/firebase.ts`. Shopper code that needs the signed-in user calls
+`restoredUser()` / `loadAuth()` from `lib/authSession.ts`, which loads Auth only when the browser may hold a
+saved sign-in. Storefront animations use `m.*` from `motion/react` under the `LazyMotion` +
+`MotionConfig reducedMotion="user"` wrapper in `App.tsx` (engine in `lib/motionFeatures.ts`, domAnimation:
+no layout/drag); don't put CSS `transition-all`/`transition-transform` on an element motion animates.
+The prerender blocks Lite's REST writes (`documents:commit`). Check with `npx vite build`: the `index-*.js`
+entry was ~205 KB gzipped after this change.
+
 ## Storefront loading performance (4 October 2026)
 
 Storefront components share one catalog/settings/published-pages bootstrap request, including
@@ -938,7 +984,7 @@ per edition when set; `packingInfo` in `fulfillment.ts`). Books are public-reada
 
 ## reCAPTCHA / App Check
 
-Invisible reCAPTCHA Enterprise initializes before Firestore/Auth in src/lib/firebase.ts.
+Invisible reCAPTCHA Enterprise initializes before Firestore/Auth in src/lib/firebaseApp.ts.
 Use functionFetch from src/app/lib/functionsBase.ts for every browser HTTP Function
 request and onBrowserRequest in functions/index.js for its server handler. Keep signed
 provider webhooks and emailed digital-download links outside browser attestation.
