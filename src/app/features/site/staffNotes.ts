@@ -21,7 +21,8 @@ export function resolveStaffNoteRows(blocks: any[], books: any[], fallbackLimit 
   return visible
     .map((b: any) => {
       const slug = String(b.slug || "").trim();
-      const book = (books || []).find((bk: any) => bookSlug(bk) === slug);
+      // A Studio book picker saves the immutable id when two books share a slug.
+      const book = (books || []).find((bk: any) => bookSlug(bk) === slug) || (slug ? (books || []).find((bk: any) => bk?.id === slug) : undefined);
       return book ? { book, note: b.note || "" } : null;
     })
     .filter(Boolean) as StaffNoteRow[];

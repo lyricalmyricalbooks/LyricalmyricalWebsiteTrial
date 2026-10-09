@@ -10,6 +10,11 @@ export type AppUpdate = {
 // Newest first. Every PR adds an entry; links open the affected admin workspace.
 export const APP_UPDATES: AppUpdate[] = [
   {
+    id: "studio-2-pickers", date: "2026-10-09", title: "Pick links, books and categories instead of typing them",
+    summary: "In the Design studio, a section's link fields (button and card links) now have a Choose button: pick a store page (Home, Shop, Wishlist, Account, Order tracking), one of your custom pages, a shop category or a book, or still type any web address. Book grids and the cover carousel have \"Which books\": all books, featured, books you pick from a searchable list, a shop category, newest, on sale or pre-orders, plus an Order setting (shop order, the order you picked, newest, title or price). Featured product and the staff notes table pick their book from the catalog, video fields tell you straight away whether a link will play, and the page title font is chosen from the font list. Sections you already set up keep showing the same books and links — nothing needs redoing. These are design settings only; prices, stock and checkout are unchanged.",
+    links: [{ label: "Open Page layout", tab: "settings", settingsTab: "designer", studio: "#designer?tab=sections" }],
+  },
+  {
     id: "studio-2-one-header", date: "2026-10-09", title: "One header and footer on every page",
     summary: "Your shop's header (announcement bar, logo, categories, search, wishlist, account, currency and bag) and footer are now built once and shared by every page, so a change in the Design studio shows up everywhere at the same time. The wishlist, account, order-tracking and \"page not found\" pages now show the same header and footer as the rest of the shop, with their own title bar underneath. If you'd rather keep those pages plain, switch off Theme settings › Header & announcement bar › \"Show the shop header & footer on wishlist, account, order tracking and missing pages\". Also fixed: on product and custom pages, the category links shrank slightly even when there was room; they now stay at the size you chose. Checkout keeps its own short header.",
     links: [{ label: "Open Page layout", tab: "settings", settingsTab: "designer", studio: "#designer?tab=sections" }],

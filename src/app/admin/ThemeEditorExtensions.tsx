@@ -13,6 +13,7 @@ import { uploadErrorMessage } from "./studio/mediaUpload";
 import { DEFAULT_COLOR_SCHEMES, type ColorScheme } from "../features/site/colorSchemes";
 import { PHOTO_RATIO_OPTIONS } from "../features/site/photoShapes";
 import { IMAGE_FILTER_PRESETS } from "../components/sectionStyleHelpers";
+import { isPickerKind, LinkPicker, PickerField, type PickerKind } from "./studio/StudioPickers";
 
 function normalizeHexForColorInput(hex: string): string {
   let clean = (hex || "").trim().toLowerCase();
@@ -615,6 +616,18 @@ export function getSectionMeta(type: string): SectionTypeMeta | undefined {
 // Block fields — the editable fields of blocks in sections with `items` / `slides` arrays
 // ─────────────────────────────────────────────────────────────────────────────
 
+/**
+ * Picker kinds (Studio 2.0 › 2.3, `studio/StudioPickers.tsx`). Each stores the same string a
+ * plain text field held before, so saved designs render unchanged:
+ * `link` an href ("/page/about", "https://…"), `book` a storefront book slug, `books` comma-separated
+ * slugs, `category` a shop category name, `page` a custom page slug, `video` a video URL,
+ * `font` a Google Fonts family. `empty` = what a blank value means (shown in the picker).
+ */
+export type PickerFieldSchema = { key: string; label: string; kind: PickerKind; empty?: string };
+
+/** A row field of a `list` block field; `link` rows get the link picker. */
+type ListItemField = { key: string; label: string; kind?: "text" | "link" };
+
 type BlockField =
   | { key: string; label: string; kind: "text" }
   | { key: string; label: string; kind: "textarea"; rows?: number }
@@ -623,7 +636,8 @@ type BlockField =
   | { key: string; label: string; kind: "color" }
   | { key: string; label: string; kind: "number"; min?: number; max?: number; step?: number }
   | { key: string; label: string; kind: "select"; options: { value: string; label: string }[] }
-  | { key: string; label: string; kind: "list"; itemLabel?: string; itemFields?: { key: string; label: string }[] };
+  | { key: string; label: string; kind: "list"; itemLabel?: string; itemFields?: ListItemField[] }
+  | PickerFieldSchema;
 
 const BLOCK_FIELDS: Record<string, BlockField[]> = {
   CompositionSection: [
@@ -636,7 +650,7 @@ const BLOCK_FIELDS: Record<string, BlockField[]> = {
     { key: "imageUrl", label: "Image", kind: "image" },
     { key: "alt", label: "Image description", kind: "text" },
     { key: "text", label: "Button label", kind: "text" },
-    { key: "url", label: "Link", kind: "text" },
+    { key: "url", label: "Link", kind: "link" },
   ],
   HeroSection: [],
   FeatureGridSection: [
@@ -658,15 +672,15 @@ const BLOCK_FIELDS: Record<string, BlockField[]> = {
     { key: "title", label: "Title", kind: "text" },
     { key: "body", label: "Body", kind: "textarea", rows: 3 },
     { key: "linkText", label: "Link label", kind: "text" },
-    { key: "linkUrl", label: "Link URL", kind: "text" },
-    { key: "links", label: "Links", kind: "list", itemLabel: "Link", itemFields: [{ key: "text", label: "Label" }, { key: "url", label: "URL" }] },
+    { key: "linkUrl", label: "Link", kind: "link" },
+    { key: "links", label: "Links", kind: "list", itemLabel: "Link", itemFields: [{ key: "text", label: "Label" }, { key: "url", label: "Link", kind: "link" }] },
   ],
   SlideshowSection: [
     { key: "eyebrow", label: "Eyebrow", kind: "text" },
     { key: "title", label: "Headline", kind: "text" },
     { key: "subtitle", label: "Subtitle", kind: "text" },
     { key: "ctaText", label: "CTA label", kind: "text" },
-    { key: "ctaUrl", label: "CTA URL", kind: "text" },
+    { key: "ctaUrl", label: "CTA link", kind: "link" },
     { key: "imageUrl", label: "Background image", kind: "image" },
     { key: "overlayOpacity", label: "Overlay (0–1)", kind: "number", min: 0, max: 1, step: 0.05 },
     { key: "accentColor", label: "Accent", kind: "color" },
@@ -683,7 +697,7 @@ const BLOCK_FIELDS: Record<string, BlockField[]> = {
     { key: "title", label: "Title", kind: "text" },
     { key: "subtitle", label: "Subtitle", kind: "text" },
     { key: "imageUrl", label: "Image", kind: "image" },
-    { key: "linkUrl", label: "Link URL", kind: "text" },
+    { key: "linkUrl", label: "Link", kind: "link" },
   ],
 
   BlogPostsSection: [
@@ -691,12 +705,12 @@ const BLOCK_FIELDS: Record<string, BlockField[]> = {
     { key: "title", label: "Title", kind: "text" },
     { key: "date", label: "Date", kind: "text" },
     { key: "excerpt", label: "Excerpt", kind: "textarea", rows: 3 },
-    { key: "linkUrl", label: "Link URL", kind: "text" },
+    { key: "linkUrl", label: "Link", kind: "link" },
     { key: "tag", label: "Tag / category", kind: "text" },
   ],
   GallerySection: [
     { key: "imageUrl", label: "Image", kind: "image" },
-    { key: "linkUrl", label: "Link URL", kind: "text" },
+    { key: "linkUrl", label: "Link", kind: "link" },
     { key: "alt", label: "Alt text", kind: "text" },
   ],
   RowSection: [
@@ -715,9 +729,9 @@ const BLOCK_FIELDS: Record<string, BlockField[]> = {
     { key: "body", label: "Body (text blocks)", kind: "textarea", rows: 3 },
     { key: "imageUrl", label: "Image (image blocks)", kind: "image" },
     { key: "buttonText", label: "Button label", kind: "text" },
-    { key: "buttonUrl", label: "Button URL", kind: "text" },
-    { key: "buttons", label: "Buttons", kind: "list", itemLabel: "Button", itemFields: [{ key: "text", label: "Label" }, { key: "url", label: "URL" }] },
-    { key: "videoUrl", label: "Video URL (video blocks)", kind: "text" },
+    { key: "buttonUrl", label: "Button link", kind: "link" },
+    { key: "buttons", label: "Buttons", kind: "list", itemLabel: "Button", itemFields: [{ key: "text", label: "Label" }, { key: "url", label: "Link", kind: "link" }] },
+    { key: "videoUrl", label: "Video (video blocks)", kind: "video" },
     { key: "accentColor", label: "Accent", kind: "color" },
   ],
   StatsCounterSection: [
@@ -734,11 +748,11 @@ const BLOCK_FIELDS: Record<string, BlockField[]> = {
     { key: "description", label: "Description", kind: "text" },
     { key: "features", label: "Features", kind: "list", itemLabel: "Feature" },
     { key: "ctaText", label: "CTA label", kind: "text" },
-    { key: "ctaLink", label: "CTA URL", kind: "text" },
+    { key: "ctaLink", label: "CTA link", kind: "link" },
     { key: "isHighlighted", label: "Highlight this plan", kind: "select", options: [{ value: "false", label: "No" }, { value: "true", label: "Yes" }] },
   ],
   StaffNotesTableSection: [
-    { key: "slug", label: "Product slug (from Catalog)", kind: "text" },
+    { key: "slug", label: "Book", kind: "book" },
     { key: "note", label: "Staff note", kind: "textarea", rows: 2 },
   ],
   EphemeraRowSection: [
@@ -1005,6 +1019,7 @@ export function BlockListFieldEditor({
 
   if (itemFields && itemFields.length > 0) {
     const items = normalizeListFieldValue(value, itemFields);
+    const hasLink = itemFields.some((f) => f.kind === "link");
 
     const updateItem = (idx: number, key: string, text: string) => {
       onChange(items.map((it, i) => (i === idx ? { ...it, [key]: text } : it)));
@@ -1048,10 +1063,18 @@ export function BlockListFieldEditor({
                     >
                       <GripVertical size={14} />
                     </span>
-                    <div className="flex-1 min-w-0 flex items-center gap-1.5">
-                      {itemFields.map((f) => (
+                    <div className={`flex-1 min-w-0 flex gap-1.5 ${hasLink ? "flex-col items-stretch" : "items-center"}`}>
+                      {itemFields.map((f) => f.kind === "link" ? (
+                        <LinkPicker
+                          key={f.key}
+                          label={`${itemLabel} ${idx + 1} · ${f.label}`}
+                          value={item[f.key] ?? ""}
+                          onChange={(v) => updateItem(idx, f.key, v)}
+                        />
+                      ) : (
                         <input
                           key={f.key}
+                          aria-label={`${itemLabel} ${idx + 1} · ${f.label}`}
                           value={item[f.key] ?? ""}
                           onChange={(e) => updateItem(idx, f.key, e.target.value)}
                           placeholder={f.label}
@@ -1189,6 +1212,11 @@ export function BlockFieldEditor({
       {field.label}
     </label>
   );
+
+  if (isPickerKind(field.kind)) {
+    const picker = field as PickerFieldSchema;
+    return <PickerField kind={picker.kind} label={picker.label} value={value} onChange={onChange} emptyText={picker.empty} />;
+  }
 
   if (field.kind === "text") {
     return (
@@ -1362,7 +1390,34 @@ type SectionFieldSchema =
   | { key: string; label: string; kind: "range"; min: number; max: number; step?: number; suffix?: string }
   | { key: string; label: string; kind: "select"; options: { value: string; label: string }[] }
   | { key: string; label: string; kind: "toggle" }
-  | { key: string; label: string; kind: "date" };
+  | { key: string; label: string; kind: "date" }
+  | PickerFieldSchema;
+
+/** Which books a catalog section shows (`features/site/merchandising.ts` selectBooks). Missing = "all". */
+const BOOK_SOURCE_OPTIONS = [
+  { value: "all", label: "All published books" },
+  { value: "featured", label: "Featured books" },
+  { value: "manual", label: "Books I pick" },
+  { value: "category", label: "Books in a shop category" },
+  { value: "newest", label: "Newest books" },
+  { value: "onSale", label: "Books on sale" },
+  { value: "preorder", label: "Pre-orders" },
+];
+const BOOK_SORT_OPTIONS = [
+  { value: "", label: "Shop order (as in the catalog)" },
+  { value: "picked", label: "The order I picked them" },
+  { value: "newest", label: "Newest first" },
+  { value: "title", label: "Title A–Z" },
+  { value: "priceLow", label: "Price, low to high" },
+  { value: "priceHigh", label: "Price, high to low" },
+];
+/** The shared "Which books" fields of every catalog section (same keys as before, plus category and sort). */
+const bookSourceFields = (sourceLabel: string): SectionFieldSchema[] => [
+  { key: "productSource", label: sourceLabel, kind: "select", options: BOOK_SOURCE_OPTIONS },
+  { key: "manualSlugs", label: "Books to show (for “Books I pick”)", kind: "books" },
+  { key: "productCategory", label: "Shop category (for “Books in a shop category”)", kind: "category", empty: "Blank = every book" },
+  { key: "productSort", label: "Order", kind: "select", options: BOOK_SORT_OPTIONS },
+];
 
 const ALIGN_OPTIONS = [
   { value: "left", label: "Left" },
@@ -1386,7 +1441,7 @@ const SECTION_FIELDS: Record<string, SectionFieldSchema[]> = {
     { key: "maxWidth", label: "Column width", kind: "select", options: [{ value: "header", label: "Line up with header" }, { value: "narrow", label: "Narrow" }, { value: "normal", label: "Medium" }, { value: "wide", label: "Wide" }, { value: "full", label: "Full width" }] },
     { key: "textColor", label: "Text color", kind: "color" },
     { key: "topSpacing", label: "Space above the title", kind: "range", min: 0, max: 160, step: 4, suffix: "px" },
-    { key: "titleFont", label: "Title font (Google Fonts name, blank = heading font)", kind: "text" },
+    { key: "titleFont", label: "Title font (Google Fonts)", kind: "font", empty: "Same as heading font" },
     { key: "titleSizePx", label: "Title size · desktop (0 = use Title size)", kind: "range", min: 0, max: 200, step: 2, suffix: "px" },
     { key: "titleSizePxMobile", label: "Title size · phone (0 = same as desktop)", kind: "range", min: 0, max: 120, step: 2, suffix: "px" },
     { key: "titleWeight", label: "Title weight (blank = extra bold)", kind: "select", options: [{ value: "", label: "Automatic" }, ...["300", "400", "500", "600", "700", "800", "900"].map((w) => ({ value: w, label: w }))] },
@@ -1411,7 +1466,7 @@ const SECTION_FIELDS: Record<string, SectionFieldSchema[]> = {
     { key: "overlayOpacity", label: "Overlay darkness", kind: "range", min: 0, max: 1, step: 0.05 },
     { key: "accentColor", label: "Accent color", kind: "color" },
     { key: "ctaText", label: "CTA label", kind: "text" },
-    { key: "ctaUrl", label: "CTA URL (optional)", kind: "text" },
+    { key: "ctaUrl", label: "CTA link (optional)", kind: "link" },
     { key: "secondaryCtaText", label: "Secondary CTA", kind: "text" },
     { key: "metaText", label: "Meta text next to CTA (e.g. format · pages)", kind: "text" },
     { key: "align", label: "Alignment", kind: "select", options: ALIGN_OPTIONS },
@@ -1443,9 +1498,9 @@ const SECTION_FIELDS: Record<string, SectionFieldSchema[]> = {
     { key: "textAlign", label: "Text alignment", kind: "select", options: ALIGN_OPTIONS },
     { key: "overlayOpacity", label: "Overlay darkness", kind: "range", min: 0, max: 0.9, step: 0.05 },
     { key: "ctaText", label: "Primary CTA label", kind: "text" },
-    { key: "ctaUrl", label: "Primary CTA URL", kind: "text" },
+    { key: "ctaUrl", label: "Primary CTA link", kind: "link" },
     { key: "secondaryCtaText", label: "Secondary CTA label", kind: "text" },
-    { key: "secondaryCtaUrl", label: "Secondary CTA URL", kind: "text" },
+    { key: "secondaryCtaUrl", label: "Secondary CTA link", kind: "link" },
     { key: "accentColor", label: "Accent color", kind: "color" },
   ],
   FeatureGridSection: [
@@ -1508,7 +1563,7 @@ const SECTION_FIELDS: Record<string, SectionFieldSchema[]> = {
       ],
     },
     { key: "ctaText", label: "CTA label", kind: "text" },
-    { key: "ctaUrl", label: "CTA URL", kind: "text" },
+    { key: "ctaUrl", label: "CTA link", kind: "link" },
     { key: "accentColor", label: "Accent", kind: "color" },
   ],
   RichTextSection: [
@@ -1545,7 +1600,7 @@ const SECTION_FIELDS: Record<string, SectionFieldSchema[]> = {
     { key: "eyebrow", label: "Eyebrow label", kind: "text" },
     { key: "title", label: "Title", kind: "text" },
     { key: "subtitle", label: "Subtitle / Description", kind: "textarea", rows: 2 },
-    { key: "videoUrl", label: "Video URL (YouTube, Vimeo, MP4)", kind: "text" },
+    { key: "videoUrl", label: "Video (YouTube, Vimeo, MP4)", kind: "video" },
     { key: "posterUrl", label: "Poster image", kind: "image" },
     { key: "accentColor", label: "Accent color", kind: "color" },
   ],
@@ -1565,7 +1620,7 @@ const SECTION_FIELDS: Record<string, SectionFieldSchema[]> = {
   ],
   FeaturedProductSection: [
     { key: "eyebrow", label: "Eyebrow label", kind: "text" },
-    { key: "productSlug", label: "Product slug", kind: "text" },
+    { key: "productSlug", label: "Book", kind: "book", empty: "Blank = the first book in the shop" },
     { key: "ctaText", label: "CTA label", kind: "text" },
     { key: "accentColor", label: "Accent", kind: "color" },
   ],
@@ -1574,12 +1629,7 @@ const SECTION_FIELDS: Record<string, SectionFieldSchema[]> = {
     { key: "navText", label: "Navigation text", kind: "text" },
     { key: "cartLabel", label: "Cart label", kind: "text" },
     { key: "cartTotalText", label: "Cart total text", kind: "text" },
-    { key: "productSource", label: "Product source", kind: "select", options: [
-      { value: "all", label: "All published" },
-      { value: "featured", label: "Featured" },
-      { value: "manual", label: "Manual slugs" },
-    ] },
-    { key: "manualSlugs", label: "Manual product slugs (comma separated)", kind: "textarea", rows: 2 },
+    ...bookSourceFields("Which books"),
     { key: "productLimit", label: "Product limit", kind: "range", min: 1, max: 24, step: 1 },
     { key: "columnsDesktop", label: "Desktop columns", kind: "range", min: 2, max: 6, step: 1 },
     { key: "columnsMobile", label: "Mobile columns", kind: "range", min: 1, max: 3, step: 1 },
@@ -1628,7 +1678,7 @@ const SECTION_FIELDS: Record<string, SectionFieldSchema[]> = {
     { key: "subtitle", label: "Subtitle", kind: "text" },
     { key: "targetDate", label: "Target date", kind: "date" },
     { key: "ctaText", label: "CTA label", kind: "text" },
-    { key: "ctaUrl", label: "CTA URL", kind: "text" },
+    { key: "ctaUrl", label: "CTA link", kind: "link" },
     { key: "align", label: "Alignment", kind: "select", options: ALIGN_OPTIONS },
     { key: "accentColor", label: "Accent", kind: "color" },
     { key: "labelDays", label: "Label: days", kind: "text" },
@@ -1695,12 +1745,12 @@ const SECTION_FIELDS: Record<string, SectionFieldSchema[]> = {
     },
   ],
   VideoHeroSection: [
-    { key: "videoUrl", label: "Video URL (YouTube/Vimeo embed or MP4)", kind: "text" },
+    { key: "videoUrl", label: "Video (YouTube, Vimeo or MP4)", kind: "video" },
     { key: "overlayOpacity", label: "Overlay opacity", kind: "range", min: 0, max: 90, step: 5, suffix: "%" },
     { key: "headline", label: "Headline", kind: "text" },
     { key: "subheadline", label: "Subheadline", kind: "text" },
     { key: "ctaText", label: "CTA label", kind: "text" },
-    { key: "ctaLink", label: "CTA URL", kind: "text" },
+    { key: "ctaLink", label: "CTA link", kind: "link" },
     {
       key: "textAlign",
       label: "Text alignment",
@@ -1738,12 +1788,7 @@ const SECTION_FIELDS: Record<string, SectionFieldSchema[]> = {
     { key: "title", label: "Wordmark headline", kind: "text" },
     { key: "tagline", label: "Tagline", kind: "textarea", rows: 2 },
     { key: "titleItalic", label: "Italic headline", kind: "toggle" },
-    { key: "productSource", label: "Cover source", kind: "select", options: [
-      { value: "all", label: "All published" },
-      { value: "featured", label: "Featured" },
-      { value: "manual", label: "Manual slugs" },
-    ] },
-    { key: "manualSlugs", label: "Manual product slugs (comma separated)", kind: "textarea", rows: 2 },
+    ...bookSourceFields("Which book covers"),
     { key: "productLimit", label: "Max covers", kind: "range", min: 1, max: 24, step: 1 },
     { key: "autoplayMs", label: "Auto-advance speed (ms)", kind: "number", min: 1500, max: 15000, step: 250 },
     { key: "showDots", label: "Show dots", kind: "toggle" },
@@ -1759,17 +1804,12 @@ const SECTION_FIELDS: Record<string, SectionFieldSchema[]> = {
       { value: "medium", label: "70vh" },
     ] },
     { key: "ctaText", label: "CTA label (optional)", kind: "text" },
-    { key: "ctaUrl", label: "CTA URL", kind: "text" },
+    { key: "ctaUrl", label: "CTA link", kind: "link" },
   ],
   ProductShowcaseGridSection: [
     { key: "eyebrow", label: "Eyebrow label", kind: "text" },
     { key: "title", label: "Title", kind: "text" },
-    { key: "productSource", label: "Product source", kind: "select", options: [
-      { value: "all", label: "All published" },
-      { value: "featured", label: "Featured" },
-      { value: "manual", label: "Manual slugs" },
-    ] },
-    { key: "manualSlugs", label: "Manual product slugs (comma separated)", kind: "textarea", rows: 2 },
+    ...bookSourceFields("Which books"),
     { key: "productLimit", label: "Product limit", kind: "range", min: 1, max: 24, step: 1 },
     { key: "columnsDesktop", label: "Desktop columns", kind: "range", min: 1, max: 4, step: 1 },
     { key: "columnsMobile", label: "Mobile columns", kind: "range", min: 1, max: 2, step: 1 },
@@ -1837,6 +1877,11 @@ export function SectionFieldEditor({
       {field.label}
     </label>
   );
+
+  if (isPickerKind(field.kind)) {
+    const picker = field as PickerFieldSchema;
+    return <PickerField kind={picker.kind} label={picker.label} value={value} onChange={onChange} emptyText={picker.empty} />;
+  }
 
   switch (field.kind) {
     case "text":

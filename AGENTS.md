@@ -150,6 +150,10 @@ plain-English label so shop owners can find it. Selection commands come from `co
 `runContext` in `StudioEditor.tsx`); `>` searches commands only. Studio drafts are only ever saved through `admin/themeStore.ts`
 (private `themes/workspace`; no public `draftDesign` fallback since 1.7 — never reintroduce one). **Auto-fit for phones** (`autoMobile.ts`) writes phone/tablet overrides; keep it in sync
 with the phone keys the renderers read (`mobilePadding*`, `mobileColumns`, `mobileHeadingSize`, block `grid.tablet/mobile`).
+Links, books, categories, pages, videos and fonts in section/block fields are **picked, not typed** (Studio 2.3): use the
+field kinds `link` / `book` / `books` / `category` / `page` / `video` / `font` (`studio/StudioPickers.tsx`), which store the
+same strings as before, and choose catalog books only through `selectBooks` in `features/site/merchandising.ts`. Saved
+designs must keep rendering identically (`catalogSources*.test`), and `sectionFieldKinds.test.ts` rejects url-like `text` fields.
 
 1. **Read `docs/THEME_EDITOR.md` first**, plus the whole section/block system —
    `studio/StudioEditor.tsx`, `ThemeEditorExtensions.tsx` (the `SECTION_REGISTRY`),

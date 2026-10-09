@@ -68,6 +68,7 @@ import { currentOption, pickerOptions, type PickerOption } from "./templatePicke
 import { loadUiState, saveUiState, uiStateKey, type Zoom } from "./studioUiState";
 import { auth } from "../../../lib/firebase";
 import type { StudioLocation } from "../../lib/studioLocation";
+import { StudioPickerProvider } from "./StudioPickers";
 import "./studio.css";
 
 type LeftTab = "sections" | "style" | "text" | "menus" | "pages";
@@ -349,6 +350,8 @@ export function StudioEditor({ settings, onExit, onPersisted, appearance = "ligh
   const [pageLoadError, setPageLoadError] = useState(false);
   const [pageBusy, setPageBusy] = useState(false);
   const [books, setBooks] = useState<any[]>([]);
+  // Link / book / category / page pickers search what Studio already loaded (StudioPickers.tsx).
+  const pickerData = useMemo(() => ({ books, pages, categories: design?.categories || [] }), [books, pages, design?.categories]);
   // The page open in Studio › Pages with unsaved edits — shown in the preview only, never saved from here.
   const [draftPage, setDraftPage] = useState<any | null>(null);
   // Where you were last time (this browser): page, workspace, device, zoom.
@@ -1555,6 +1558,7 @@ export function StudioEditor({ settings, onExit, onPersisted, appearance = "ligh
   );
 
   return (
+    <StudioPickerProvider value={pickerData}>
     <div className="rp studio-editor" data-rp-appearance={appearance} data-studio-editor data-mobile-panel={mobilePanel}>
       {/* top bar */}
       <header className="studio-topbar">
@@ -1689,5 +1693,6 @@ export function StudioEditor({ settings, onExit, onPersisted, appearance = "ligh
         <div className="space-y-2">{[...designChecks(design), designSize(design)].map((r, i) => <p key={i} className={`p-3 rounded-lg text-sm ${r.tone === "warn" ? "bg-amber-50 text-amber-900" : "bg-emerald-50 text-emerald-900"}`}>{r.tone === "warn" ? "⚠" : "✓"} {r.text}</p>)}</div>
       </Dialog>
     </div>
+    </StudioPickerProvider>
   );
 }
