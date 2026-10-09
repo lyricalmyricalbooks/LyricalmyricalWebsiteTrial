@@ -1,21 +1,10 @@
 // "My themes": complete copies of the design (style, text, menus AND sections) that the merchant
-// saved from Studio, stored on the settings doc as `savedThemes`. Applying one replaces the
+// saved from Studio, each stored as its own admin-only `savedThemes/{id}` document (admin/themeStore.ts). Applying one replaces the
 // working draft (undoable) — nothing goes live until Publish.
 
 export type SavedTheme = { id: string; name: string; savedAt: string; design: any };
 
 export const MAX_SAVED_THEMES = 10;
-
-// settings/website is a single Firestore document (hard limit 1 MiB) that already holds the live design
-// AND the draft design, and every saved theme is a full copy of a design. Stay well clear of the limit.
-export const SAVED_THEMES_BUDGET_BYTES = 500_000;
-
-export function savedThemesBytes(list: SavedTheme[] | undefined): number {
-  return new TextEncoder().encode(JSON.stringify(list || [])).length;
-}
-
-export const savedThemesFit = (list: SavedTheme[] | undefined, budget = SAVED_THEMES_BUDGET_BYTES) =>
-  savedThemesBytes(list) <= budget;
 
 export function addSavedTheme(list: SavedTheme[] | undefined, name: string, design: any, now = new Date()): SavedTheme[] {
   const clean = name.trim().slice(0, 60) || "Untitled theme";

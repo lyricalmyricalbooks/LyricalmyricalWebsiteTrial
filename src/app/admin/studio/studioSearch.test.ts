@@ -82,3 +82,56 @@ describe("search index size", () => {
     expect(searchStudio(index, "newsletter button phone padding", { limit: 10 }).some(r => r.id.includes("regions.newsletterButton"))).toBe(true);
   });
 });
+
+describe("command palette 2.0", () => {
+  it("offers selection commands first, then recent results, then shortcuts, before typing", async () => {
+    const { paletteGroups, contextCommands } = await import("./studioSearch");
+    const context = contextCommands({ section: { id: "s1", label: "Hero Banner", visible: true, first: true, last: false } });
+    const groups = paletteGroups(index, "", { context, recent: ["section:s1", "missing-id"] });
+    expect(groups.map(g => g.title)).toEqual(["For what you selected", "Recent", "Shortcuts"]);
+    expect(groups[0].entries.map(e => e.title)).toContain("Duplicate this section");
+    // The first section can't move up; the recent list drops results that no longer exist.
+    expect(groups[0].entries.some(e => e.title === "Move this section up")).toBe(false);
+    expect(groups[1].entries.map(e => e.id)).toEqual(["section:s1"]);
+  });
+
+  it("> lists commands only and searches them", async () => {
+    const { paletteGroups } = await import("./studioSearch");
+    const all = paletteGroups(index, ">").flatMap(g => g.entries);
+    expect(all.length).toBeGreaterThan(5);
+    expect(all.every(e => e.kind === "action" || e.kind === "area")).toBe(true);
+    const pub = paletteGroups(index, "> publish").flatMap(g => g.entries);
+    expect(pub[0].title).toBe("Publish to the live shop");
+    expect(paletteGroups(index, "> footer color").flatMap(g => g.entries).every(e => e.kind !== "style")).toBe(true);
+  });
+
+  it("shows the keyboard shortcut a command shares with the key handler", async () => {
+    const { contextCommands } = await import("./studioSearch");
+    expect(index.find(e => e.id === "action:save")?.keys).toBe("Ctrl/⌘ S");
+    expect(index.find(e => e.id === "action:device-mobile")?.keys).toBe("3");
+    const dup = contextCommands({ section: { id: "s", label: "x", visible: true, first: false, last: false } }).find(e => e.title === "Duplicate this section");
+    expect(dup?.keys).toBe("Ctrl/⌘ D");
+  });
+
+  it("finds page parts and books by name", async () => {
+    const { buildStudioIndex, searchStudio } = await import("./studioSearch");
+    const idx = buildStudioIndex({ styleGroups: [], copySchema: [], templates: [], pages: [], sectionsByTemplate: {}, sectionLabel: t => t,
+      elements: [{ key: "r:buyCard", label: "Buy card", where: "This page › Page" }],
+      books: [{ slug: "night-pages", title: "Night Pages", author: "A. Writer" }, { slug: "night-pages", title: "dupe" }] });
+    expect(searchStudio(idx, "buy card")[0]).toMatchObject({ kind: "element", target: { type: "element", key: "r:buyCard" } });
+    expect(searchStudio(idx, "writer").map(e => e.id)).toEqual(["book:night-pages"]);
+  });
+
+  it("reads the screen size a query asks for", async () => {
+    const { searchedDevice } = await import("./studioSearch");
+    expect(searchedDevice("newsletter button phone padding")).toBe("mobile");
+    expect(searchedDevice("Tablet gap")).toBe("tablet");
+    expect(searchedDevice("price colour")).toBeNull();
+  });
+
+  it("remembers recent picks newest first without repeats", async () => {
+    const { pushRecent } = await import("./studioSearch");
+    expect(pushRecent(["a", "b", "c"], "b")).toEqual(["b", "a", "c"]);
+    expect(pushRecent(["a", "b"], "z", 2)).toEqual(["z", "a"]);
+  });
+});

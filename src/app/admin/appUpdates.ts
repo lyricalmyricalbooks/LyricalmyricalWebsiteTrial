@@ -10,6 +10,11 @@ export type AppUpdate = {
 // Newest first. Every PR adds an entry; links open the affected admin workspace.
 export const APP_UPDATES: AppUpdate[] = [
   {
+    id: "studio-2-command-palette", date: "2026-10-09", title: "Find anything does more, and Show on page always lands somewhere",
+    summary: "In the Design studio, Find anything (Ctrl+K, ⌘K on a Mac) now starts with what you can do to whatever you've selected — duplicate, hide, move or copy the style of a section, or open a page part in Theme settings — then the things you opened recently. It also finds the parts of the page you're previewing (like the buy card or the bag) and your books (it opens that book's page). Type > first to see commands only; each command shows its keyboard shortcut. A search that says \"phone\" or \"tablet\" now opens that screen size's setting. Show on page in Theme settings now waits for the page to finish loading, works for Customer accounts and Badges, and when a part isn't on the page (for example it's switched off) it opens that part's settings instead. Behind the scenes, unpublished designs are now only ever saved in the studio's private storage, never in the settings your shop's visitors download.",
+    links: [{ label: "Open the Design studio", tab: "settings", settingsTab: "designer" }],
+  },
+  {
     id: "studio-2-theme-system", date: "2026-10-09", title: "Theme settings, sorted into your site's look and its parts",
     summary: "Theme settings in the Design studio now opens in three parts. \"Site-wide design\" holds what every page shares: theme presets, logo, colours, fonts, buttons, spacing and the Riso print look. \"Parts of your shop\" holds the header and footer, the shop and book pages, and the bag, checkout and account pages — each has a \"Show on page\" button that opens that page in the preview (or opens the shopping bag) and selects the part, so you can see what you're changing. Long word lists in Text & labels (Checkout, Order tracking, Customer account, Product page, Cart) are split into short sections such as \"Discount codes\" and \"Error messages\". Find anything gives shorter result lists and opens an element's setting at the screen size you're previewing.",
     links: [{ label: "Open Theme settings", tab: "settings", settingsTab: "designer", studio: "#designer?tab=style" }],

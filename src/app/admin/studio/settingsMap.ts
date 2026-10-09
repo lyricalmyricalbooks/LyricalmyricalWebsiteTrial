@@ -51,7 +51,7 @@ export const THEME_HEADINGS: SettingsHeading[] = [
  */
 export const CATEGORY_PAGES: Record<string, { template?: string; overlay?: "cart" | "search" }> = {
   header: {}, navlinks: {}, footer: {}, paymentIcons: {},
-  products: { template: "storefront" }, catalog: { template: "storefront" }, labels: { template: "storefront" },
+  products: { template: "storefront" }, catalog: { template: "storefront" }, labels: { template: "productPage" },
   catalogLayout: { template: "storefront" }, productPage: { template: "productPage" }, productCard: { template: "productPage" },
   cartDrawer: { overlay: "cart" }, checkout: { template: "cartPage" }, accounts: { template: "accountPage" },
   customPages: { template: "page" },

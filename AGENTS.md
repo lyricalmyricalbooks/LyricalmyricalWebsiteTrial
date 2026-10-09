@@ -139,7 +139,9 @@ tab; the book workflow must update the live storefront and Studio draft together
 without replacing unrelated design fields.
 New book cards must carry the `fm-card-*` classes (`cardClasses.test.tsx`).
 Studio's **Find anything** (Ctrl/Cmd+K, `studioSearch.ts`) indexes `STYLE_GROUPS`/`COPY_SCHEMA` automatically — a new control needs a
-plain-English label so shop owners can find it. **Auto-fit for phones** (`autoMobile.ts`) writes phone/tablet overrides; keep it in sync
+plain-English label so shop owners can find it. Selection commands come from `contextCommands` (add one there plus a case in
+`runContext` in `StudioEditor.tsx`); `>` searches commands only. Studio drafts are only ever saved through `admin/themeStore.ts`
+(private `themes/workspace`; no public `draftDesign` fallback since 1.7 — never reintroduce one). **Auto-fit for phones** (`autoMobile.ts`) writes phone/tablet overrides; keep it in sync
 with the phone keys the renderers read (`mobilePadding*`, `mobileColumns`, `mobileHeadingSize`, block `grid.tablet/mobile`).
 
 1. **Read `docs/THEME_EDITOR.md` first**, plus the whole section/block system —

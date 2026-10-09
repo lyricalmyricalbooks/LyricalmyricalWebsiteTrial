@@ -79,7 +79,7 @@ describe("Studio editor (mounted with an in-memory API)", () => {
     await key("z", { shiftKey: true });
     expect(host.textContent).toMatch(/Home · 1 section/);
     await click(buttons("Save draft")[0]);
-    const save = fixture.calls.find(c => c.method === "updateSettings");
+    const save = fixture.calls.find(c => c.method === "saveDesign");
     expect(save?.args[1]).toEqual({ publish: false });
     expect(homeSections(save?.args[0].design)).toEqual(["NewsletterSection"]);
     expect(homeSections(fixture.settings.design)).toEqual([]);
@@ -90,9 +90,9 @@ describe("Studio editor (mounted with an in-memory API)", () => {
     await click(buttons("Add section")[0]);
     await click(buttons(/^Newsletter/)[0]);
     await click(buttons("Publish")[0]);
-    expect(fixture.calls.some(c => c.method === "updateSettings")).toBe(false);
+    expect(fixture.calls.some(c => c.method === "saveDesign")).toBe(false);
     await click(buttons("Publish now")[0]);
-    const publish = fixture.calls.find(c => c.method === "updateSettings");
+    const publish = fixture.calls.find(c => c.method === "saveDesign");
     expect(publish?.args[1]).toEqual({ publish: true });
     expect(homeSections(fixture.settings.design)).toEqual(["NewsletterSection"]);
   });
