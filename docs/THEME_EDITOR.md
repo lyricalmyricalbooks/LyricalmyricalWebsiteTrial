@@ -174,7 +174,7 @@ Field kinds: a link field is `kind: "link"` (never a bare `text` box), a video U
 ## Studio 2.0 roadmap (October 2026 — active)
 
 The owner asked for a designer that is easy to navigate and Shopify-level. This program supersedes the
-older lists below. Each milestone ships end-to-end (tests, docs, appUpdates entry, walkthrough) and keeps
+older lists below. Each milestone ships end-to-end (tests, docs, release-note file in admin/updates/, walkthrough) and keeps
 the public storefront looking identical unless it says otherwise. Not in scope (owner decision): AI
 assistant, personalization/A-B tests, author/series/event pages, multi-language storefront.
 
