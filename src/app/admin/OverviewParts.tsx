@@ -39,21 +39,31 @@ export function BarRow({ label, value, share, color }: { label: ReactNode; value
   );
 }
 
-/** One line of the "to do" list: glyph + word status, what it is, and where to fix it. */
-export function TodoRow({ label, detail, count, loading, onOpen, openLabel }: {
+/** One line of the run sheet (the ink "to do" tile): a big count, what it is, and where to fix it. */
+export function RunRow({ label, detail, count, loading, onOpen, openLabel }: {
   label: string; detail: string; count: number | null; loading: boolean; onOpen: () => void; openLabel: string;
 }) {
   const clear = count === 0;
   return (
-    <li style={ROW}>
-      <div style={{ minWidth: 0 }}>
-        <div style={{ fontWeight: 600 }}>{loading ? "…" : count} <span style={{ fontWeight: 400 }}>{label}</span></div>
-        <div className="rp-hint">{loading ? "Loading…" : clear ? "Nothing to do here" : detail}</div>
+    <li className="rp-ov-run-row" data-clear={clear || undefined}>
+      <span className="rp-ov-run-count">{loading ? "…" : count}</span>
+      <div style={{ minWidth: 0, flex: 1 }}>
+        <div className="rp-ov-run-label">{label}</div>
+        <div className="rp-ov-run-detail">{loading ? "Loading…" : clear ? "✓ All clear" : detail}</div>
+        {!loading && !clear && <button type="button" className="rp-ov-run-go" onClick={onOpen}>{openLabel} <span aria-hidden="true">→</span></button>}
       </div>
-      {loading ? null : clear
-        ? <StatusBadge tone="success">✓ All clear</StatusBadge>
-        : <SecondaryButton size="sm" onClick={onOpen}>{openLabel}</SecondaryButton>}
     </li>
+  );
+}
+
+/** One column of the Overview's ruled figures strip. */
+export function Figure({ label, value, foot, tone }: { label: string; value: ReactNode; foot: ReactNode; tone?: "warn" }) {
+  return (
+    <div className="rp-ov-figure" data-tone={tone}>
+      <div className="rp-ov-figure-label">{label}</div>
+      <div className="rp-ov-figure-value">{value}</div>
+      <div className="rp-ov-figure-foot">{foot}</div>
+    </div>
   );
 }
 
