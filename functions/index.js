@@ -35,7 +35,7 @@ const { MAX_CARDS_PER_ORDER, GIFT_CARD_MESSAGES, GiftCardError, newGiftCardCode,
 const { readBooks, writeStock } = require("./inventory");
 const { resolveCountry } = require("./shippingGeo");
 const { REQUIRED_WEBHOOK_EVENTS, modesToTry, intentAsSession, paidIntentOrderId, webhookEndpointReport, signingSecrets, reversalState, ordersDueReversalCheck, failedRefundId } = require("./stripeRecovery");
-const { orderMoneyFmt, chargedTotalFmt, refundAmountText, withoutTrackingLines } = require("./emailMoney");
+const { orderMoneyFmt, chargedTotalFmt, refundAmountText, withoutTrackingLines, withoutCarrierLines, refundEmailFacts, withoutBankRefundSentences } = require("./emailMoney");
 const { optOutId, unsubscribeToken, tokenMatches, footerAddress, normEmail: normMarketingEmail } = require("./marketingOptOut");
 const { checkoutCurrencyOf, paidAmountCheck, toMinor, discountDateState, purchaseProblem, paypalCreateRequestId, lateFailureMayMarkFailed, refundProviderOf, paypalReversalCaptureId, discountUsedUp, checkoutRefusal, manualPaidRefusal, stripeIntentKey, cancelRefusal, mismatchResolved, stripePaymentTaken, previousAttemptPaid, paypalRefundedTotalMinor } = require("./paymentGuards");
 const { canViewOrder, publicOrderView } = require("./orderAccess");
@@ -3787,6 +3787,10 @@ async function customerAccountsEnabled() {
 const escapeHtml = value => String(value ?? "").replace(/[&<>"']/g, ch => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[ch]));
 
 // How the order reaches the customer, for the order confirmation email.
+// Pickup or local delivery (the server-priced choice, else the shopper's selection).
+const localMethodOf = order => order?.fulfillment?.method || order?.fulfillmentSelection?.method || "";
+const isLocalOrder = order => ["pickup", "local_delivery"].includes(localMethodOf(order));
+
 function deliveryDetails(order) {
   const local = order.fulfillment || {};
   if (local.method === "pickup") {
@@ -3927,7 +3931,7 @@ function compileEmailTemplate(templateId, settings, vars, additionalSection) {
 // 5b. Order Paid: Trigger notifications only AFTER successful payment
 // ──────────────────────────────────────────────────────────────
 // Emails one gift card's code to its recipient (or `to`). Records emailedAt on the card.
-async function emailGiftCard(cardId, card, { to = "", notificationSettings = null, queue = "" } = {}) {
+async function emailGiftCard(cardId, card, { to = "", notificationSettings = null, queue = "", test = false } = {}) {
   const recipient = String(to || card.recipientEmail || card.purchaserEmail || "").trim();
   if (!recipient || !/^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/.test(recipient)) throw new Error("This gift card has no email address to send to.");
   const settings = notificationSettings || await loadNotificationSettings();
@@ -3941,7 +3945,7 @@ async function emailGiftCard(cardId, card, { to = "", notificationSettings = nul
     button_url: siteLink("/"),
     shop_url: siteLink("/"),
   });
-  await sendEmail({ to: recipient, subject: compiled.subject, html: compiled.html, secret: RESEND_API_KEY.value(), queue, about: { giftCardId: cardId } });
+  await sendEmail({ to: recipient, subject: `${test ? "[TEST] " : ""}${compiled.subject}`, html: compiled.html, secret: RESEND_API_KEY.value(), queue, about: { giftCardId: cardId } });
   const at = new Date().toISOString();
   await db.collection("giftCards").doc(cardId).update({ emailedAt: at, history: withHistory(card, { type: "emailed", minor: 0, to: recipient, at }), updatedAt: at });
 }
@@ -3950,11 +3954,13 @@ async function emailGiftCard(cardId, card, { to = "", notificationSettings = nul
 async function issueGiftCardsForOrder(orderId) {
   const orderRef = db.collection("orders").doc(orderId);
   let created = [];
+  let testOrder = false;
   await db.runTransaction(async tx => {
     created = [];
     const snap = await tx.get(orderRef);
     if (!snap.exists) return;
     const order = snap.data();
+    testOrder = order.isTest === true || order.sandboxPayment === true;
     if (order.giftCardsIssuedAt || order.paymentStatus !== "paid") return;
     const cards = cardsForOrder(orderId, order);
     if (!cards.length) return;
@@ -3969,9 +3975,12 @@ async function issueGiftCardsForOrder(orderId) {
   });
   const notificationSettings = await loadNotificationSettings();
   if (notificationSettings.gift_card?.enabled === false) return;
-  for (const card of created) {
+  // A test-card (sandbox) purchase never emails the recipients it names: anyone could otherwise
+  // use test mode to send the shop's mail to strangers. The shop gets one [TEST] copy instead.
+  const sends = testOrder ? created.slice(0, 1) : created;
+  for (const card of sends) {
     try {
-      await emailGiftCard(card.id, card.data, { notificationSettings, queue: "giftCard" });
+      await emailGiftCard(card.id, card.data, testOrder ? { notificationSettings, to: ADMIN_TO, test: true } : { notificationSettings, queue: "giftCard" });
     } catch (err) {
       console.error(`Gift card email failed for order ${orderId}:`, err.message);
     }
@@ -4040,7 +4049,11 @@ exports.onOrderUpdated = onDocumentUpdated(
         }
       }
 
-      if (notificationSettings.order_confirmation?.enabled !== false) {
+      // The customer's "Order confirmed" and the shop's new-order alert have separate switches:
+      // pausing one must never silence the other.
+      const customerPaidOn = notificationSettings.order_confirmation?.enabled !== false;
+      const shopPaidOn = notificationSettings.shopAlerts?.newOrder !== false;
+      if (customerPaidOn || shopPaidOn) {
       const order = after;
 
       // Compile digital items download section if any digital formats exist
@@ -4123,7 +4136,7 @@ exports.onOrderUpdated = onDocumentUpdated(
         </div>
       `;
 
-      try {
+      if (customerPaidOn) try {
         await sendOrderEmailOnce(orderId, "orderConfirmed", {
           to: order.customer.email,
           subject: compiled.subject,
@@ -4135,7 +4148,7 @@ exports.onOrderUpdated = onDocumentUpdated(
       }
       // The shop's one email per paid order (Settings › Notifications › new-order alert).
       // It goes out even when the customer's address is rejected.
-      if (notificationSettings.shopAlerts?.newOrder !== false) try {
+      if (shopPaidOn) try {
         await sendOrderEmailOnce(orderId, "shopNewOrder", {
           to: ADMIN_TO,
           subject: `${order.sandboxPayment ? "[TEST] " : ""}[NEW ${preorderLines.length ? "PRE-ORDER" : "ORDER"}] ${order.orderId || orderId} · paid · ${chargedTotalFmt(order)} · ${order.customer.name}`,
@@ -4152,8 +4165,11 @@ exports.onOrderUpdated = onDocumentUpdated(
     const becameShipped = before.fulfillmentStatus !== "shipped" && after.fulfillmentStatus === "shipped";
     // Admin "Resend shipping email" (Order detail › In transit) stamps shippingEmailRequestedAt.
     const resendShipped = !!after.shippingEmailRequestedAt && after.shippingEmailRequestedAt !== before.shippingEmailRequestedAt;
-    const handedOverLocally = ["pickup", "local_delivery"].includes(after.fulfillmentSelection?.method);
-    if ((becameShipped || resendShipped) && !handedOverLocally && notificationSettings.shipping_confirmation?.enabled !== false) {
+    const handedOverLocally = isLocalOrder(after);
+    // Customer "Order shipped" and the shop's shipped copy have separate switches too.
+    const customerShippedOn = notificationSettings.shipping_confirmation?.enabled !== false;
+    const shopShippedOn = becameShipped && notificationSettings.shopAlerts?.shipped !== false;
+    if ((becameShipped || resendShipped) && !handedOverLocally && (customerShippedOn || shopShippedOn)) {
       // Straight to the carrier's tracking page; without a tracking number, the shop's order-status page.
       const trackingUrl = after.trackingNumber
         ? getTrackingUrl(after.trackingCarrier, after.trackingNumber, after.trackingUrl)
@@ -4183,7 +4199,7 @@ exports.onOrderUpdated = onDocumentUpdated(
 
       // A first dispatch sends once; each admin "Resend shipping email" (its own stamp) sends once more.
       const shippedKind = becameShipped ? "shipped" : `shippedResend_${after.shippingEmailRequestedAt}`;
-      try {
+      if (customerShippedOn) try {
         await sendOrderEmailOnce(orderId, shippedKind, {
           to: after.customer.email,
           subject: compiled.subject,
@@ -4194,7 +4210,7 @@ exports.onOrderUpdated = onDocumentUpdated(
         console.error("Shipping confirmation email to customer failed", err);
       }
       // The shop's own copy goes out even when the customer's address is rejected (first dispatch only).
-      if (becameShipped && notificationSettings.shopAlerts?.shipped !== false) try {
+      if (shopShippedOn) try {
         await sendOrderEmailOnce(orderId, "shopShipped", {
           to: ADMIN_TO,
           subject: `[SHIPPED] ${after.orderId || orderId} · ${after.customer?.name}`,
@@ -4213,7 +4229,7 @@ exports.onOrderUpdated = onDocumentUpdated(
     const shippoAlreadyNotified = after.shippoDeliveryNotified && after.shippoDeliveryNotified !== before.shippoDeliveryNotified;
     // Local handoffs stay out of the existing carrier-email path until the
     // store has explicitly enabled a matching customer notification workflow.
-    const isLocalFulfillment = ["pickup", "local_delivery"].includes(after.fulfillmentSelection?.method);
+    const isLocalFulfillment = isLocalOrder(after);
     if (becameDelivered && !isLocalFulfillment && !shippoAlreadyNotified && notificationSettings.delivery_update?.enabled !== false) {
       const trackingUrl = after.trackingNumber
         ? getTrackingUrl(after.trackingCarrier || "", after.trackingNumber, after.trackingUrl)
@@ -4237,6 +4253,36 @@ exports.onOrderUpdated = onDocumentUpdated(
         });
       } catch (err) {
         console.error("Delivery confirmation email failed", err);
+      }
+    }
+
+    // 2c. Pickup and local delivery: the confirmation promises "we'll email you when your order is
+    // ready to collect", so each customer-facing step the admin records sends one Delivery email.
+    const localMethod = localMethodOf(after);
+    const LOCAL_STEPS = localMethod === "pickup" ? { ready_for_pickup: "ready to collect" }
+      : localMethod === "local_delivery" ? { out_for_delivery: "out for delivery", delivered: "delivered" } : {};
+    const localStep = LOCAL_STEPS[after.fulfillmentStatus];
+    if (localStep && before.fulfillmentStatus !== after.fulfillmentStatus && notificationSettings.delivery_update?.enabled !== false) {
+      const localSettings = { ...notificationSettings, delivery_update: { ...notificationSettings.delivery_update,
+        body: withoutCarrierLines(notificationSettings.delivery_update?.body || DEFAULT_NOTIFICATIONS.delivery_update.body) } };
+      const compiled = compileEmailTemplate("delivery_update", localSettings, {
+        customer_name: after.customer?.name || "there",
+        order_id: after.orderId || orderId,
+        status: localStep,
+        button_url: await trackUrl(),
+      }, localMethod === "pickup" ? (() => {
+        const lines = deliveryDetails(after).lines.filter(line => !/we'll email you/i.test(line));
+        return lines.length ? `<div style="margin-top:28px;padding:20px 24px;border:2px solid #111;"><h3 style="margin-top:0;font-size:13px;letter-spacing:.15em;text-transform:uppercase;">Pickup</h3>${lines.map(line => `<p style="font-size:13px;margin:4px 0;line-height:1.6;">${escapeHtml(line)}</p>`).join("")}</div>` : "";
+      })() : "");
+      try {
+        await sendOrderEmailOnce(orderId, `local_${after.fulfillmentStatus}`, {
+          to: after.customer.email,
+          subject: compiled.subject,
+          html: compiled.html,
+          secret: RESEND_API_KEY.value(),
+        });
+      } catch (err) {
+        console.error("Pickup/local delivery email failed", err);
       }
     }
 
@@ -4294,18 +4340,26 @@ exports.onOrderUpdated = onDocumentUpdated(
         }
       }
 
-      if (notificationSettings.order_refunded?.enabled !== false) {
+      const facts = refundEmailFacts(after, chargedRedemptions(after));
+      if (facts && notificationSettings.order_refunded?.enabled !== false) {
       // {{total_price}} now carries its own currency (e.g. "US$12.40"); older saved templates
       // that wrote "CA${{total_price}}" are read without the hard-coded prefix.
+      const refundBody = String(notificationSettings.order_refunded?.body || "").replace(/CA\$\s*\{\{total_price\}\}/g, "{{total_price}}");
       const refundSettings = { ...notificationSettings, order_refunded: { ...notificationSettings.order_refunded,
-        body: String(notificationSettings.order_refunded?.body || "").replace(/CA\$\s*\{\{total_price\}\}/g, "{{total_price}}") } };
+        // Paid entirely by gift card: the money is back on the card now, not "in 5-10 business days".
+        body: facts.giftOnly ? withoutBankRefundSentences(refundBody || DEFAULT_NOTIFICATIONS.order_refunded.body) : refundBody } };
+      const giftSection = facts.giftText ? `
+          <div style="margin-top:28px;padding:20px 24px;border:2px solid #111;">
+            <h3 style="margin-top:0;font-size:13px;letter-spacing:.15em;text-transform:uppercase;">Gift card</h3>
+            <p style="font-size:13px;margin:4px 0;line-height:1.6;">${escapeHtml(facts.giftText)} is back on your gift card${facts.cards ? ` ${escapeHtml(facts.cards)}` : ""} and can be used right away.</p>
+          </div>` : "";
       const compiled = compileEmailTemplate("order_refunded", refundSettings, {
         customer_name: after.customer?.name || "there",
         order_id: after.orderId || orderId,
         // What was actually refunded, in the currency it went back in.
-        total_price: refundAmountText(after),
+        total_price: facts.amountText,
         button_url: await trackUrl()
-      });
+      }, giftSection);
 
       try {
         await sendOrderEmailOnce(orderId, "refunded", {
@@ -4319,6 +4373,33 @@ exports.onOrderUpdated = onDocumentUpdated(
       }
     }
   }
+
+    // 5. Partial refund (Stripe or PayPal): the order stays paid, so nothing above tells the
+    // customer. One email per new running total.
+    const refundedBefore = Number(before.refundedAmountMinor) || 0;
+    const refundedAfter = Number(after.refundedAmountMinor) || 0;
+    if (after.paymentStatus === "paid" && after.partiallyRefunded && refundedAfter > refundedBefore
+      && notificationSettings.order_refunded?.enabled !== false) {
+      const currency = String(after.expectedCurrency || after.checkoutCurrency || "CAD").toUpperCase();
+      // refundedAmountMinor is already in the charged currency: format it, never convert it again.
+      const amountText = refundAmountText({ refund: { amount: (refundedAfter - refundedBefore) / 100, currency } });
+      const compiled = compileEmailTemplate("order_refunded", notificationSettings, {
+        customer_name: after.customer?.name || "there",
+        order_id: after.orderId || orderId,
+        total_price: amountText,
+        button_url: await trackUrl()
+      }, `<p style="margin-top:20px;font-size:13px;line-height:1.6;">This is a partial refund. The rest of your order is unchanged.</p>`);
+      try {
+        await sendOrderEmailOnce(orderId, `partialRefund_${refundedAfter}`, {
+          to: after.customer.email,
+          subject: compiled.subject,
+          html: compiled.html,
+          secret: RESEND_API_KEY.value(),
+        });
+      } catch (err) {
+        console.error("Partial refund email failed", err);
+      }
+    }
 }
 );
 
@@ -5759,7 +5840,8 @@ exports.shippoWebhook = onRequest(
             customer_name: order.customer?.name || "there",
             order_id: order.orderId || orderId,
             status: humanStatus,
-            tracking_carrier: finalCarrier,
+            // The name the shop saved ("Canada Post"), not Shippo's token ("canada_post").
+            tracking_carrier: order.trackingCarrier || String(finalCarrier).replace(/_/g, " ").replace(/\b\w/g, c => c.toUpperCase()),
             tracking_number: trackingNum,
             tracking_url: trackingUrl,
             button_url: trackingUrl
@@ -5856,6 +5938,8 @@ exports.onBookRestocked = onDocumentUpdated(
         const title = esc(after.title || alert.bookTitle);
         const variant = alert.variantName ? ` (${esc(alert.variantName)})` : "";
         await sendEmail({
+          // Both senders down: the retry queue delivers it later (this trigger won't run again).
+          queue: "backInStock",
           to: alert.email,
           subject: `Back in stock: ${after.title || alert.bookTitle}`,
           html: `<div style="font-family:sans-serif;max-width:560px;margin:0 auto;padding:24px;">
@@ -5868,9 +5952,13 @@ exports.onBookRestocked = onDocumentUpdated(
         });
         emailedThisRun.add(key);
       } catch (err) {
-        console.error("Back-in-stock email failed:", err);
-        await doc.ref.update({ status: "waiting" }).catch(() => {});
-        continue;
+        console.error("Back-in-stock email failed:", err.message);
+        // Queued for a retry: it counts as sent here, so it is never also sent again by a later restock.
+        if (!err?.queued) {
+          await doc.ref.update({ status: "waiting" }).catch(() => {});
+          continue;
+        }
+        emailedThisRun.add(key);
       }
       // Sent: remove the signup (its id is per address + edition) so the shopper can ask again
       // next time; if that fails, mark it notified — never back to waiting, which would resend.
@@ -5904,10 +5992,10 @@ exports.onBookUpdated = onDocumentUpdated(
 
     if (parentBecameLowStock) {
       shouldAlert = true;
-      alertLines.push(`Product "<strong>${after.title}</strong>" is running low on stock (${stockAfter} remaining).`);
+      alertLines.push(`Product "<strong>${escapeHtml(after.title)}</strong>" is running low on stock (${stockAfter} remaining).`);
     } else if (parentBecameSoldOut) {
       shouldAlert = true;
-      alertLines.push(`Product "<strong>${after.title}</strong>" is now sold out!`);
+      alertLines.push(`Product "<strong>${escapeHtml(after.title)}</strong>" is now sold out!`);
     }
 
     // Check individual variants
@@ -5915,6 +6003,8 @@ exports.onBookUpdated = onDocumentUpdated(
       const beforeVariants = before.variants || [];
       after.variants.forEach(vAfter => {
         const vBefore = beforeVariants.find(v => v.id === vAfter.id);
+        // A newly added edition was never in stock: adding one with 0-3 copies is not a sale.
+        if (!vBefore) return;
         const vStockBefore = stockOf(vBefore, 999);
         const vStockAfter = stockOf(vAfter, 999);
 
@@ -5923,10 +6013,10 @@ exports.onBookUpdated = onDocumentUpdated(
 
         if (vBecameLowStock) {
           shouldAlert = true;
-          alertLines.push(`Variant "<strong>${vAfter.name}</strong>" of product "${after.title}" is running low on stock (${vStockAfter} remaining).`);
+          alertLines.push(`Variant "<strong>${escapeHtml(vAfter.name)}</strong>" of product "${escapeHtml(after.title)}" is running low on stock (${vStockAfter} remaining).`);
         } else if (vBecameSoldOut) {
           shouldAlert = true;
-          alertLines.push(`Variant "<strong>${vAfter.name}</strong>" of product "${after.title}" is now sold out!`);
+          alertLines.push(`Variant "<strong>${escapeHtml(vAfter.name)}</strong>" of product "${escapeHtml(after.title)}" is now sold out!`);
         }
       });
     }

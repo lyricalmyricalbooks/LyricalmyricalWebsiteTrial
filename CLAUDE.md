@@ -139,7 +139,8 @@ npm run logs
   Recipients/subjects are validated (no CR/LF; a bad address is permanent, never queued); `emailLog` rows older than
   90 days and given-up entries older than 30 are pruned. Admin: Settings › Notifications › **Waiting to send**
   (Retry now / Stop via `sendTestEmail` actions `emailQueue`/`retryEmail`/`cancelEmail`, summary only). Don't queue
-  sends that already retry themselves (webhook-missed alert, abandoned cart, back-in-stock, daily digest).
+  sends that already retry themselves (webhook-missed alert, abandoned cart, daily digest); back-in-stock is
+  queued (`backInStock`) because its trigger only runs on a restock.
   Each try is bounded (nodemailer 15–20 s timeouts, Resend raced at 20 s with an idempotency key `<queueId>:<from>`),
   the sweep runs the queue after the payment checks with a 30 s budget (`timeoutSeconds: 300`), and a delivered entry is
   marked `status: "sent"` before it is deleted, so a failed cleanup never resends. Entries carry `orderId`/`giftCardId`
@@ -154,7 +155,13 @@ npm run logs
   `settings/notifications.shopAlerts` turns them off; an older `new_order_admin.enabled` is honoured) — Settings ›
   Notifications › **Emails to the shop**. Gmail sending › **Check connection** = `sendTestEmail` action `verifyGmail`
   (nodemailer `verify()`, nothing sent). Email branding goes through `risoAccent` (#hex only) and `safeLogoUrl` (https,
-  escaped) in `emailTheme.js` and its admin mirror.
+  escaped) in `emailTheme.js` and its admin mirror. Customer and shop emails are gated separately (pausing
+  "Order Paid"/"Order Shipped" never stops the shop copy). Pickup (`ready_for_pickup`) and local delivery
+  (`out_for_delivery`, `delivered`) send the Delivery template without carrier lines (`localMethodOf` reads
+  `fulfillment.method`, then `fulfillmentSelection.method`). Refund emails use `refundEmailFacts` (`emailMoney.js`):
+  none for a lost dispute, gift-card refunds named, manual refunds in the charged currency; a partial refund
+  (`refundedAmountMinor` rising while paid) sends `partialRefund_<minor>`. Sandbox gift-card purchases email only
+  the shop (`[TEST]`, one copy).
 - **Email delivery log:** every `sendEmail` attempt (sent or failed, with a plain-English reason from
   `functions/emailErrors.js`) is written to the admin-only `emailLog` collection and listed in
   Settings › Notifications › **Recent deliveries**. Customer and shop-copy sends are attempted
