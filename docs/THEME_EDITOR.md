@@ -269,7 +269,15 @@ assistant, personalization/A-B tests, author/series/event pages, multi-language 
       (`StudioSectionStyle.tsx`), replacing the ~700-line `SectionSettingsPanel` (same keys, frozen in a parity
       test) and adding **Hide on tablets** (`hideOnTablet`). The canvas Delete no longer uses `confirm()` — it acts
       at once with Undo. The **Shared layout** rail tab is retired; `tab=shared` links open Page layout.
-      Still to do (1.5b): structure multi-select, a right-click menu, dragging blocks between sections, "move to page".
+- [x] 1.5b Page layout list tools. Right-click a section row (or its `···`) for Move up/down, Rename, Duplicate,
+      Copy section / Paste copied section below, Copy style / Paste style (every `sectionStyleSchema` key plus
+      per-device padding), Move to another page…, Save for reuse, Select for bulk actions and Remove. Ctrl/⌘-click
+      (Shift for a range) picks several sections; the bulk bar hides, shows, pastes style, moves or deletes them in
+      one undoable step. Blocks have **Move to another section** (same section kind, any page), and in the preview a
+      block dropped on a block of another section moves there (`BLOCK_MOVE_TO`). All moves go through the pure
+      `moveSectionTo` / `moveBlockTo` / `updateSectionsById` in `studioWorkflow.ts` (`studioMoves.test.ts`): blocks
+      keep their children, never move into themselves, only move between sections of the same type and respect
+      `MAX_BLOCK_DEPTH`; the preview's section drag-reorder uses `moveSectionTo` too.
 - [ ] 1.6 Theme settings as the global design system; slimmer search.
 - [ ] 1.7 Command palette 2.0; legacy draft path cleanup.
 

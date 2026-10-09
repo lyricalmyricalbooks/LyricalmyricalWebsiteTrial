@@ -1,4 +1,5 @@
-import { moveBlockBefore, patchSectionSettings, sameDesign, setPath, type Section } from "./studioModel";
+import { findBlock, moveBlockBefore, patchSectionSettings, removeBlock, sameDesign, setPath, type Section, type StudioBlock } from "./studioModel";
+import { MAX_BLOCK_DEPTH } from "../../features/site/sharedBlocks";
 import { REGION_GROUPS } from "../../features/site/storefrontRegions";
 
 /** Finds section ownership in the current design, including globals and page:<slug>. */
@@ -15,6 +16,83 @@ export function findSectionOwner(design: any, sectionId: string) {
   return owner && { ...owner, section: owner.sections.find(section => section.id === sectionId)! };
 }
 
+const writeSections = (design: any, surface: string, sections: Section[]) =>
+  surface === "globalSections" ? { ...design, globalSections: sections } : { ...design, [surface]: { ...(design[surface] || {}), sections } };
+
+/**
+ * Moves a section to `index` in `surface` ("globalSections", a template id or "page:<slug>"),
+ * on the same page or another one. Unknown sections, and moves that change nothing, return `design`.
+ */
+export function moveSectionTo(design: any, sectionId: string, surface: string, index?: number): any {
+  const owner = findSectionOwner(design, sectionId);
+  if (!owner || !surface) return design;
+  const without = owner.sections.filter(s => s.id !== sectionId);
+  let next = writeSections(design, owner.surface, without);
+  const into = owner.surface === surface ? without
+    : surface === "globalSections" ? (Array.isArray(next.globalSections) ? next.globalSections : []) : (next[surface]?.sections || []);
+  const at = Math.max(0, Math.min(into.length, index ?? into.length));
+  if (owner.surface === surface && owner.sections.findIndex(s => s.id === sectionId) === at) return design;
+  next = writeSections(next, surface, [...into.slice(0, at), owner.section, ...into.slice(at)]);
+  return next;
+}
+
+/** Applies `fn` to the sections with these ids, wherever they live. */
+export function updateSectionsById(design: any, ids: string[], fn: (s: Section) => Section | null): any {
+  const want = new Set(ids);
+  let next = design;
+  for (const entry of sectionEntries(design)) {
+    if (!entry.sections.some(s => want.has(s.id))) continue;
+    const list = entry.sections.flatMap(s => { if (!want.has(s.id)) return [s]; const r = fn(s); return r ? [r] : []; });
+    next = writeSections(next, entry.surface, list);
+  }
+  return next;
+}
+
+const blockDepth = (blocks: StudioBlock[], id: string, depth = 0): number => {
+  for (const b of blocks || []) {
+    if (b.id === id) return depth;
+    const inner = blockDepth(b.children || [], id, depth + 1);
+    if (inner >= 0) return inner;
+  }
+  return -1;
+};
+const subtreeDepth = (b: StudioBlock): number => 1 + Math.max(0, ...(b.children || []).map(subtreeDepth));
+
+/**
+ * Moves a block (with its children) to another section — top level, before `beforeId` when given.
+ * Only between sections of the same type, so the block's fields still mean something there.
+ * Returns `{ design, error }`; `error` explains a refused move and leaves the design unchanged.
+ */
+export function moveBlockTo(design: any, move: { fromSectionId: string; blockId: string; toSectionId: string; beforeId?: string | null },
+  blocksKey: (type: string) => string): { design: any; error?: string } {
+  const from = findSectionOwner(design, move.fromSectionId), to = findSectionOwner(design, move.toSectionId);
+  if (!from || !to) return { design, error: "That section is no longer on the page." };
+  if (from.section.type !== to.section.type) return { design, error: "Blocks can only move between sections of the same kind." };
+  const fromKey = blocksKey(from.section.type), toKey = blocksKey(to.section.type);
+  const fromBlocks: StudioBlock[] = from.section.settings[fromKey] || from.section.settings.blocks || [];
+  const moving = findBlock(fromBlocks, move.blockId);
+  if (!moving) return { design, error: "That block is no longer there." };
+  if (move.beforeId && (move.beforeId === move.blockId || findBlock(moving.children || [], move.beforeId))) return { design, error: "A block can't move inside itself." };
+  if (move.fromSectionId === move.toSectionId && move.beforeId) {
+    const next = patchSectionSettings(from.sections, from.section.id, { [fromKey]: moveBlockBefore(fromBlocks, move.blockId, move.beforeId) });
+    return { design: writeSections(design, from.surface, next) };
+  }
+  let next = updateSectionsById(design, [from.section.id], s => ({ ...s, settings: { ...s.settings, [fromKey]: removeBlock(fromBlocks, move.blockId) } }));
+  const target = findSectionOwner(next, move.toSectionId)!;
+  const toBlocks: StudioBlock[] = target.section.settings[toKey] || target.section.settings.blocks || [];
+  const at = move.beforeId ? blockDepth(toBlocks, move.beforeId) : 0;
+  if (at < 0) return { design, error: "That block is no longer there." };
+  if (at + subtreeDepth(moving) > MAX_BLOCK_DEPTH) return { design, error: `Blocks can be nested ${MAX_BLOCK_DEPTH} levels deep at most.` };
+  const insert = (list: StudioBlock[]): StudioBlock[] => {
+    if (!move.beforeId) return [...list, moving];
+    const i = list.findIndex(b => b.id === move.beforeId);
+    if (i >= 0) return [...list.slice(0, i), moving, ...list.slice(i)];
+    return list.map(b => b.children?.length ? { ...b, children: insert(b.children) } : b);
+  };
+  next = updateSectionsById(next, [target.section.id], s => ({ ...s, settings: { ...s.settings, [toKey]: insert(toBlocks) } }));
+  return { design: next };
+}
+
 /** Applies preview drag actions against the latest immutable design snapshot. */
 export function applyCanvasAction(design: any, action: {
   type: string; sectionId: string; blockId?: string; beforeId?: string;
@@ -26,9 +104,7 @@ export function applyCanvasAction(design: any, action: {
     const from = sections.findIndex(section => section.id === action.sectionId);
     const to = sections.findIndex(section => section.id === action.beforeId);
     if (to < 0 || from === to) return design;
-    sections = [...sections];
-    const [moving] = sections.splice(from, 1);
-    sections.splice(from < to ? to - 1 : to, 0, moving);
+    return moveSectionTo(design, action.sectionId, owner.surface, from < to ? to - 1 : to);
   } else {
     const key = blocksKey(owner.section.type);
     const blocks = owner.section.settings[key] || owner.section.settings.blocks || [];
