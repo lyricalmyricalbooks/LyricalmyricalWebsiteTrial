@@ -582,7 +582,7 @@ export const adminApi = {
       tx.set(docRef, { design: { categories: live } }, { mergeFields: ["design.categories"] });
       draftBase = data;
     });
-    const draft = appendCategory((await readDraftField("categories", draftBase)) ?? draftBase?.design?.categories, added, CATEGORIES);
+    const draft = appendCategory((await readDraftField("categories")) ?? draftBase?.design?.categories, added, CATEGORIES);
     await draftFieldUpdate({ categories: draft });
     await adminApi.recordAuditLog("settings", `Added shop category ${added.name}`).catch(error => console.warn("Category saved; audit log unavailable", error));
   },
@@ -594,16 +594,6 @@ export const adminApi = {
     await setDoc(docRef, { design: { showUnderConstruction: on } }, { mergeFields: ["design.showUnderConstruction"] });
     await draftFieldUpdate({ showUnderConstruction: on });
     await adminApi.recordAuditLog("settings", `Under construction wall ${on ? "on" : "off"}`).catch(error => console.warn("Saved; audit log unavailable", error));
-  },
-
-  // Replace the work-in-progress theme with the currently published theme.
-  // Keeping draftDesign populated (rather than deleting it) makes subsequent
-  // editor loads deterministic and prevents an old draft from resurfacing.
-  discardThemeDraft: async (publishedDesign: any) => {
-    const docRef = doc(db, "settings", "website");
-    const draftDesign = JSON.parse(JSON.stringify(publishedDesign));
-    await setDoc(docRef, { draftDesign }, { mergeFields: ["draftDesign"] });
-    await adminApi.recordAuditLog("settings", "Discarded unpublished theme changes").catch(error => console.warn("Draft discarded; audit log unavailable", error));
   },
 
   // ── Theme version history (persisted so it survives reloads) ──

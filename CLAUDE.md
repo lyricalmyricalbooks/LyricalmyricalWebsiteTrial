@@ -196,7 +196,8 @@ For larger categories, use Edit › Assigned here in groups of up to 400 first.
 **Find anything:** the Studio top bar **Find** button (or Ctrl/Cmd+K) searches every Style control, Text & labels
 string, Menus panel, page, section and action (`studio/studioSearch.ts` + `StudioSearch.tsx`; `goToResult` in
 `StudioEditor.tsx` navigates). It indexes `STYLE_GROUPS` and `COPY_SCHEMA`, so new controls are findable with no extra
-work — give them clear labels. **Auto-fit for phones** (`studio/autoMobile.ts`) fills phone/tablet values from the
+work — give them clear labels. It also lists the parts of the previewed page and books, opens on commands for the current selection
+(`contextCommands`), then Recent and Shortcuts; `>` searches commands only (`paletteGroups`). **Auto-fit for phones** (`studio/autoMobile.ts`) fills phone/tablet values from the
 desktop design: Sections tab › *Auto-fit page for phones*, or section › Layout & style › *Phone & tablet layout*.
 
 Studio's Sections outline supports sortable sections and blocks. Canvas clicks
@@ -276,7 +277,7 @@ My themes in `savedThemes/{id}`; never add draft or theme data back to public `s
 saves go through `admin/themeStore.ts` (revision-checked; `ThemeConflictError` → merge or the conflict dialog).
 Admin tools that change one design field outside Studio call `draftFieldUpdate`. Shopper code reads settings
 with `adminApi.getPublicSettings()`, never `getSettings()` (which also reads admin-only key flags).
-Deploy Firestore rules before (or with) the frontend; until then Studio safely stays on the legacy fields.
+There is no public fallback any more (1.7): the first open copies an older public `draftDesign`/`savedThemes` across once and removes them; refused access raises `ThemeStoreUnavailableError` and Studio says so. `themeWrite` never writes a draft to `settings/website`. The fixture/tests swap storage with `setThemeBackend` (saves are recorded as `saveDesign`).
 
 **One design resolver (0.5):** storefront code must resolve page designs only through
 `features/site/designModel.ts` (`layerDesign`, or the `resolve*Design` helpers in `surfaceDesign.ts`) — never
@@ -457,8 +458,8 @@ Additional › **Storefront elements**.
 string. A registry type with **no identically named renderer renders nothing**
 ("added but doesn't show up"). Adding a section = registry schema **+** matching
 renderer **+** storefront mapping **+** library entry **+** verify on the live
-storefront. Theme data persists as `design` (live) / `draftDesign` (draft) via
-`adminApi.updateSettings(..., { publish })`.
+storefront. Theme data persists as `design` (live, public `settings/website`) and the private
+draft in `themes/workspace`, both written only through `admin/themeStore.ts`.
 
 ## Deployment
 

@@ -32,6 +32,8 @@ const browser = await chromium.launch({ executablePath: process.env.CHROMIUM_PAT
 
 const results = [];
 async function check(name, viewport, run, query = "", prepare = null) {
+  // STUDIO_ONLY="words" runs only the checks whose name contains those words (local iteration).
+  if (process.env.STUDIO_ONLY && !name.includes(process.env.STUDIO_ONLY)) return;
   const page = await browser.newPage({ viewport });
   const errors = [];
   page.on("pageerror", e => errors.push(e.message));
@@ -72,8 +74,8 @@ await check("add section, undo, redo, save draft", desktop, async page => {
   await page.keyboard.press(`${mod}+Shift+z`);
   await expectText(page, "Home · 1 section");
   await page.getByRole("button", { name: "Save draft" }).click();
-  await page.waitForFunction(() => window.__studioFixture.calls.some(c => c.method === "updateSettings"));
-  const save = (await calls(page)).find(c => c.method === "updateSettings");
+  await page.waitForFunction(() => window.__studioFixture.calls.some(c => c.method === "saveDesign"));
+  const save = (await calls(page)).find(c => c.method === "saveDesign");
   if (save.args[1]?.publish) throw new Error("Save draft published the design");
   if (!save.args[0].design.heroPage.sections.some(s => s.type === "NewsletterSection")) throw new Error("saved draft is missing the new section");
 });
@@ -127,6 +129,38 @@ await check("find anything opens an element setting at the size being previewed"
   await page.locator('[data-style-key="regions.newsletterButtonMobilePaddingTop"]').first().waitFor({ state: "attached", timeout: 8000 });
   const width = await page.evaluate(() => document.querySelector(".studio-preview-frame")?.style.width);
   if (width !== "390px") throw new Error(`the preview left phone size (${width})`);
+  // From desktop, a search that names "phone" opens the phone setting and the phone preview.
+  await page.getByRole("button", { name: "desktop preview" }).click();
+  await page.waitForFunction(() => document.querySelector(".studio-preview-frame")?.style.width === "1200px", null, { timeout: 5000 });
+  await page.keyboard.press(`${mod}+k`);
+  await page.getByRole("dialog").getByRole("combobox").fill("newsletter button phone padding top");
+  await page.getByRole("option").first().waitFor({ state: "attached", timeout: 5000 });
+  await page.keyboard.press("Enter");
+  await page.locator('[data-style-key="regions.newsletterButtonMobilePaddingTop"]').first().waitFor({ state: "attached", timeout: 8000 });
+  await page.waitForFunction(() => document.querySelector(".studio-preview-frame")?.style.width === "390px", null, { timeout: 5000 });
+});
+
+await check("find anything offers commands for the selected section, recent picks and > commands", desktop, async page => {
+  await page.getByRole("button", { name: "Add section" }).first().click();
+  await page.getByRole("button", { name: /^Newsletter/ }).first().click();
+  await page.getByRole("button", { name: "Close settings" }).waitFor({ timeout: 5000 });
+  await page.keyboard.press(`${mod}+k`);
+  const dialog = page.getByRole("dialog");
+  await dialog.getByText("For what you selected").waitFor({ timeout: 5000 });
+  await dialog.getByRole("combobox").fill("hide");
+  await dialog.getByRole("option", { name: /Hide this section/ }).first().click();
+  await dialog.waitFor({ state: "detached", timeout: 5000 });
+  await page.keyboard.press(`${mod}+k`);
+  await page.getByRole("dialog").getByRole("option", { name: /Show this section/ }).first().waitFor({ timeout: 5000 });
+  await page.getByRole("dialog").getByRole("combobox").fill("> phone");
+  const options = page.getByRole("dialog").getByRole("option");
+  await options.first().waitFor({ timeout: 5000 });
+  const kinds = await options.locator(".studio-find-kind").allTextContents();
+  if (kinds.some(k => !/action|area/i.test(k))) throw new Error(`> showed non-commands: ${kinds.join(", ")}`);
+  await page.keyboard.press("Enter");
+  await page.waitForFunction(() => document.querySelector(".studio-preview-frame")?.style.width === "390px", null, { timeout: 5000 });
+  await page.keyboard.press(`${mod}+k`);
+  await page.getByRole("dialog").getByText("Recent").waitFor({ timeout: 5000 });
 });
 
 await check("clicking a section in the preview opens its settings", desktop, async page => {
@@ -204,8 +238,8 @@ await check("a section's Style, Layout and Visibility tabs save its look", deskt
   await tabs.getByRole("tab", { name: "Style" }).click();
   await page.locator("[data-section-style-key=bgColor] input:not([type=color])").fill("#112233");
   await page.getByRole("button", { name: "Save draft" }).click();
-  await page.waitForFunction(() => window.__studioFixture.calls.some(c => c.method === "updateSettings"));
-  const saved = (await calls(page)).filter(c => c.method === "updateSettings").pop();
+  await page.waitForFunction(() => window.__studioFixture.calls.some(c => c.method === "saveDesign"));
+  const saved = (await calls(page)).filter(c => c.method === "saveDesign").pop();
   const section = saved.args[0].design.heroPage.sections.find(s => s.type === "NewsletterSection");
   if (section?.settings?.bgColor !== "#112233") throw new Error(`saved bgColor is ${section?.settings?.bgColor}`);
   await page.getByRole("button", { name: "Reset Solid colour" }).click();
@@ -252,6 +286,47 @@ await check("Theme settings › Show on page selects that part, opening the bag 
   const frame = page.frameLocator("iframe").first();
   await frame.locator("[role=dialog][data-studio-label='Cart drawer']").waitFor({ state: "visible", timeout: 10000 });
   await page.locator("[data-studio-element-inspector][aria-label='Cart drawer settings']").waitFor({ timeout: 10000 });
+});
+
+await check("every Show on page button selects its part or opens its settings, never a dead end", desktop, async page => {
+  await expectText(page, "Preview connected", 30000);
+  const openHome = async () => {
+    await page.getByRole("button", { name: "Theme settings", exact: true }).first().click();
+    const back = page.getByRole("button", { name: /All theme settings|Back to theme settings/ }).first();
+    if (await back.isVisible().catch(() => false)) await back.click();
+    await page.getByText("Site-wide design").first().waitFor({ timeout: 5000 });
+  };
+  await openHome();
+  const names = await page.getByRole("button", { name: /^Show .+ on the page$/ }).evaluateAll(els => els.map(e => e.getAttribute("aria-label")));
+  // These parts always render on their page in the fixture, so they must open in the inspector.
+  const mustSelect = ["Header & announcement bar", "Customer accounts", "Badges & shop labels", "Custom pages", "Checkout"];
+  const outcomes = [];
+  for (const name of names) {
+    await openHome();
+    await page.getByRole("button", { name, exact: true }).click();
+    const title = name.replace(/^Show /, "").replace(/ on the page$/, "");
+    const outcome = await Promise.race([
+      page.locator("[data-studio-element-inspector]").waitFor({ timeout: 12000 }).then(() => "selected"),
+      page.getByText(`${title} isn't showing on this page right now`).waitFor({ timeout: 12000 }).then(() => "settings"),
+    ]).catch(() => "nothing");
+    outcomes.push(`${title}: ${outcome}`);
+    if (outcome === "nothing") throw new Error(`Show on page did nothing for ${title}`);
+    if (mustSelect.some(m => title.startsWith(m)) && outcome !== "selected") throw new Error(`${title} opened its settings instead of the part`);
+    if (outcome === "selected") await page.getByRole("button", { name: "Close settings" }).click().catch(() => {});
+  }
+  console.log("    " + outcomes.join(" · "));
+});
+
+await check("Show on page works when that custom page is already open", desktop, async page => {
+  await expectText(page, "Preview connected", 30000);
+  await page.getByRole("button", { name: "Page to edit" }).click();
+  await page.getByRole("option", { name: /^About/ }).first().click();
+  await expectText(page, "Preview connected", 30000);
+  await page.getByRole("button", { name: "Theme settings", exact: true }).first().click();
+  await page.getByRole("button", { name: /^Show Custom pages/ }).click();
+  await page.locator("[data-studio-element-inspector]").waitFor({ timeout: 12000 });
+  const picked = await page.getByRole("button", { name: "Page to edit" }).textContent();
+  if (!/About/.test(picked || "")) throw new Error(`Page to edit changed to ${picked}`);
 });
 
 await check("long text groups open as short sub-sections", desktop, async page => {
