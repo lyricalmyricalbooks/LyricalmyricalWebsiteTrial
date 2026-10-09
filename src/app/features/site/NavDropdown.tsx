@@ -1,15 +1,21 @@
 import { ChevronDown } from "lucide-react";
-import { useEffect, useLayoutEffect, useRef, useState, type CSSProperties, type ReactNode } from "react";
+import { useEffect, useLayoutEffect, useRef, useState, type CSSProperties, type KeyboardEvent as ReactKeyboardEvent, type ReactNode } from "react";
+import { createPortal } from "react-dom";
 import { Link } from "react-router";
 import { getCopy } from "./storeCopy";
 
 export type NavDropdownEntry = { key: string; label: string; active?: boolean; to?: string; onSelect?: () => void };
 
+const FOCUSABLE = "a[href],button:not([disabled]),input:not([disabled]),select:not([disabled]),textarea:not([disabled]),[tabindex]:not([tabindex='-1'])";
+
 /**
  * A header category that has sub-categories (Studio › Menus › Shop categories › "Sits under").
  * Opens on hover or click and lists "All" (the parent itself) then each sub-category.
  * Colours are Studio › Style › Navigation links controls (drop-down background / border).
- * The panel is `position: fixed` so the scrollable category bar can't clip it.
+ * The panel is `position: fixed` so the scrollable category bar can't clip it, and it is rendered in
+ * a portal on <body>: the sticky header's backdrop-filter makes the header the containing block for
+ * fixed children, which pushed the panel down by the header's own offset. The panel carries
+ * `data-fm-store` (like the bag drawer) so the storefront theme variables still reach it.
  */
 export function NavDropdown({ design, copyDesign, label, linkStyle, className, all, entries, studioTarget = true }: {
   design: any;
@@ -32,6 +38,7 @@ export function NavDropdown({ design, copyDesign, label, linkStyle, className, a
   const hoverOpenedAt = useRef(0);
 
   const items = design?.navDropdownHideAll ? entries : [{ ...all, label: getCopy(copyDesign ?? design, "navDropdownAll") }, ...entries];
+  const studioHooks = studioTarget ? { "data-studio-target": "menus:categories|style:navlinks", "data-studio-label": "Category drop-down" } : {};
 
   const place = () => {
     const r = btnRef.current?.getBoundingClientRect();
@@ -69,6 +76,27 @@ export function NavDropdown({ design, copyDesign, label, linkStyle, className, a
   const hoverClose = () => { closeTimer.current = window.setTimeout(() => setOpen(false), 150); };
   const pick = (entry: NavDropdownEntry) => { setOpen(false); entry.onSelect?.(); };
 
+  // The portal sits at the end of <body>, so keyboard order is kept as if the panel followed the
+  // button: arrows move between items; Tab / Shift+Tab close it and continue from the button.
+  const panelKeyDown = (e: ReactKeyboardEvent<HTMLDivElement>) => {
+    const links = Array.from(panelRef.current?.querySelectorAll<HTMLElement>("a,button") || []);
+    const at = links.indexOf(document.activeElement as HTMLElement);
+    if (e.key === "ArrowDown" || e.key === "ArrowUp") {
+      e.preventDefault();
+      if (!links.length) return;
+      const next = e.key === "ArrowDown" ? (at + 1) % links.length : (at - 1 + links.length) % links.length;
+      links[next]?.focus();
+    } else if (e.key === "Tab") {
+      const btn = btnRef.current;
+      if (!btn) return;
+      e.preventDefault();
+      setOpen(false);
+      if (e.shiftKey) { btn.focus(); return; }
+      const order = Array.from(document.querySelectorAll<HTMLElement>(FOCUSABLE)).filter((el) => !panelRef.current?.contains(el));
+      (order[order.indexOf(btn) + 1] || btn).focus();
+    }
+  };
+
   const borderColor = design?.navDropdownBorderColor || design?.borderColor || "rgba(var(--border-rgb, 177, 177, 170), 1)";
   const panelStyle: CSSProperties = {
     position: "fixed",
@@ -77,6 +105,8 @@ export function NavDropdown({ design, copyDesign, label, linkStyle, className, a
     zIndex: 70,
     minWidth: 180,
     backgroundColor: design?.navDropdownBg || design?.headerBg || design?.backgroundColor || "var(--background)",
+    // data-fm-store brings the theme variables, not the page's print-grain backdrop.
+    backgroundImage: "none",
     border: `${Math.max(0, Math.min(8, Number(design?.navDropdownBorderWidth ?? 4)))}px solid ${borderColor}`,
     padding: "10px 0",
   };
@@ -92,8 +122,7 @@ export function NavDropdown({ design, copyDesign, label, linkStyle, className, a
   });
 
   return (
-    <div ref={wrapRef} className="relative shrink-0" onMouseEnter={hoverOpen} onMouseLeave={hoverClose}
-      {...(studioTarget ? { "data-studio-target": "menus:categories|style:navlinks", "data-studio-label": "Category drop-down" } : {})}>
+    <div ref={wrapRef} className="relative shrink-0" onMouseEnter={hoverOpen} onMouseLeave={hoverClose} {...studioHooks}>
       <button
         ref={btnRef}
         type="button"
@@ -109,8 +138,9 @@ export function NavDropdown({ design, copyDesign, label, linkStyle, className, a
         <ChevronDown size="1.2em" strokeWidth={3} aria-hidden="true"
           style={{ transition: "transform .15s", transform: open ? "rotate(180deg)" : undefined }} />
       </button>
-      {open && pos && (
-        <div ref={panelRef} role="menu" style={panelStyle} onMouseEnter={hoverOpen} onMouseLeave={hoverClose}>
+      {open && pos && typeof document !== "undefined" && createPortal(
+        <div ref={panelRef} role="menu" data-fm-store data-nav-dropdown-panel style={panelStyle}
+          onMouseEnter={hoverOpen} onMouseLeave={hoverClose} onKeyDown={panelKeyDown} {...studioHooks}>
           {items.map((entry) => entry.to ? (
             <Link key={entry.key} role="menuitem" to={entry.to} onClick={() => pick(entry)} style={itemStyle(entry.active)}
               aria-current={entry.active ? "page" : undefined} className="transition-all hover:!opacity-100 hover-text-accent">
@@ -122,7 +152,8 @@ export function NavDropdown({ design, copyDesign, label, linkStyle, className, a
               {entry.label}
             </button>
           ))}
-        </div>
+        </div>,
+        document.body,
       )}
     </div>
   );

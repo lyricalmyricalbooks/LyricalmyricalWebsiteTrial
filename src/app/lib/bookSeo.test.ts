@@ -12,6 +12,12 @@ describe('book search metadata', () => {
   it('strips tracking parameters and fragments from canonical URLs', () => {
     expect(canonicalUrl('https://example.com/shop/books/one?utm_source=x#reviews')).toBe('https://example.com/shop/books/one');
   });
+  it('names the slash-less URL for content routes reached with a trailing slash, but keeps the home slash', () => {
+    expect(canonicalUrl('https://example.com/shop/books/one/')).toBe('https://example.com/shop/books/one');
+    expect(canonicalUrl('https://example.com/shop/page/about/?x=1')).toBe('https://example.com/shop/page/about');
+    expect(canonicalUrl('https://example.com/shop/collections/art/')).toBe('https://example.com/shop/collections/art');
+    expect(canonicalUrl('https://example.com/shop/')).toBe('https://example.com/shop/');
+  });
   it('emits Product and Book markup using the displayed currency and price', () => {
     const data = bookStructuredData(book, { currency: 'EUR', price: 19.2, url: 'https://example.com/shop/books/one' });
     expect(data['@type']).toEqual(['Product', 'Book']);

@@ -411,10 +411,15 @@ export default function MainSite({ setShowCatalog, showCatalog, setCurrentPage, 
     }
   }, [legacyDesign?.showHero, showCatalog, setShowCatalog, isCatalogPreview]);
 
-  const [activeCategory, setActiveCategory] = useState<any>(categories[0]);
+  // With no shop categories at all, open on "ALL" (every book) instead of `undefined`, which matched
+  // nothing. autoAll remembers that "ALL" was this fallback rather than the shopper's pick, so
+  // categories that arrive later (catalog load, Studio edit) still open on the first one as before.
+  const [activeCategory, setActiveCategory] = useState<any>(() => categories[0] ?? "ALL");
+  const autoAll = useRef(categories.length === 0);
   // Connected section fields (Studio 2.7) read the open category.
   const categoryContext = useMemo(() => ({ category: activeCategory && activeCategory !== "ALL" ? activeCategory : undefined }), [activeCategory]);
   const pickCategory = (cat: any) => {
+    autoAll.current = false;
     setActiveCategory(cat);
     setShowCatalog(true);
   };
@@ -434,8 +439,15 @@ export default function MainSite({ setShowCatalog, showCatalog, setCurrentPage, 
   useEffect(() => {
     // The route effect above owns selection on collection URLs, including first load.
     if (collectionSlug) return;
-    if (activeCategory === "ALL") return;
-    if (categories.length > 0) {
+    if (categories.length === 0) {
+      if (activeCategory !== "ALL") { autoAll.current = true; setActiveCategory("ALL"); }
+      return;
+    }
+    if (activeCategory === "ALL") {
+      if (autoAll.current) { autoAll.current = false; setActiveCategory(categories[0]); }
+      return;
+    }
+    {
       const currentName = typeof activeCategory === "string" ? activeCategory : activeCategory?.name;
       const exists = categories.find((c: any) => c.name === currentName);
       if (!exists) {
@@ -812,7 +824,7 @@ export default function MainSite({ setShowCatalog, showCatalog, setCurrentPage, 
                     className={`absolute top-3 right-3 z-10 w-9 h-9 rounded-full backdrop-blur-md flex items-center justify-center transition-colors ${
                       wished
                         ? "fm-favorite-active border"
-                        : "bg-black/40 text-white/70 border border-white/10 hover:text-white opacity-0 group-hover:opacity-100"
+                        : "bg-black/40 text-white/70 border border-white/10 hover:text-white opacity-0 group-hover:opacity-100 focus-visible:opacity-100 pointer-coarse:opacity-100"
                     }`}
                   >
                     <Heart size={13} fill={wished ? "currentColor" : "none"} />

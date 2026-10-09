@@ -95,3 +95,34 @@ it("keeps an unsaved Studio snapshot when the shared backend load finishes", asy
     delete (window as any).__studioPreviewDesign;
   }
 });
+it("renders for shoppers whose browser has no BroadcastChannel", async () => {
+  vi.stubGlobal("BroadcastChannel", undefined);
+  delete (globalThis as any).BroadcastChannel;
+  await render(1);
+  expect(latest.books).toHaveLength(1);
+  await render(0);
+});
+it("opens the cross-tab preview channel only inside a Studio preview", async () => {
+  const opened: string[] = [];
+  vi.stubGlobal("BroadcastChannel", class { constructor(name: string) { opened.push(name); } close() {} });
+  await render(1); await render(0);
+  expect(opened).toEqual([]);
+  window.history.replaceState(null, "", "/?preview=true");
+  try {
+    await render(1); await render(0);
+    expect(opened).toEqual(["site_preview_updates"]);
+  } finally {
+    window.history.replaceState(null, "", "/");
+  }
+});
+it("survives a preview whose BroadcastChannel constructor throws", async () => {
+  vi.stubGlobal("BroadcastChannel", class { constructor() { throw new Error("blocked"); } });
+  window.history.replaceState(null, "", "/?preview=true");
+  try {
+    await render(1);
+    expect(latest.books).toHaveLength(1);
+    await render(0);
+  } finally {
+    window.history.replaceState(null, "", "/");
+  }
+});

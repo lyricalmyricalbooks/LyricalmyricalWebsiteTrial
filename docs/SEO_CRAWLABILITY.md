@@ -2,8 +2,16 @@
 
 Google can execute JavaScript, but this GitHub Pages SPA previously served its
 redirecting 404 document for direct book/custom-page URLs. The production build
-now renders the public sitemap in Chromium and writes an `index.html` for each
-public route, including the home page. These files contain actual published
+now renders the public sitemap in Chromium and writes one HTML file per public
+route: `index.html` for the home page and `<route>.html` for every other route
+(`books/<slug>.html`, `page/<slug>.html`, `collections/<slug>.html`). GitHub
+Pages answers the slash-less URL `/books/<slug>` from `books/<slug>.html` with
+HTTP 200; a `books/<slug>/index.html` folder would instead 301-redirect to
+`/books/<slug>/`, which no longer matches the slash-less canonical, `og:url`,
+JSON-LD and sitemap URLs. A trailing-slash request (`/books/<slug>/`) falls
+through to the `404.html` SPA fallback, React renders the page, and
+`canonicalUrl` (`src/app/lib/bookSeo.ts`) still names the slash-less URL. Routes
+that were not prerendered keep using the same `404.html` fallback. These files contain actual published
 Studio layouts, text, links, metadata and current page structured data. React
 starts normally and continues loading live catalog and checkout data.
 
@@ -45,8 +53,8 @@ book metadata and sitemap changes are owned by the separate book SEO work.
 
 ## Verification after deployment
 
-Fetch a published `/books/<slug>/` or `/page/<slug>/` URL without JavaScript.
-It should return HTTP 200, that page's title/content, its public canonical URL
+Fetch a published `/books/<slug>` or `/page/<slug>` URL (no trailing slash)
+without JavaScript. It should return HTTP 200 with no redirect, that page's title/content, its public canonical URL
 and crawlable links. Check the rendered page with JavaScript too: navigation
 and Add to bag must still work and payment must keep using live server totals.
 Then use Search Console URL Inspection and Google's Rich Results Test. Code and

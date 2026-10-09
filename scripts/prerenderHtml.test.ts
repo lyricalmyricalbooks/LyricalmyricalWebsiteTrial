@@ -9,10 +9,18 @@ describe('public HTML snapshots', () => {
     expect(publicRoutes(xml, base)).toEqual(['/', '/books/a', '/page/about', '/collections/art']);
   });
   it('rejects path traversal and encoded separators before writing files', () => {
-    expect(routeOutputPath('/books/photo-book')).toBe('books/photo-book/index.html');
-    expect(routeOutputPath('/books/a.b')).toBe('books/a.b/index.html');
+    expect(routeOutputPath('/books/photo-book')).toBe('books/photo-book.html');
+    expect(routeOutputPath('/books/a.b')).toBe('books/a.b.html');
     for (const route of ['/books/../a', '/books/%2e%2e', '/books/a%2fb', '/books/a%5cb', '/books/%252e%252e', '/admin']) {
       expect(() => routeOutputPath(route)).toThrow();
+    }
+  });
+  it('writes slash-less route files so GitHub Pages answers the canonical URL with 200, not a redirect to a trailing slash', () => {
+    expect(routeOutputPath('/')).toBe('index.html');
+    for (const route of ['/books/a', '/page/about', '/collections/art']) {
+      const file = routeOutputPath(route);
+      expect(file).toBe(route.slice(1) + '.html');
+      expect(file).not.toMatch(/\/index\.html$/);
     }
   });
   it('captures real rendered content, public URLs and metadata without browser caches or runtime scripts', () => {
