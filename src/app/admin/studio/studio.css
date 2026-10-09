@@ -279,3 +279,29 @@
 .studio-settings-band:first-child { margin-top: 4px; border-top: 0; }
 .studio-category-item { display: grid; gap: 2px; }
 .studio-show-on-page { justify-self: start; display: inline-flex; align-items: center; gap: 5px; font-size: 11px; padding: 4px 6px; color: var(--rp-primary-text); text-decoration: underline; }
+
+/* Catalog pickers (2.3): link / book / books / category / page / video / font fields (StudioPickers.tsx) */
+.studio-field-picker { display: grid; gap: 6px; min-width: 0; }
+.studio-field-picker-current { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; min-width: 0; }
+.studio-field-picker-summary { flex: 1; min-width: 0; display: grid; gap: 1px; margin: 0; font-size: 12px; font-weight: 700; color: var(--rp-text); overflow-wrap: anywhere; }
+.studio-field-picker-summary small { font-size: 10px; font-weight: 600; color: var(--rp-text-subtle); }
+.studio-field-picker-summary em { font-style: normal; font-weight: 500; color: var(--rp-text-subtle); }
+.studio-field-picker-summary[data-missing], .studio-field-picker-list li[data-missing] span { color: var(--rp-warning); }
+.studio-field-picker-button { display: inline-flex; align-items: center; gap: 4px; min-height: 34px; padding: 6px 10px; border: 1px solid var(--rp-border-strong); background: var(--rp-surface); color: var(--rp-text); font-size: 11px; font-weight: 800; white-space: nowrap; }
+.studio-field-picker-button:hover { background: var(--rp-primary-tint); }
+.studio-field-picker-add { justify-content: center; width: 100%; border-style: dashed; }
+.studio-field-picker-icon { display: inline-grid; place-items: center; min-width: 30px; min-height: 30px; border: 1px solid var(--rp-border); background: var(--rp-surface); color: var(--rp-text); }
+.studio-field-picker-icon:disabled { opacity: .35; }
+.studio-field-picker-input { width: 100%; min-height: 36px; padding: 6px 10px; border: 1px solid var(--rp-border); background: var(--rp-input-bg); color: var(--rp-text); font-size: 12px; }
+.studio-field-picker-note { font-size: 11px; color: var(--rp-text-subtle); }
+.studio-field-picker-note[data-tone=warn] { color: var(--rp-warning); }
+.studio-field-picker-list { list-style: none; margin: 0; padding: 0; display: grid; gap: 4px; }
+.studio-field-picker-list li { display: flex; align-items: center; gap: 4px; padding: 4px 4px 4px 8px; border: 1px solid var(--rp-border); background: var(--rp-surface); font-size: 12px; }
+.studio-field-picker-list li span { flex: 1; min-width: 0; display: grid; overflow-wrap: anywhere; }
+.studio-field-picker-list li small { font-size: 10px; color: var(--rp-text-subtle); }
+/* Inside a field the search list opens in place, so a docked inspector never clips it. */
+.studio-field-picker-panel { position: static; width: auto; min-width: 0; margin: 0; box-shadow: 3px 3px 0 var(--rp-border-strong); }
+.studio-field-picker-panel .studio-picker-search input { width: 100%; min-width: 0; }
+.studio-field-picker-summary { flex-basis: 8em; }
+.studio-field-picker-panel .studio-picker-list { max-height: 260px; }
+.studio-field-picker-close { margin-top: 6px; font-size: 11px; text-decoration: underline; color: var(--rp-text-subtle); }

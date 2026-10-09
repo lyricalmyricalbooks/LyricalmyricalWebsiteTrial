@@ -10,6 +10,11 @@ export type AppUpdate = {
 // Newest first. Every PR adds an entry; links open the affected admin workspace.
 export const APP_UPDATES: AppUpdate[] = [
   {
+    id: "studio-2-pickers", date: "2026-10-09", title: "Pick links, books and categories instead of typing them",
+    summary: "In the Design studio, a section's link fields (button and card links) now have a Choose button: pick a store page (Home, Shop, Wishlist, Account, Order tracking), one of your custom pages, a shop category or a book, or still type any web address. Book grids and the cover carousel have \"Which books\": all books, featured, books you pick from a searchable list, a shop category, newest, on sale or pre-orders, plus an Order setting (shop order, the order you picked, newest, title or price). Featured product and the staff notes table pick their book from the catalog, video fields tell you straight away whether a link will play, and the page title font is chosen from the font list. Sections you already set up keep showing the same books and links — nothing needs redoing. These are design settings only; prices, stock and checkout are unchanged.",
+    links: [{ label: "Open Page layout", tab: "settings", settingsTab: "designer", studio: "#designer?tab=sections" }],
+  },
+  {
     id: "studio-2-theme-system", date: "2026-10-09", title: "Theme settings, sorted into your site's look and its parts",
     summary: "Theme settings in the Design studio now opens in three parts. \"Site-wide design\" holds what every page shares: theme presets, logo, colours, fonts, buttons, spacing and the Riso print look. \"Parts of your shop\" holds the header and footer, the shop and book pages, and the bag, checkout and account pages — each has a \"Show on page\" button that opens that page in the preview (or opens the shopping bag) and selects the part, so you can see what you're changing. Long word lists in Text & labels (Checkout, Order tracking, Customer account, Product page, Cart) are split into short sections such as \"Discount codes\" and \"Error messages\". Find anything gives shorter result lists and opens an element's setting at the screen size you're previewing.",
     links: [{ label: "Open Theme settings", tab: "settings", settingsTab: "designer", studio: "#designer?tab=style" }],

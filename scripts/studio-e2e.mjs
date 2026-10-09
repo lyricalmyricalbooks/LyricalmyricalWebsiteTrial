@@ -212,6 +212,34 @@ await check("a section's Style, Layout and Visibility tabs save its look", deskt
   if (await page.getByRole("button", { name: "Reset Solid colour" }).count()) throw new Error("Reset did not clear the colour");
 });
 
+await check("link and book pickers save the same strings as typed links", desktop, async page => {
+  await page.getByRole("button", { name: "Add section" }).first().click();
+  await page.getByRole("button", { name: /^Image with Text/ }).first().click();
+  await page.getByRole("button", { name: "Choose link: CTA link" }).click();
+  await page.getByRole("combobox", { name: "Find a page, category or book" }).fill("about");
+  await page.keyboard.press("Enter");
+  await page.getByLabel("CTA link (address)").waitFor({ timeout: 5000 });
+  if ((await page.getByLabel("CTA link (address)").inputValue()) !== "/page/about") throw new Error("the picked page did not fill the link");
+  await page.getByRole("button", { name: "Add section" }).first().click();
+  await page.getByRole("button", { name: /^Showcase Product Grid/ }).first().click();
+  await page.getByLabel("Which books").selectOption("manual");
+  await page.getByRole("button", { name: /^Add a book: / }).click();
+  await page.getByRole("combobox", { name: "Find a book to add" }).fill("paper");
+  await page.keyboard.press("Enter");
+  await page.getByRole("button", { name: "Save draft" }).click();
+  await page.waitForFunction(() => window.__studioFixture.calls.some(c => c.method === "updateSettings"));
+  const saved = (await calls(page)).filter(c => c.method === "updateSettings").pop();
+  const sections = saved.args[0].design.heroPage.sections;
+  const banner = sections.find(s => s.type === "ImageWithTextSection");
+  if (banner?.settings?.ctaUrl !== "/page/about") throw new Error(`saved ctaUrl is ${banner?.settings?.ctaUrl}`);
+  const grid = sections.find(s => s.type === "ProductShowcaseGridSection");
+  if (grid?.settings?.productSource !== "manual" || grid?.settings?.manualSlugs !== "paper-weather") throw new Error(`saved grid source ${grid?.settings?.productSource} / ${grid?.settings?.manualSlugs}`);
+  // The preview shows only the picked book.
+  const frame = page.frameLocator("iframe").first();
+  await frame.locator("[data-fm-section] .fm-card-title", { hasText: "Paper Weather" }).first().waitFor({ timeout: 15000 });
+  if (await frame.locator("[data-fm-section] .fm-card-title", { hasText: "Night Pages" }).count()) throw new Error("the grid still shows a book that was not picked");
+});
+
 await check("right-click a section to move it to another page, and Undo brings it back", desktop, async page => {
   await page.getByRole("button", { name: "Add section" }).first().click();
   await page.getByRole("button", { name: /^Newsletter/ }).first().click();

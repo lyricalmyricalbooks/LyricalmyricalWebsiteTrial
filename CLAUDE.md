@@ -289,6 +289,15 @@ with `say("ok", text, { label: "Undo", run })`, permanent ones use Riso `useConf
 edit: `change(fn, { label, coalesce })`. Add shortcuts to `studio/shortcuts.ts` (the cheat sheet reads the same table).
 Link into Studio with `studioHash()` from `lib/studioLocation.ts` (`/admin#designer?…`); What's new links can carry `studio`.
 
+**Pickers & catalog sources (2.3):** section/block fields of kind `link`, `book`, `books`, `category`, `page`, `video`,
+`font` render Studio pickers (`studio/StudioPickers.tsx`, pure choices in `studio/pickers.ts`, data from
+`StudioPickerProvider` in `StudioEditor`). They save the same strings as the old text boxes (hrefs like `/page/<slug>`,
+`/collections/<slug>`, `/books/<storefront slug>`; comma-separated slugs; category names) — no migration, `siteHref` still
+adds the sub-path. Never add a url-like section/block field as `text` (`sectionFieldKinds.test.ts`). Catalog sections pick
+books only through `features/site/merchandising.ts` `selectBooks` / `sectionBookQuery` / `pickBook` (Studio: **Which books**
+= all · featured · books I pick · shop category · newest · on sale · pre-orders, plus **Order**); without
+`productSource`/`productSort` the result equals the old one (`catalogSources.test.ts`, `catalogSources.render.test.tsx`).
+
 **Page structure (1.3/1.4):** Studio › Page layout lists the page the preview actually rendered — Header · Page · Footer ·
 Pop-overs — from the bridge's `STRUCTURE` scan (`studio/pageStructure.ts`, `StudioStructure.tsx`). Any new storefront part
 appears there automatically once it carries `data-studio-target` / `regionProps` and a `data-studio-label`; put header parts

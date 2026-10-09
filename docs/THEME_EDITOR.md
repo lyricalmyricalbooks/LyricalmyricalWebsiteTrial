@@ -65,7 +65,7 @@ The editor is **not** a blank slate. It already supports:
 | `src/app/admin/studio/StudioOutline.tsx` / `StudioInspector.tsx` | Section/block outline and the section/block inspector (Content, Layout & style). |
 | `src/app/admin/studio/styleSchema.ts` / `settingsMap.ts` | Every Theme settings control (`STYLE_GROUPS`, region groups) and where each one lives. |
 | `src/app/admin/studio/previewBridge.ts` / `canvasBridge.ts` | Script injected into the preview: click-to-edit, inline text, canvas toolbar, spacing handles. |
-| `src/app/admin/ThemeEditorExtensions.tsx` | The real **`SECTION_REGISTRY`** (34 section types), `getSectionFields`, `getBlockFields`, `getSectionMeta`, the shared field editors and the per-section **Layout & style** panel (`SectionSettingsPanel`). Field types: `text`, `textarea`, `html`, `richtext`, `color`, `number`, `range`, `select`, `toggle`, `date`, `image`. |
+| `src/app/admin/ThemeEditorExtensions.tsx` | The real **`SECTION_REGISTRY`** (34 section types), `getSectionFields`, `getBlockFields`, `getSectionMeta`, the shared field editors (`SectionFieldEditor` / `BlockFieldEditor`). Field types: `text`, `textarea`, `html`, `richtext`, `color`, `number`, `range`, `select`, `toggle`, `date`, `image`, plus the picker kinds `link`, `book`, `books`, `category`, `page`, `video`, `font` (`studio/StudioPickers.tsx`). |
 | `src/app/components/SectionComponents.tsx` | **One storefront renderer per registry section type** (the components that actually draw each section) + shared style helpers (spacing, background, button styles, animation wrappers). Registry and renderers are at parity — every `SECTION_REGISTRY` type has a matching renderer. |
 | `src/app/components/sectionRender.tsx` | **Shared section renderer** (single source of truth for section→renderer mapping). `SectionList` (pure: maps a `sections` array → renderers via `(Sections as any)[type]` and emits stable `data-fm-section` / `data-section-id` edit hooks); `TemplateSections` (renders `design[templateId].sections` for a page-type template); `GlobalSections` (renders the flat `design.globalSections`). Used by MainSite **and** every standalone page. |
 | `src/app/components/MainSite.tsx` | Renders the homepage/storefront. Uses `SectionList` for `heroPage.sections` and the shared `GlobalSections` from `sectionRender`. |
@@ -112,6 +112,11 @@ To add (or fix) a section end-to-end, all of these must line up:
 
 Blocks follow the same idea: schema via `getBlockFields` + `BlocksEditor`,
 rendered by the section's renderer (e.g. `RowSection`/`RowBlock`).
+
+Field kinds: a link field is `kind: "link"` (never a bare `text` box), a video URL `video`, a book
+`book`, several books `books`, a category `category`, a custom page `page`, a font name `font`
+(`sectionFieldKinds.test.ts` enforces the url/slug ones). A section that lists books takes them from
+`selectBooks` (`features/site/merchandising.ts`) — add `...bookSourceFields(…)` to its fields.
 
 ## Persistence model
 
@@ -292,7 +297,24 @@ assistant, personalization/A-B tests, author/series/event pages, multi-language 
 
 **Phase 2 — Shopify OS 2.0 features**
 - [ ] 2.1 One header and footer on every page. - [ ] 2.2 Header/footer/popup section groups.
-- [ ] 2.3 Pickers (link, book, category, page, video, font) + catalog sources. - [ ] 2.4 Media library + responsive images.
+- [x] 2.3 Pickers + catalog sources. New section/block field kinds `link`, `book`, `books`, `category`, `page`,
+      `video`, `font` (`studio/StudioPickers.tsx`, choices in the pure `studio/pickers.ts`) save exactly the string the
+      old text field held, so there is no migration: `link` an href (`/`, `/?catalog=true`, `/wishlist`, `/account`,
+      `/track`, `/page/<slug>`, `/collections/<slugify(name)>`, `/books/<storefront slug>` or any typed address —
+      `siteHref` still adds the sub-path), `book` the storefront slug (resolved like `resolveProductRoutes` over live
+      books), `books` comma-separated slugs, `category` the category name, `page` the slug, `video` the URL (with a
+      "will it play?" note mirroring the renderers' YouTube/Vimeo/MP4 matching), `font` the Google Fonts family
+      (typed names are kept). Studio passes its loaded books, pages and `design.categories` through
+      `StudioPickerProvider`. List rows can be links too (`itemFields[].kind: "link"`). Catalog sections (Product grid,
+      Showcase grid, Cover carousel, Featured product) choose books with `features/site/merchandising.ts`
+      `selectBooks({ source: all|featured|manual|category|newest|onSale|preorder, sort, limit })` via
+      `sectionBookQuery(settings, design.categories)` and `pickBook`; new keys `productCategory` and `productSort`;
+      no `productSource`/`productSort` = exactly the old result. Tests: `sectionFieldKinds.test.ts` (url-like fields
+      must use `link`, videos `video`, slugs `book`/`books`), `catalogSources.test.ts` + `catalogSources.render.test.tsx`
+      (old selection frozen and compared, including the published design), `pickers.test.ts`, `StudioPickers.test.tsx`,
+      and an e2e check (pick a page link and a book, assert the saved draft and the preview). Not done here: no page
+      field uses `page` yet (available for 2.7/2.8); Theme settings' own URL fields (social links, mega-menu links)
+      are unchanged. - [ ] 2.4 Media library + responsive images.
 - [ ] 2.5 Colour schemes 2.0. - [ ] 2.6 Section library 2.0 + new sections.
 - [ ] 2.7 Custom book fields + dynamic sources. - [ ] 2.8 Alternate templates. - [ ] 2.9 Product information as blocks.
 
