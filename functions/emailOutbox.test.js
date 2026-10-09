@@ -118,7 +118,7 @@ function harness({ docs: extra = {}, gmailFails = true, resendFails = true, patc
     auth: () => ({ verifyIdToken: async () => ({ email: "lyricalmyricalbooks@gmail.com", email_verified: true }), getUserByEmail: async () => { throw new Error("none"); } }),
   };
   const wrap = (...args) => args.at(-1);
-  const nodemailer = { createTransport: () => ({ sendMail: async (m) => { if (state.gmailFails) throw new Error("Invalid login"); delivered.push(m); return { messageId: "gmail-1" }; } }) };
+  const nodemailer = { createTransport: () => ({ verify: async () => { if (state.gmailFails) throw new Error("535-5.7.8 Username and Password not accepted"); return true; }, sendMail: async (m) => { if (state.gmailFails) throw new Error("Invalid login"); delivered.push(m); return { messageId: "gmail-1" }; } }) };
   const Resend = class { constructor() { this.emails = { send: async (m, options) => { state.resendOptions.push(options); if (state.resendFails) return { data: null, error: { message: "boom" } }; delivered.push(m); return { data: { id: "re-1" }, error: null }; } }; } };
   const mockRequire = name => {
     if (name === "firebase-admin") return admin;
@@ -388,5 +388,124 @@ describe("review fixes", () => {
     const settings = await app.exports.__defaults();
     const compiled = app.exports.__compile("order_confirmation", { ...settings, order_confirmation: { ...settings.order_confirmation, subject: "Order {{items_table}} {{order_id}}" } }, { order_id: "A1", items_table: "<table>x</table>" });
     expect(compiled.subject).toBe("Order A1");
+  });
+});
+
+describe("shop alerts and the Gmail check", () => {
+  const paidEvent = () => updated(order({ paymentStatus: "unpaid" }), order({ paymentStatus: "paid" }));
+  const shipEvent = () => updated(order({ paymentStatus: "paid", fulfillmentStatus: "processing" }), order({ paymentStatus: "paid", fulfillmentStatus: "shipped", trackingNumber: "T1", trackingCarrier: "Canada Post" }));
+  const shopMail = app => app.delivered.filter(m => m.to === "lyricalmyricalbooks@gmail.com");
+
+  test("the new-order and shipped-copy switches stop only the shop's emails", async () => {
+    const app = harness({ gmailFails: false, docs: { settings: { website: { payments: {} }, notifications: { shopAlerts: { newOrder: false, shipped: false } } } } });
+    await app.exports.onOrderUpdated(paidEvent());
+    await app.exports.onOrderUpdated(shipEvent());
+    expect(shopMail(app)).toHaveLength(0);
+    expect(app.delivered.filter(m => m.to === "reader@example.com")).toHaveLength(2);
+  });
+
+  test("shop alerts stay on by default, and an older saved new_order_admin switch is honoured", async () => {
+    const on = harness({ gmailFails: false });
+    await on.exports.onOrderUpdated(paidEvent());
+    expect(shopMail(on)).toHaveLength(1);
+    const legacy = harness({ gmailFails: false, docs: { settings: { website: { payments: {} }, notifications: { new_order_admin: { enabled: false } } } } });
+    await legacy.exports.onOrderUpdated(paidEvent());
+    expect(shopMail(legacy)).toHaveLength(0);
+  });
+
+  test("Check connection reports a refused password in plain words, without sending anything", async () => {
+    const bad = harness({ gmailFails: true });
+    const refused = await bad.call({ action: "verifyGmail" });
+    expect(refused.body).toMatchObject({ ok: false });
+    expect(refused.body.error).toMatch(/refused this app password/);
+    expect((await harness({ gmailFails: false }).call({ action: "verifyGmail" })).body).toEqual({ ok: true });
+    const none = harness({ docs: { adminSecrets: {} } });
+    expect((await none.call({ action: "verifyGmail" })).body.error).toMatch(/No Gmail app password/);
+    expect(bad.delivered).toHaveLength(0);
+  });
+});
+
+describe("notification fixes from the email review", () => {
+  const notif = extra => ({ settings: { website: { payments: {} }, notifications: extra } });
+  const toShop = app => app.delivered.filter(m => m.to === "lyricalmyricalbooks@gmail.com");
+  const toReader = app => app.delivered.filter(m => m.to === "reader@example.com");
+
+  test("pausing a customer email never silences the shop's own alert", async () => {
+    const app = harness({ gmailFails: false, docs: notif({ order_confirmation: { enabled: false }, shipping_confirmation: { enabled: false } }) });
+    await app.exports.onOrderUpdated(updated(order({ paymentStatus: "unpaid" }), order({ paymentStatus: "paid" })));
+    await app.exports.onOrderUpdated(updated(order({ paymentStatus: "paid", fulfillmentStatus: "processing" }), order({ paymentStatus: "paid", fulfillmentStatus: "shipped", trackingNumber: "T1" })));
+    expect(toReader(app)).toHaveLength(0);
+    expect(toShop(app).map(m => m.subject.split(" ")[0])).toEqual(["[NEW", "[SHIPPED]"]);
+  });
+
+  test("a test-mode gift card purchase emails only the shop, once, marked [TEST]", async () => {
+    const giftOrder = order({ paymentStatus: "paid", isTest: true, sandboxPayment: true,
+      items: [{ id: "gc", title: "Gift card", quantity: 3, price: 50, giftCard: true, giftCardDetails: { recipientEmail: "stranger@example.org", message: "spam" } }] });
+    const app = harness({ gmailFails: false, docs: { orders: { o1: giftOrder } } });
+    await app.exports.onOrderUpdated(updated({ ...giftOrder, paymentStatus: "unpaid" }, giftOrder));
+    expect(app.delivered.filter(m => m.to === "stranger@example.org")).toHaveLength(0);
+    const gift = toShop(app).filter(m => /gift card/i.test(m.subject));
+    expect(gift).toHaveLength(1);
+    expect(gift[0].subject.startsWith("[TEST]")).toBe(true);
+  });
+
+  test("pickup customers hear when the order is ready to collect; local deliveries when out and delivered", async () => {
+    const pickup = order({ paymentStatus: "paid", fulfillment: { method: "pickup", name: "Shop counter", hours: "Mon–Fri 10–6" } });
+    const app = harness({ gmailFails: false });
+    await app.exports.onOrderUpdated(updated({ ...pickup, fulfillmentStatus: "processing" }, { ...pickup, fulfillmentStatus: "ready_for_pickup" }));
+    await app.exports.onOrderUpdated(updated({ ...pickup, fulfillmentStatus: "processing" }, { ...pickup, fulfillmentStatus: "ready_for_pickup" }));
+    expect(toReader(app)).toHaveLength(1);
+    expect(toReader(app)[0].html).toContain("ready to collect");
+    expect(toReader(app)[0].html).not.toMatch(/Carrier:|Tracking:/);
+    const local = order({ paymentStatus: "paid", fulfillmentSelection: { method: "local_delivery" } });
+    const app2 = harness({ gmailFails: false });
+    await app2.exports.onOrderUpdated(updated({ ...local, fulfillmentStatus: "ready_for_delivery" }, { ...local, fulfillmentStatus: "out_for_delivery" }));
+    await app2.exports.onOrderUpdated(updated({ ...local, fulfillmentStatus: "out_for_delivery" }, { ...local, fulfillmentStatus: "delivered" }));
+    expect(toReader(app2)).toHaveLength(2);
+  });
+
+  test("refund emails: no email for a lost chargeback, gift-card refunds say so, partial refunds are announced", async () => {
+    const paid = order({ paymentStatus: "paid" });
+    const dispute = harness({ gmailFails: false });
+    await dispute.exports.onOrderUpdated(updated(paid, { ...paid, paymentStatus: "refunded", refund: { provider: "dispute", amount: 3.39, currency: "CAD" } }));
+    expect(toReader(dispute)).toHaveLength(0);
+
+    const giftPaid = order({ paymentStatus: "paid", total: 0, paymentMethod: "Free", chargedGiftCards: [{ id: "g", minor: 5000, last4: "AB12" }] });
+    const gift = harness({ gmailFails: false });
+    await gift.exports.onOrderUpdated(updated(giftPaid, { ...giftPaid, paymentStatus: "refunded", giftCardsRestoredAt: "now", refund: { provider: "manual", amount: 0, currency: "CAD" } }));
+    expect(toReader(gift)[0].html).toContain("CA$50.00");
+    expect(toReader(gift)[0].html).toContain("••••AB12");
+    expect(toReader(gift)[0].html).not.toMatch(/business days/);
+
+    const usd = order({ paymentStatus: "paid", paymentMethod: "Interac e-Transfer", total: 40, expectedAmountMinor: 3000, expectedCurrency: "USD" });
+    const manual = harness({ gmailFails: false });
+    await manual.exports.onOrderUpdated(updated(usd, { ...usd, paymentStatus: "refunded", refund: { provider: "manual", amount: 40, currency: "CAD" }, inventoryRestockedAt: "x" }));
+    expect(toReader(manual)[0].html).toContain("US$30.00");
+
+    const partial = harness({ gmailFails: false });
+    const card = order({ paymentStatus: "paid", expectedAmountMinor: 3000, expectedCurrency: "USD" });
+    await partial.exports.onOrderUpdated(updated(card, { ...card, partiallyRefunded: true, refundedAmountMinor: 1000 }));
+    await partial.exports.onOrderUpdated(updated({ ...card, partiallyRefunded: true, refundedAmountMinor: 1000 }, { ...card, partiallyRefunded: true, refundedAmountMinor: 1500 }));
+    expect(toReader(partial).map(m => /US\$(\d+\.\d\d)/.exec(m.html)?.[1])).toEqual(["10.00", "5.00"]);
+  });
+
+  test("a failed back-in-stock email is queued for a retry instead of waiting for the next restock", async () => {
+    const book = { title: "Book", slug: "book", status: "published", trackInventory: true, stockLevel: 0 };
+    const app = harness({ docs: { books: { b1: book }, stockAlerts: { a: { email: "reader@example.com", bookId: "b1", variantId: "", status: "waiting" } } } });
+    await app.exports.onBookRestocked({ data: { before: { data: () => book }, after: { data: () => ({ ...book, stockLevel: 5 }) } }, params: { bookId: "b1" } });
+    const queued = Object.values(app.docs.emailOutbox || {});
+    expect(queued.map(e => e.kind)).toEqual(["backInStock"]);
+    expect(app.docs.stockAlerts.a).toBeUndefined();
+  });
+
+  test("the inventory alert ignores a new edition and escapes titles", async () => {
+    const before = { title: "Rock & <Roll>", trackInventory: true, stockLevel: 10, variants: [{ id: "v1", name: "Paper", stock: 10 }] };
+    const after = { ...before, variants: [...before.variants, { id: "v2", name: "New <b>", stock: 0 }] };
+    const app = harness({ gmailFails: false });
+    await app.exports.onBookUpdated({ data: { before: { data: () => before }, after: { data: () => after } }, params: { bookId: "b1" } });
+    expect(app.delivered).toHaveLength(0);
+    const sold = { ...before, variants: [{ id: "v1", name: "Paper", stock: 0 }] };
+    await app.exports.onBookUpdated({ data: { before: { data: () => before }, after: { data: () => sold } }, params: { bookId: "b1" } });
+    expect(app.delivered[0].html).toContain("Rock &amp; &lt;Roll&gt;");
   });
 });

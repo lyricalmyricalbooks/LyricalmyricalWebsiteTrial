@@ -77,7 +77,7 @@ function publicOutboxEntry(id, entry = {}) {
 // or "" when it should still go. `order` is the current order (null = deleted).
 function staleOrderEmailReason(kind, order) {
   const k = String(kind || "");
-  const isOrderKind = /^(orderConfirmed|shopNewOrder|orderPendingPayment|shopPendingOrder|shipped|shopShipped|delivery)/.test(k);
+  const isOrderKind = /^(orderConfirmed|shopNewOrder|orderPendingPayment|shopPendingOrder|shipped|shopShipped|delivery|local_)/.test(k);
   if (!isOrderKind) return "";
   if (!order) return "the order no longer exists";
   const refunded = ["refunded", "refund_pending"].includes(order.paymentStatus);
