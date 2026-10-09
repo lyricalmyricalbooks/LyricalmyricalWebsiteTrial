@@ -44,6 +44,8 @@ import {
 } from "firebase/auth";
 import { db, auth, googleProvider } from "../../lib/firebase";
 import { functionFetch } from "../lib/functionsBase";
+import { publicApi } from "../lib/publicApi";
+import { defaultSettings } from "./defaultSettings";
 // Storage + the legacy Realtime Database are admin-only and heavy; they are
 // imported on demand so the public storefront bundle never downloads them.
 const loadLegacy = () => import("../../lib/legacyFirebase");
@@ -170,11 +172,7 @@ export const adminApi = {
 
   // Document-ID ordering includes legacy books without createdAt and gives
   // public pagination the same membership as the sitemap, without writes.
-  getStorefrontBooks: async (limitCount = 100, lastVisible = null) => {
-    const constraints = [orderBy(documentId()), ...(lastVisible ? [startAfter(lastVisible)] : []), limit(limitCount)];
-    const snap = await getDocs(query(collection(db, "books"), ...constraints));
-    return snap.docs.map(d => ({ ...d.data(), id: d.id, _lastDoc: d }));
-  },
+  getStorefrontBooks: publicApi.getStorefrontBooks,
 
   getBooks: async (limitCount = 50, lastVisible = null) => {
     let q = query(collection(db, "books"), orderBy("createdAt", "desc"), limit(limitCount));
@@ -192,11 +190,7 @@ export const adminApi = {
     return snap.docs.map(d => ({ id: d.id, ...d.data() }));
   },
 
-  getBook: async (id: string) => {
-    const snap = await getDoc(doc(db, "books", id));
-    if (!snap.exists()) return null;
-    return { id: snap.id, ...snap.data() };
-  },
+  getBook: publicApi.getBook,
 
   createBook: async (book: any) => {
     const dataToSave = { ...book };
@@ -341,10 +335,7 @@ export const adminApi = {
   },
 
   // Shipping Profiles
-  getShippingProfiles: async () => {
-    const snap = await getDocs(collection(db, "shipping-profiles"));
-    return snap.docs.map(d => ({ id: d.id, ...d.data() }));
-  },
+  getShippingProfiles: publicApi.getShippingProfiles,
 
   migrateShippingProfiles: async () => {
     try {
@@ -508,14 +499,7 @@ export const adminApi = {
   // Settings
   // Shopper read of settings/website: no admin-only lookups, never writes, and never keeps the
   // unpublished draft or My themes (older documents may still carry them) in shopper state or cache.
-  getPublicSettings: async () => {
-    const snap = await getDoc(doc(db, "settings", "website"));
-    const merged: any = { ...adminApi.getDefaultSettings(), ...(snap.exists() ? snap.data() : {}) };
-    delete merged.draftDesign;
-    delete merged.savedThemes;
-    if (merged.design) merged.design = withRisoNoirDefault(merged.design);
-    return merged;
-  },
+  getPublicSettings: publicApi.getPublicSettings,
 
   getSettings: async () => {
     const docRef = doc(db, "settings", "website");
@@ -671,174 +655,7 @@ export const adminApi = {
     return setDoc(docRef, { scheduledPublish: deleteField() }, { merge: true });
   },
 
-  getDefaultSettings: () => ({
-    localFulfillment: { enabled: false, pickupLocations: [], deliveryZones: [] },
-    announcements: [{ message: "INDEPENDENT PUBLISHING HOUSE SPECIALIZING IN CONTEMPORARY PHOTOGRAPHY AND EPHEMERA" }],
-    maintenance: { enabled: false, message: "WE ARE UPDATING OUR ARCHIVE. PLEASE CHECK BACK SOON." },
-    domain: { subdomain: "lyricalmyrical", custom: "www.lyricalmyricalbooks.com" },
-    info: { 
-      name: "Lyricalmyrical Books", 
-      description: "Lyricalmyrical Books is an independent publishing house based in Toronto with roots in Italy, specializing in publishing photography and art books.",
-      website: "https://lyricalmyricalbooks.com"
-    },
-    inventory: { tracking: true, overselling: false },
-    checkout: { requirePhone: true },
-    assets: { 
-      profileUrl: "https://images.unsplash.com/photo-1511367461989-f85a21fda167?w=100&h=100&fit=crop", 
-      faviconUrl: "https://images.unsplash.com/photo-1544377193-33dcf4d68fb5?w=50&h=50&fit=crop" 
-    },
-    location: { street: "456 Montrose Avenue", city: "Toronto", state: "Ontario", zip: "M6G3H1", country: "Canada" },
-    localization: { timezone: "(GMT-05:00) Eastern Time (US & Canada)", currency: "Canadian Dollar (CAD $)" },
-    aiShield: { blockTraining: false, blockShopping: false },
-    policies: { shipping: "", returns: "", privacy: "", terms: "", legal: "" },
-    communications: {
-      orderReceipts: true,
-      shippingStatus: true,
-      abandonedCart: false,
-      receiptMessage: "",
-      newOrderNotifications: true
-    },
-    // Providers default to disconnected; flip these only once the
-    // corresponding integration is actually live.
-    payments: {
-      testMode: false,
-      stripe: {
-        connected: false,
-        email: "",
-        publicKey: "",
-        secretKey: "",
-        testPublicKey: "",
-        testSecretKey: "",
-        applePay: false,
-        googlePay: false,
-        afterpay: false,
-        affirm: false,
-        klarna: false,
-        subscriptions: false
-      },
-      paypal: {
-        connected: false,
-        email: "",
-        clientId: "",
-        testClientId: "",
-        venmo: false,
-        buyNowPayLater: false
-      },
-      manualMethods: [],
-      footerBadges: ["visa", "mastercard", "paypal", "applepay", "googlepay"]
-    },
-    taxes: {
-      rates: []
-    },
-    design: {
-      // On by default on the product page (Style › Product page layout / Storefront elements).
-      showRelatedProducts: true,
-      showRecentlyViewed: true,
-      // Custom pages (Studio › Style › Custom pages): on by default, so the toggles show as on.
-      pageShowEyebrow: true, pageTitleUppercase: true,
-      primaryColor: "#e8402a",
-      font: "Archivo",
-      palettePreset: "dark",
-      categories: CATEGORIES,
-      // Navigation & Layout
-      headerStyle: "minimal",
-      stickyHeader: true,
-      showSocialInFooter: true,
-      footerColumns: true,
-      logoHeight: 24,
-      headerBg: "",
-      headerColor: "",
-      // Homepage
-      heroLayout: "fullscreen",
-      showFeaturedCarousel: true,
-      showBookStrip: true,
-      // Products
-      productCardStyle: "editorial",
-      imageAspectRatio: "3:4",
-      showPriceOnHover: false,
-      showCollectionMeta: true,
-      showSoldOutBadge: true,
-      productCTA: "VIEW",
-      productColumnsDesktop: 4,
-      productColumnsMobile: 1,
-      containerWidth: 1200,
-      sectionSpacing: 64,
-      cardRadius: 8,
-      buttonStyle: "solid",
-      buttonRadius: 999,
-      buttonUppercase: true,
-      buttonShadow: true,
-      backgroundColor: "#030213",
-      textColor: "#ffffff",
-      linkColorHover: "#F61515",
-      borderColor: "#B1B1AA",
-      buttonColor: "#FBFBFB",
-      buttonTextColor: "#020202",
-      buttonHoverTextColor: "#FFFFFF",
-      buttonHoverBgColor: "#C1BBBB",
-      badgeTextPrimary: "#000000",
-      badgeBgPrimary: "#F63737",
-      badgeTextSecondary: "#000000",
-      badgeBgSecondary: "#E0E0E0",
-      lowInventoryColor: "#056FFA",
-      customCss: "",
-      customHeadHtml: "",
-      customFooterScripts: "",
-      // Announcements
-      showAnnouncement: true,
-      announcementText: "INDEPENDENT PUBLISHING HOUSE SPECIALIZING IN CONTEMPORARY PHOTOGRAPHY AND EPHEMERA",
-      announcementBg: "#63BDEF",
-      announcementColor: "#221717",
-      announcementScrolling: false,
-      // Social
-      social: {
-        instagram: "https://www.instagram.com/lyricalmyricalbooks",
-        twitter: "",
-        facebook: "",
-        tiktok: "",
-      },
-      // Typography
-      fontSize: "md",
-      headingScale: "regular",
-      letterSpacing: "wide",
-      // Translations
-      cartLabel: "BAG",
-      soldOutLabel: "SOLD OUT",
-      currencyPosition: "before",
-      shopButtonLabel: "SHOP NOW",
-      // Additional
-      enableAnimations: true,
-      showZoom: true,
-      showBackToTop: false,
-      showPoweredBy: false,
-      headerLinks: {
-        showEnterArchive: true,
-        showBag: true,
-        showSys: true,
-      },
-      // Hero (Shopify Style)
-      hero: {
-        enabled: true,
-        height: "fullscreen", // fullscreen, tall, medium
-        align: "center", // left, center, right
-        overlayOpacity: 0.4,
-        autoRotate: true,
-        slides: [
-          {
-            id: "default-slide-1",
-            imageUrl: "https://images.unsplash.com/photo-1513001900722-370f803f498d?w=1600&h=900&fit=crop",
-            title: "F✶M",
-            subtitle: "PHOTOGRAPHY & ART BOOKS",
-            ctaText: "ENTER SHOP",
-            ctaLink: "/shop"
-          }
-        ]
-      },
-      // Riso Noir last so its tokens win over the legacy literals above.
-      ...RISO_NOIR_TOKENS,
-      themeLibraryPreset: RISO_NOIR_ID,
-    }
-  }),
+  getDefaultSettings: defaultSettings,
 
   // Audit Log
   getAuditLog: async (limitCount = 100) => {
@@ -1553,14 +1370,7 @@ export const adminApi = {
   // ANALYTICS
   // One counter bump per shopper session. `increment` is applied by Firestore itself, so two shoppers arriving at
   // once can't overwrite each other's count (the old read-then-write could).
-  recordVisit: async () => {
-    const today = new Date().toISOString().split('T')[0];
-    try {
-      await setDoc(doc(db, "analytics", today), { date: today, visits: increment(1) }, { merge: true });
-    } catch (e) {
-      console.warn("Analytics failed", e);
-    }
-  },
+  recordVisit: publicApi.recordVisit,
 
   // The recorded daily traffic docs only (visits, funnel, sources, devices, searches, bookViews, categoryViews).
   // Sales, categories and referrals are worked out from the orders and books the Overview already loads, so
@@ -1760,12 +1570,7 @@ export const adminApi = {
     return { id: snap.docs[0].id, ...snap.docs[0].data() } as Page;
   },
 
-  getPublishedPages: async (): Promise<Page[]> => {
-    const q = query(collection(db, "pages"), where("status", "==", "published"));
-    const snap = await getDocs(q);
-    const docs = snap.docs.map((d) => ({ id: d.id, ...d.data() })) as any[];
-    return docs.sort((a, b) => (a.order ?? 0) - (b.order ?? 0));
-  },
+  getPublishedPages: publicApi.getPublishedPages,
 
   createPage: async (data: any) => {
     const now = new Date().toISOString();

@@ -9,7 +9,7 @@ import { useState, useEffect } from "react";
 import { Link } from "react-router";
 import { ArrowLeft, Package, Truck, CheckCircle2, MapPin, Loader2, Download, ExternalLink } from "lucide-react";
 import { TRACKING_CSS } from "./trackingStyle";
-import { motion, AnimatePresence } from "motion/react";
+import { m, AnimatePresence } from "motion/react";
 import { adminApi } from "../../admin/api";
 import { functionUrl, functionFetch } from "../../lib/functionsBase";
 import { useCurrency } from "../../CurrencyContext";
@@ -256,7 +256,7 @@ export default function OrderTracking() {
         <AnimatePresence mode="wait">
           {!order ? (
             /* Look-up form */
-            <motion.div {...regionProps("trackingForm")} key="search-form"
+            <m.div {...regionProps("trackingForm")} key="search-form"
               initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -12 }}
               className="max-w-xl mx-auto">
               <div {...regionProps("trackingIntro")} className="mb-8">
@@ -289,10 +289,10 @@ export default function OrderTracking() {
                   {loading ? <><Loader2 size={16} className="animate-spin" aria-hidden="true" /> {getCopy(settings?.design, "trackLoading")}</> : getCopy(settings?.design, "trackSubmit")}
                 </button>
               </form>
-            </motion.div>
+            </m.div>
           ) : (
             /* The order slip */
-            <motion.div key="order-display" initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }} className="space-y-8">
+            <m.div key="order-display" initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }} className="space-y-8">
               <button type="button" onClick={() => setOrder(null)} className="fm-track-link fm-track-mono bg-transparent border-0 p-0 cursor-pointer">
                 <ArrowLeft size={14} aria-hidden="true" /> {getCopy(settings?.design, "trackAnother")}
               </button>
@@ -465,7 +465,7 @@ export default function OrderTracking() {
               <OrderRequestBox design={settings?.design} order={order} access={access} onUpdated={setOrder} />
 
               <p {...regionProps("trackingHelp")} className="text-center text-sm leading-6 fm-muted">{getCopy(settings?.design, "trackHelp")}</p>
-            </motion.div>
+            </m.div>
           )}
         </AnimatePresence>
       </div>

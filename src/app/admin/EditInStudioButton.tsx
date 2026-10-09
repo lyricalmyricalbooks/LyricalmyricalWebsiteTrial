@@ -1,7 +1,6 @@
 import { useEffect, useState } from "react";
 import { useLocation } from "react-router";
-import { onAuthStateChanged } from "firebase/auth";
-import { auth } from "../../lib/firebase";
+import { loadAuth, maySavedSignIn } from "../../lib/authSession";
 import { locationForPath, studioHash } from "../lib/studioLocation";
 
 const OWNER = "lyricalmyricalbooks@gmail.com";
@@ -16,9 +15,14 @@ export function EditInStudioButton() {
   const [owner, setOwner] = useState(false);
   useEffect(() => {
     if (typeof window === "undefined" || new URLSearchParams(window.location.search).get("preview") === "true") return;
-    try {
-      return onAuthStateChanged(auth, user => setOwner(!!user && user.email === OWNER && user.emailVerified));
-    } catch { return; }
+    // Auth is loaded only when this browser may hold a saved sign-in, so shoppers never download it.
+    let stop: (() => void) | undefined;
+    let cancelled = false;
+    maySavedSignIn().then(maybe => maybe ? loadAuth() : null).then(auth => {
+      if (!auth || cancelled) return;
+      stop = auth.onAuthStateChanged(user => setOwner(!!user && user.email === OWNER && user.emailVerified));
+    }).catch(() => {});
+    return () => { cancelled = true; stop?.(); };
   }, []);
   if (!owner || location.pathname.startsWith("/admin")) return null;
   const base = import.meta.env.BASE_URL;

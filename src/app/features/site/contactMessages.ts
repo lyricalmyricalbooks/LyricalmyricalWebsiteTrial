@@ -22,9 +22,9 @@ export function buildContactMessage(input: ContactMessageInput) {
 }
 
 export async function submitContactMessage(input: ContactMessageInput) {
-  const [{ addDoc, collection, serverTimestamp }, { db }] = await Promise.all([
-    import("firebase/firestore"),
-    import("../../../lib/firebase"),
+  const [{ addDoc, collection, serverTimestamp }, { liteDb }] = await Promise.all([
+    import("firebase/firestore/lite"),
+    import("../../../lib/firestoreLite"),
   ]);
-  await addDoc(collection(db, "contactMessages"), { ...buildContactMessage(input), createdAt: serverTimestamp() });
+  await addDoc(collection(liteDb, "contactMessages"), { ...buildContactMessage(input), createdAt: serverTimestamp() });
 }

@@ -33,7 +33,8 @@ originally generated from a Figma design ("Artsy Website for Publisher").
   **Radix UI** primitives in `src/app/components/ui/`.
 - **MUI** and **motion** (Framer Motion successor) are also present for some
   components/animations.
-- **Firebase 11** client SDK (`src/lib/firebase.ts`, project
+- **Firebase 11** client SDK (`src/lib/firebaseApp.ts` app + App Check; `src/lib/firebase.ts` full Firestore + Auth;
+  `src/lib/firestoreLite.ts` shopper Firestore Lite — see *Storefront bundle* below, project
   `lyricalmyrical-web-v2`). A secondary "legacy" Firebase project is used for
   inventory sync (`src/lib/legacyFirebase.ts`).
 - **Stripe** for checkout, **Resend** for transactional email, **Shippo** for
@@ -709,6 +710,20 @@ Preview canvases retain their selected viewport width (1200px desktop, 820px tab
 390px phone) in a scrollable canvas, so narrow editor windows cannot activate the
 wrong breakpoint while the owner edits a different device.
 
+## Storefront bundle (9 October 2026)
+
+The shopper entry bundle must stay free of Firebase Auth, the full Firestore SDK and `admin/api.ts`.
+Storefront reads/writes use **Firestore Lite** (`lib/firestoreLite.ts` `liteDb` + functions from
+`firebase/firestore/lite` — never mix its refs/snapshots with the full SDK) via `lib/publicApi.ts`
+(books, settings, pages, shipping profiles, visits; `adminApi` re-exports these). Admin, Checkout and
+Account keep the full SDK from `lib/firebase.ts`. Shopper code that needs the signed-in user calls
+`restoredUser()` / `loadAuth()` from `lib/authSession.ts`, which loads Auth only when the browser may hold a
+saved sign-in. Storefront animations use `m.*` from `motion/react` under the `LazyMotion` +
+`MotionConfig reducedMotion="user"` wrapper in `App.tsx` (engine in `lib/motionFeatures.ts`, domAnimation:
+no layout/drag); don't put CSS `transition-all`/`transition-transform` on an element motion animates.
+The prerender blocks Lite's REST writes (`documents:commit`). Check with `npx vite build`: the `index-*.js`
+entry was ~205 KB gzipped after this change.
+
 ## Storefront loading performance (4 October 2026)
 
 Storefront components share one catalog/settings/published-pages bootstrap request, including
@@ -938,7 +953,7 @@ per edition when set; `packingInfo` in `fulfillment.ts`). Books are public-reada
 
 ## reCAPTCHA / App Check
 
-Invisible reCAPTCHA Enterprise initializes before Firestore/Auth in src/lib/firebase.ts.
+Invisible reCAPTCHA Enterprise initializes before Firestore/Auth in src/lib/firebaseApp.ts.
 Use functionFetch from src/app/lib/functionsBase.ts for every browser HTTP Function
 request and onBrowserRequest in functions/index.js for its server handler. Keep signed
 provider webhooks and emailed digital-download links outside browser attestation.

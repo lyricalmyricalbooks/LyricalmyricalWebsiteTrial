@@ -14,7 +14,7 @@ import {
   ChevronLeft, Tag, ShieldCheck, X, AlertCircle, CreditCard,
   Package, Truck, CheckCircle2, Loader2, Lock, Building, Check
 } from "lucide-react";
-import { motion } from "motion/react";
+import { m } from "motion/react";
 import { adminApi } from "./admin/api";
 import { abandonedCartApi, funnelApi } from "./lib/commerce";
 import { functionFetch } from "./lib/functionsBase";
@@ -1560,7 +1560,7 @@ export function Checkout() {
         <StorefrontThemeStyle design={checkoutDesign} />
         <style>{TRACKING_CSS}</style>
         <div aria-hidden="true" className="fm-track-strip" />
-        <motion.div {...regionProps("checkoutSuccess")} initial={{ y: 16, opacity: 0 }} animate={{ y: 0, opacity: 1 }} transition={{ duration: 0.35 }}
+        <m.div {...regionProps("checkoutSuccess")} initial={{ y: 16, opacity: 0 }} animate={{ y: 0, opacity: 1 }} transition={{ duration: 0.35 }}
           className="relative z-10 mx-auto w-full max-w-2xl px-4 sm:px-6 py-12 sm:py-16 space-y-8">
           <header className="fm-track-card p-6 sm:p-10">
             <div className="flex flex-wrap items-start justify-between gap-4">
@@ -1673,7 +1673,7 @@ export function Checkout() {
               {c("coContinue")}
             </Link>
           </div>
-        </motion.div>
+        </m.div>
       </div>
     );
   }
@@ -2159,7 +2159,7 @@ export function Checkout() {
                 <p className="text-base font-semibold text-slate-900">{c("summaryTotal")}</p>
                 <p className="mt-0.5 text-xs uppercase tracking-wide text-slate-500">{currency}</p>
               </div>
-              <motion.p key={finalTotal} initial={{ opacity: 0.5 }} animate={{ opacity: 1 }} className="text-2xl font-semibold tracking-tight text-slate-950">{formatPrice(finalTotal)}</motion.p>
+              <m.p key={finalTotal} initial={{ opacity: 0.5 }} animate={{ opacity: 1 }} className="text-2xl font-semibold tracking-tight text-slate-950">{formatPrice(finalTotal)}</m.p>
             </div>
 
             <div className="mt-7 rounded-lg border border-slate-200 bg-white p-4">

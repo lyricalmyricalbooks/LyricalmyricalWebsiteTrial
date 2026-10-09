@@ -5,7 +5,7 @@ import { MemoryRouter } from "react-router";
 import { afterEach, beforeEach, expect, it, vi } from "vitest";
 
 const api = vi.hoisted(() => ({ getStorefrontBooks: vi.fn(), getPublicSettings: vi.fn(), getPublishedPages: vi.fn(), recordVisit: vi.fn() }));
-vi.mock("../../admin/api", () => ({ adminApi: api }));
+vi.mock("../../lib/publicApi", () => ({ publicApi: api }));
 vi.mock("./customCode", () => ({ applyCustomCode: vi.fn() }));
 let root: ReturnType<typeof createRoot>;
 let useSiteData: typeof import("./useSiteData").useSiteData;

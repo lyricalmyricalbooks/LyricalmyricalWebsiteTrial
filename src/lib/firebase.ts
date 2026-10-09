@@ -1,22 +1,11 @@
-import { initializeApp } from "firebase/app";
-import { getFirestore } from "firebase/firestore";
 import { getAuth, GoogleAuthProvider } from "firebase/auth";
+import { getFirestore } from "firebase/firestore";
 
-import { initializeBrowserAppCheck } from "./appCheck";
+import { app, appCheck, authState } from "./firebaseApp";
 
-const firebaseConfig = {
-  apiKey: "AIzaSyB9V866zhYfSoXplpzK1oaK7dTuXV7yDxA",
-  authDomain: "lyricalmyrical-web-v2.firebaseapp.com",
-  projectId: "lyricalmyrical-web-v2",
-  storageBucket: "lyricalmyrical-web-v2.firebasestorage.app",
-  messagingSenderId: "248894589273",
-  appId: "1:248894589273:web:8bf4b06399c0931f1b6448"
-};
-
-const app = initializeApp(firebaseConfig);
-
-// One Enterprise provider; legacy v3 keys are no longer used.
-export const appCheck = initializeBrowserAppCheck(app);
+// App Check is initialized in ./firebaseApp before Firestore and Auth, as it must be.
+export { app, appCheck };
 export const db = getFirestore(app);
 export const auth = getAuth(app);
+authState.loaded = true;
 export const googleProvider = new GoogleAuthProvider();

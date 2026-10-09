@@ -1,6 +1,6 @@
 import { catName, categoryNames } from "./navItems";
 import { recommendedBooks, editionFacts } from "./merchandising";
-import { motion, AnimatePresence } from "motion/react";
+import { m, AnimatePresence } from "motion/react";
 import { Fragment, useEffect, useState } from "react";
 import toast from "react-hot-toast";
 import { useParams, Link, useNavigate, useLocation } from "react-router";
@@ -516,13 +516,13 @@ export default function BookDetail() {
         style={{ backgroundColor: settings?.design?.backgroundColor || "#050508" }}
       >
         <div className="flex flex-col items-center gap-5">
-          <motion.div
+          <m.div
             animate={{ scale: [1, 1.08, 1], opacity: [0.4, 1, 0.4] }}
             transition={{ duration: 2, repeat: Infinity }}
             className="w-14 h-14 rounded-[1.2rem] bg-white/[0.06] border border-white/10 flex items-center justify-center"
           >
             <Package size={20} className="text-white/50" />
-          </motion.div>
+          </m.div>
           <p className="text-white/30 text-[9px] font-black tracking-[0.5em] uppercase">{getCopy(settings?.design, "bookLoading")}</p>
         </div>
       </div>
@@ -672,7 +672,7 @@ export default function BookDetail() {
                       )}
 
                       <AnimatePresence mode="wait">
-                        <motion.img
+                        <m.img
                           key={activePhoto}
                           src={activeUrl}
                           alt={(activeUrl === photos[activePhoto]?.url && photos[activePhoto]?.altText?.trim()) || getCopy(settings?.design, "bookPhotoAlt", { title: book.title, n: activePhoto + 1 })}
@@ -942,7 +942,7 @@ export default function BookDetail() {
                         </button>
                       </div>
                     )}
-                    <motion.button
+                    <m.button
                       data-section="buttons"
                       onClick={handleAddToCart}
                       disabled={isOutOfStock}
@@ -951,7 +951,8 @@ export default function BookDetail() {
                         !isOutOfStock && !added && productCtaAnimation === "pulse"
                           ? { scale: [1, 1.02, 1] }
                           : !isOutOfStock && !added && productCtaAnimation === "glow"
-                          ? { boxShadow: [`0 0 0px ${buttonBg}00`, `0 0 20px ${buttonBg}50`, `0 0 0px ${buttonBg}00`] }
+                          // .custom-btn draws box-shadow from --btn-shadow with !important, so the glow animates that variable.
+                          ? { "--btn-shadow": [`0 0 0px ${buttonBg}00`, `0 0 20px ${buttonBg}50`, `0 0 0px ${buttonBg}00`] } as any
                           : {}
                       }
                       transition={
@@ -966,7 +967,7 @@ export default function BookDetail() {
                       }
                       className={`${productCtaWidth === "full" ? "flex-1 min-w-[170px]" : "px-8"} min-h-[52px] flex items-center justify-center gap-3 ${
                         productCtaSize === "medium" ? "py-3" : "py-4"
-                      } text-[10px] font-black tracking-[0.3em] transition-all duration-300 ${
+                      } text-[10px] font-black tracking-[0.3em] transition-colors duration-300 ${
                         isOutOfStock
                           ? "bg-white/[0.06] text-white/25 cursor-not-allowed border border-white/[0.06]"
                           : added
@@ -992,7 +993,7 @@ export default function BookDetail() {
                       ) : (
                         <><ShoppingBag size={14} /> {isPreorder ? getCopy(settings?.design, "preorderButton") : (storefrontDesign.addToBagLabel || settings?.design?.addToBagLabel || getCopy(settings?.design, "addToBagLabel"))}</>
                       )}
-                    </motion.button>
+                    </m.button>
 
                     <button
                       type="button"
@@ -1126,7 +1127,7 @@ export default function BookDetail() {
                   const relStock = relChoice.inStock ? 999 : 0;
                   const relPrice = getBookPrice(rel);
                   return (
-                    <motion.article
+                    <m.article
                       key={rel.id}
                       initial={{ opacity: 0, y: 20 }}
                       animate={{ opacity: 1, y: 0 }}
@@ -1168,7 +1169,7 @@ export default function BookDetail() {
                           </p>
                         )}
                       </Link>
-                    </motion.article>
+                    </m.article>
                   );
                 })}
               </div>

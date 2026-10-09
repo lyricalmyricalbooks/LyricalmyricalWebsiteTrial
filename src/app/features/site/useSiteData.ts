@@ -4,7 +4,7 @@ import { isLiveBook } from "./liveBook";
 import { resolveSurfaceDesign } from "./surfaceDesign";
 import { dueScheduledDesign } from "./scheduledDesign.mjs";
 import { useEffect, useMemo, useState } from "react";
-import { adminApi } from "../../admin/api";
+import { publicApi } from "../../lib/publicApi";
 import { funnelApi } from "../../lib/commerce";
 import { DEFAULT_SETTINGS } from "./constants";
 import { readSiteCache, writeSiteCache, SITE_CACHE_EVENT } from "./siteCache";
@@ -37,9 +37,9 @@ function loadSiteData() {
     // Infinity marks an in-flight request, which every consumer should join.
     siteDataLoadedAt = Infinity;
     siteDataRequest = Promise.all([
-      loadCatalog((size, cursor) => adminApi.getStorefrontBooks(size, cursor)).then(newestFirst),
-      adminApi.getPublicSettings(),
-      adminApi.getPublishedPages(),
+      loadCatalog((size, cursor) => publicApi.getStorefrontBooks(size, cursor)).then(newestFirst),
+      publicApi.getPublicSettings(),
+      publicApi.getPublishedPages(),
     ]).then(result => {
       siteDataLoadedAt = Date.now();
       return result;
@@ -106,7 +106,7 @@ export function useSiteData() {
 
         const sessionKey = `fm_visit_${new Date().toISOString().split("T")[0]}`;
         if (!isPreview && consentAllows("analytics") && !sessionStorage.getItem(sessionKey)) {
-          adminApi.recordVisit();
+          publicApi.recordVisit();
           // Where the session came from and on what kind of screen (its own best-effort write).
           funnelApi.trackSession();
           sessionStorage.setItem(sessionKey, "true");

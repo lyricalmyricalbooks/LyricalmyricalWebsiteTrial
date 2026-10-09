@@ -542,7 +542,7 @@ New panels say "Not recorded yet" until data exists — never a made-up zero.
 
 ## reCAPTCHA / App Check
 
-Invisible reCAPTCHA Enterprise initializes before Firestore/Auth in src/lib/firebase.ts.
+Invisible reCAPTCHA Enterprise initializes before Firestore/Auth in src/lib/firebaseApp.ts.
 Use functionFetch from src/app/lib/functionsBase.ts for every browser HTTP Function
 request and onBrowserRequest in functions/index.js for its server handler. Keep signed
 provider webhooks and emailed digital-download links outside browser attestation.
