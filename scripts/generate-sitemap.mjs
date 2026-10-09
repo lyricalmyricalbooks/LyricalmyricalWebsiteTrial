@@ -3,7 +3,8 @@ import { writeFileSync, mkdirSync } from 'node:fs';
 import { resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { sitemapArtifacts } from './sitemapData.mjs';
-import { readPublicStorefront, publishedFingerprint } from './publicStorefrontData.mjs';
+import { readPublicStorefront, publishedFingerprint, effectivePublishedSettings } from './publicStorefrontData.mjs';
+import { FEED_FILE, merchantFeedItems, merchantFeedXml } from '../src/app/features/site/merchantFeed.mjs';
 const root = fileURLToPath(new URL('../', import.meta.url));
 const siteUrl = process.env.SITE_URL || 'https://lyricalmyricalbooks.github.io/LyricalmyricalWebsiteTrial';
 const { books, pages, settings } = await readPublicStorefront();
@@ -17,4 +18,11 @@ for (const directory of ['dist', 'public']) {
 }
 writeFileSync(resolve(root, 'dist/prerender-routes.xml'), rendered.xml);
 writeFileSync(resolve(root, 'dist/seo-published-fingerprint.txt'), publishedFingerprint({ books, pages, settings }) + '\n');
+// Google Merchant Center fetches this file (Books › Google Shopping feed shows its address).
+const design = effectivePublishedSettings(settings).design || {};
+const shopName = (typeof design.copy?.siteName === 'string' && design.copy.siteName.trim()) || (typeof design.siteName === 'string' && design.siteName.trim()) || 'Lyricalmyrical Books';
+const feed = merchantFeedItems(siteUrl, books, { shopName });
+mkdirSync(resolve(root, 'dist'), { recursive: true });
+writeFileSync(resolve(root, 'dist', FEED_FILE), merchantFeedXml(siteUrl, feed.items, { shopName }));
+console.log(`Google Shopping feed: ${feed.items.length} items, ${feed.skipped.length} published books left out.`);
 console.log(`Generated ${indexed.count} indexable URLs and ${rendered.count} public HTML routes.`);

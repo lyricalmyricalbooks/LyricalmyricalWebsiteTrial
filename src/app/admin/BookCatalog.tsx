@@ -2,7 +2,9 @@ import { releaseArrived } from "../features/site/liveBook";
 import { CatalogReviewDialog } from "./CatalogReviewDialog";
 import { catalogPublishIssues } from "./catalogPublishReview";
 import { useState, useEffect, useMemo } from "react";
-import { Download, Plus } from "lucide-react";
+import { Download, Plus, Upload } from "lucide-react";
+import { BookImportDialog } from "./BookImportDialog";
+import { MerchantFeedDialog } from "./MerchantFeedDialog";
 import { catalogToCsv, previewPrices, type PriceMode } from "./bulkPricing";
 import { adminApi } from "./api";
 import toast from "react-hot-toast";
@@ -58,6 +60,8 @@ export function BookCatalog({ onEdit, onAdd, refreshTrigger }: BookCatalogProps)
   const [priceOpen, setPriceOpen] = useState(false);
   const [priceMode, setPriceMode] = useState<PriceMode>("percent");
   const [priceValue, setPriceValue] = useState("10");
+  const [importOpen, setImportOpen] = useState(false);
+  const [feedOpen, setFeedOpen] = useState(false);
   const [confirm, setConfirm] = useState<null | { kind: "bulk"; } | { kind: "one"; book: any }>(null);
 
   useEffect(() => { loadBooks(); }, [refreshTrigger]);
@@ -163,6 +167,12 @@ export function BookCatalog({ onEdit, onAdd, refreshTrigger }: BookCatalogProps)
     URL.revokeObjectURL(url);
   };
 
+  // New books from an import arrive as drafts: select them so Publish (with its review) is one click away.
+  const importDone = (createdIds: string[]) => {
+    if (createdIds.length) { setSelected(createdIds); setStatusFilter("All"); setSearch(""); }
+    loadBooks();
+  };
+
   const deleteOne = async (book: any) => {
     try { await adminApi.deleteBook(book.id); toast.success("Title deleted"); loadBooks(); } catch { toast.error("Failed to delete"); }
   };
@@ -205,7 +215,11 @@ export function BookCatalog({ onEdit, onAdd, refreshTrigger }: BookCatalogProps)
     return (
       <SectionCard>
         <EmptyState icon="📚" title="No books yet" description="Add your first title to start selling — it appears on the storefront as soon as it's published."
-          action={<PrimaryButton icon={<Plus size={16} aria-hidden />} onClick={onAdd}>Add book</PrimaryButton>} />
+          action={<div style={{ display: "flex", flexWrap: "wrap", gap: 8, justifyContent: "center" }}>
+            <PrimaryButton icon={<Plus size={16} aria-hidden />} onClick={onAdd}>Add book</PrimaryButton>
+            <SecondaryButton icon={<Upload size={16} aria-hidden />} onClick={() => setImportOpen(true)}>Import CSV</SecondaryButton>
+          </div>} />
+        {importOpen && <BookImportDialog books={books} onClose={() => setImportOpen(false)} onDone={importDone} />}
       </SectionCard>
     );
   }
@@ -242,6 +256,8 @@ export function BookCatalog({ onEdit, onAdd, refreshTrigger }: BookCatalogProps)
             <Checkbox label={selected.length ? `${selected.length} selected` : "Select page"} checked={allSelected}
               onChange={() => setSelected(allSelected ? [] : pageRows.map(b => b.id))} />
             <SecondaryButton size="sm" icon={<Download size={14} aria-hidden />} onClick={exportCsv}>{selected.length ? "Export selected" : "Export CSV"}</SecondaryButton>
+            <SecondaryButton size="sm" icon={<Upload size={14} aria-hidden />} onClick={() => setImportOpen(true)}>Import CSV</SecondaryButton>
+            <SecondaryButton size="sm" onClick={() => setFeedOpen(true)}>Google Shopping feed</SecondaryButton>
             {selected.length > 0 && (
               <>
                 <SecondaryButton size="sm" onClick={() => setReview("publish")}>Publish</SecondaryButton>
@@ -260,6 +276,8 @@ export function BookCatalog({ onEdit, onAdd, refreshTrigger }: BookCatalogProps)
         {rows.length > PAGE_SIZE && <Pagination page={cur} pageCount={pageCount} onPage={setPage} />}
       </SectionCard>
 
+      {importOpen && <BookImportDialog books={books} onClose={() => setImportOpen(false)} onDone={importDone} />}
+      <MerchantFeedDialog open={feedOpen} onClose={() => setFeedOpen(false)} books={books} />
       {review && <CatalogReviewDialog books={selectedBooks} action={review} onClose={() => setReview(null)} onConfirm={async chosen => {
         const results = await Promise.allSettled(chosen.map(book => adminApi.updateBook(book.id, { status: review === "publish" ? "published" : "draft" })));
         const failed = chosen.filter((_, index) => results[index].status === "rejected");
