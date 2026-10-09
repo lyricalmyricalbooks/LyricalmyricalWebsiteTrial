@@ -261,8 +261,8 @@ await check("link and book pickers save the same strings as typed links", deskto
   await page.getByRole("combobox", { name: "Find a book to add" }).fill("paper");
   await page.keyboard.press("Enter");
   await page.getByRole("button", { name: "Save draft" }).click();
-  await page.waitForFunction(() => window.__studioFixture.calls.some(c => c.method === "updateSettings"));
-  const saved = (await calls(page)).filter(c => c.method === "updateSettings").pop();
+  await page.waitForFunction(() => window.__studioFixture.calls.some(c => c.method === "saveDesign"));
+  const saved = (await calls(page)).filter(c => c.method === "saveDesign").pop();
   const sections = saved.args[0].design.heroPage.sections;
   const banner = sections.find(s => s.type === "ImageWithTextSection");
   if (banner?.settings?.ctaUrl !== "/page/about") throw new Error(`saved ctaUrl is ${banner?.settings?.ctaUrl}`);
