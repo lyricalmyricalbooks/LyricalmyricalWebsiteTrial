@@ -403,3 +403,12 @@
 .studio-library-actions { display: flex; flex-wrap: wrap; gap: 6px; }
 .studio-library-actions .studio-link-button { width: auto; min-height: 32px; display: inline-flex; align-items: center; gap: 4px; font-size: 12px; }
 .studio-section-thumb { width: 100%; height: auto; aspect-ratio: 120 / 72; color: var(--rp-text, currentColor); background: var(--rp-surface-sunken, transparent); border: 1px solid var(--rp-divider); }
+
+/* Content tab › Connect to a detail (StudioConnect.tsx, Studio 2.7) */
+.studio-connect { margin-top: 6px; }
+.studio-connect select { width: 100%; min-height: 34px; font-size: 12px; border: 1px dashed var(--rp-border-strong); background: var(--rp-surface); color: inherit; padding: 0 8px; }
+.studio-connected { display: grid; gap: 6px; padding: 10px; border: var(--rp-stroke, 2px) solid var(--rp-border-strong); background: var(--rp-surface-sunken, var(--rp-surface)); }
+.studio-connected-label { font-size: 9px; font-weight: 900; letter-spacing: .25em; text-transform: uppercase; color: var(--rp-text-muted); }
+.studio-connected p { display: flex; align-items: center; gap: 6px; margin: 0; font-size: 13px; }
+.studio-connected small { font-size: 11px; color: var(--rp-text-muted); }
+.studio-connected .studio-link-button { width: auto; justify-self: start; min-height: 32px; display: inline-flex; align-items: center; gap: 4px; font-size: 12px; }

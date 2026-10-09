@@ -89,6 +89,7 @@ export function sectionStyleFields(colorSchemes: { id: string; name: string }[] 
     visibility("Screen sizes", { key: "hideOnDesktop", label: "Hide on tablets and desktops", kind: "toggle", hint: "768px and wider." }),
     visibility("Schedule", { key: "showFrom", label: "Show from", kind: "date", hint: "Optional publish window, e.g. a sale banner." }),
     visibility("Schedule", { key: "showUntil", label: "Show until", kind: "date" }),
+    visibility("Connected details", { key: "hideWhenEmpty", label: "Hide when a connected detail is empty", kind: "toggle", hint: "For fields connected to the book, category or page: leave this section out where that detail isn't filled in (the Studio preview still shows it)." }),
   ];
 }
 

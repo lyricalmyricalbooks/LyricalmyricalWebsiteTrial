@@ -470,6 +470,15 @@ new types in `KIND`). Saved sections and shared blocks are renamed/deleted there
 placements). Product-page sections can read the current book with `useSectionPage()` (`components/sectionCopy.ts`).
 Newsletter forms sign up through `features/site/newsletterSignup.ts` and never write from the preview.
 
+**Custom book fields + dynamic sources (2.7):** field definitions are in public `settings/bookFields` (Books › edit ›
+**More details** edits them and each book's answers in `book.custom`; `features/site/bookFields.ts`). A section/block field
+can be connected to a page detail — saved as `{ "$dyn": "book.custom.series" }` or `{{book.title}}` tokens — and
+`SectionList` resolves it with `resolveDynamicSettings` (`features/site/dynamicSources.ts`) from `SectionPageContext`
+(book: `BookDetail`, category: `MainSite`, page: `PageView`), so renderers only ever see plain values. Never render a raw
+setting value in Studio UI without `displayValue()`; code reading setting values as text must tolerate `$dyn` objects.
+Section › Visibility › **Hide when a connected detail is empty** (`hideWhenEmpty`). Studio's Content tab offers
+**Connect to a detail…** (`studio/StudioConnect.tsx`).
+
 **Colour schemes (2.5):** Studio › Theme settings › **Colour schemes** (`StudioColorSchemes.tsx`, pure edits in
 `studio/colorSchemeOps.ts`) edits `design.colorSchemes` — ten roles (background, surface, text, muted, accent, onAccent,
 border, buttonBg, buttonText, link) with a live swatch and WCAG badges. `features/site/colorSchemes.ts` `schemeCss()`

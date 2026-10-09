@@ -162,6 +162,15 @@ new types in `KIND`). Saved sections and shared blocks are renamed/deleted there
 placements). Product-page sections can read the current book with `useSectionPage()` (`components/sectionCopy.ts`).
 Newsletter forms sign up through `features/site/newsletterSignup.ts` and never write from the preview.
 
+**Custom book fields + dynamic sources (2.7):** field definitions are in public `settings/bookFields` (Books › edit ›
+**More details** edits them and each book's answers in `book.custom`; `features/site/bookFields.ts`). A section/block field
+can be connected to a page detail — saved as `{ "$dyn": "book.custom.series" }` or `{{book.title}}` tokens — and
+`SectionList` resolves it with `resolveDynamicSettings` (`features/site/dynamicSources.ts`) from `SectionPageContext`
+(book: `BookDetail`, category: `MainSite`, page: `PageView`), so renderers only ever see plain values. Never render a raw
+setting value in Studio UI without `displayValue()`; code reading setting values as text must tolerate `$dyn` objects.
+Section › Visibility › **Hide when a connected detail is empty** (`hideWhenEmpty`). Studio's Content tab offers
+**Connect to a detail…** (`studio/StudioConnect.tsx`).
+
 **Media library (2.4).** Studio › **Media** (`studio/StudioMedia.tsx`) lists admin-only `media/{id}` records; library
 uploads (`uploadMediaImage`) store WebP copies at 480/960/1600 px under `assets/media/<id>/`. Picking a picture for a
 section/block field writes its URL plus a public `${field}__media` record (Theme settings images get the URL only, but

@@ -8,7 +8,8 @@ import { googleFontHref } from "../features/site/fonts";
 import { findScheme, schemeList } from "../features/site/colorSchemes";
 import { resolveSectionSharedBlocks } from "../features/site/sharedBlocks";
 import { UP_TO } from "../features/site/breakpoints";
-import { SectionDesignContext } from "./sectionCopy";
+import { SectionDesignContext, useSectionPage } from "./sectionCopy";
+import { resolveDynamicSettings } from "../features/site/dynamicSources";
 import { SectionPriorityContext, sectionHasPriority } from "./ResponsiveImage";
 import {
   boxShadowValue,
@@ -222,6 +223,8 @@ export function SectionList({
   design,
 }: SectionListProps) {
   const list = (sections || []).filter((section: any) => section.visible !== false && sectionInWindow(section));
+  const pageContext = useSectionPage();
+  const preview = typeof window !== "undefined" && window.location.search.includes("preview=true");
   if (list.length === 0) return null;
   // The scheme list this stack was given (a page's own, else the design's), else the starter schemes.
   const schemes: any[] = schemeList({ colorSchemes });
@@ -233,7 +236,11 @@ export function SectionList({
         const SectionComponent = (Sections as any)[section.type];
         if (!SectionComponent) return null;
 
-        const s = { ...resolveSectionSharedBlocks(section.settings || {}, sharedBlocks), __sectionId: section.id, __sharedBlocks: sharedBlocks };
+        // Connected fields (Studio 2.7 dynamic sources) become plain values for this page; "Hide when empty"
+        // leaves the section out where its connected details are missing.
+        const dyn = resolveDynamicSettings(resolveSectionSharedBlocks(section.settings || {}, sharedBlocks), pageContext, { preview });
+        if (dyn.hidden) return null;
+        const s = { ...dyn.settings, __sectionId: section.id, __sharedBlocks: sharedBlocks };
         // Style tab › Colour scheme. `data-scheme` picks up the scheme's variables (schemeCss, emitted by
         // StorefrontOverrides); the inline background/text is what every scheme has always painted.
         const scheme: any = findScheme(schemes, s.colorSchemeId);

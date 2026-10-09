@@ -93,3 +93,14 @@ describe("pop-up and the HTML prerender", () => {
     expect(dialog()).toBeNull();
   });
 });
+
+describe("pop-up opened by Studio before it mounted", () => {
+  it("still opens when the request came first (the preview was loading)", async () => {
+    window.history.replaceState(null, "", "/?preview=true");
+    (window as any).__studioOpenOverlay = "popup";
+    try {
+      await mount(design({ showCookieBanner: false }));
+      expect(dialog()).not.toBeNull();
+    } finally { delete (window as any).__studioOpenOverlay; }
+  });
+});

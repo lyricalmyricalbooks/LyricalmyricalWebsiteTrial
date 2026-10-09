@@ -76,6 +76,11 @@ import { auth } from "../../../lib/firebase";
 import type { StudioLocation } from "../../lib/studioLocation";
 import { LinkPicker, StudioPickerProvider } from "./StudioPickers";
 import { StudioSectionLibrary } from "./StudioSectionLibrary";
+import { DynamicSourcesContext } from "./StudioConnect";
+import type { BookFieldDef } from "../../features/site/bookFields";
+import { hasTokens, isDynamic } from "../../features/site/dynamicSources";
+// Connected text (a $dyn value or {{tokens}}) opens the inspector instead of being typed over in the preview.
+const isConnectedValue = (v: any) => isDynamic(v) || hasTokens(v);
 import { CANDIDATE_ID, deletePreset, deleteSharedBlock, renamePreset, renameSharedBlock, withCandidate } from "./sectionLibrary";
 import "./studio.css";
 
@@ -455,6 +460,14 @@ export function StudioEditor({ settings, onExit, onPersisted, appearance = "ligh
     const published = resolveProductRoutes((b || []).filter(x => x.status === "published" || !x.status)); setBooks(published); setProductSlug(current => published.some(x => x.slug === current) ? current : published[0]?.slug || ""); }).catch(() => say("err", "Could not load preview products. Reopen Studio to retry."));
   }, [loadPages]);
   // Media's delete guard reads the retained versions itself (they may not be loaded in History yet).
+  // Custom book fields (Books › Book fields) — offered by "Connect to a detail" in the inspector.
+  const [bookFields, setBookFields] = useState<BookFieldDef[]>([]);
+  useEffect(() => {
+    let live = true;
+    Promise.resolve(adminApi.getBookFields?.()).then(list => { if (live && Array.isArray(list)) setBookFields(list); }).catch(() => { /* none yet: built-in details still connect */ });
+    return () => { live = false; };
+  }, []);
+  const dynamicSourcesValue = useMemo(() => ({ fields: bookFields }), [bookFields]);
   const fetchVersions = useCallback(() => adminApi.listThemeVersions() as Promise<ThemeVersion[]>, []);
   const loadVersions = useCallback(async () => {
     try { setVersions(await adminApi.listThemeVersions() as ThemeVersion[]); }
@@ -664,7 +677,7 @@ export function StudioEditor({ settings, onExit, onPersisted, appearance = "ligh
     const editable: any[] = [];
     const canvas: any[] = [];
     const scanBlocks = (section: Section, blocks: any[], linked = false) => (blocks || []).forEach((block: any) => {
-      for (const field of getBlockFields(section.type)) if (["text", "textarea", "html", "richtext"].includes(field.kind)) editable.push({ sectionId: section.id, blockId: block.id, shared: linked || Boolean(block.sharedBlockId), key: field.key, label: field.label, multiline: field.kind !== "text", format: ["html", "richtext"].includes(field.kind) ? "html" : undefined, editable: field.kind === "text" || field.kind === "textarea" || canInlineFormat(String(block[field.key] ?? "")) && ["html", "richtext"].includes(field.kind), text: String(block[field.key] ?? "") });
+      for (const field of getBlockFields(section.type)) if (["text", "textarea", "html", "richtext"].includes(field.kind)) editable.push({ sectionId: section.id, blockId: block.id, shared: linked || Boolean(block.sharedBlockId), key: field.key, label: field.label, multiline: field.kind !== "text", format: ["html", "richtext"].includes(field.kind) ? "html" : undefined, editable: !isConnectedValue(block[field.key]) && (field.kind === "text" || field.kind === "textarea" || canInlineFormat(String(block[field.key] ?? "")) && ["html", "richtext"].includes(field.kind)), text: isDynamic(block[field.key]) ? "" : String(block[field.key] ?? "") });
       canvas.push({sectionId:section.id,blockId:block.id,actions:contextCapabilities(designRef.current, section.id, block.id, getBlocksKey),gaps:[],bounds:{}});
       scanBlocks(section, block.children || [], linked || Boolean(block.sharedBlockId));
     });
@@ -672,7 +685,7 @@ export function StudioEditor({ settings, onExit, onPersisted, appearance = "ligh
     for (const target of targets) for (const section of getSections(designRef.current, target)) {
       const gaps = getSectionFields(section.type).filter(f => GAP_KEYS.includes(f.key));
       canvas.push({sectionId:section.id,blockId:null,actions:contextCapabilities(designRef.current,section.id,undefined,getBlocksKey),addBlock:Boolean(getSectionMeta(section.type)?.blockType),gaps:gaps.map(f=>f.key),bounds:Object.fromEntries(gaps.map(f=>[f.key,{min:f.min ?? 0,max:f.max ?? 240}]))});
-      for (const field of getSectionFields(section.type)) if (["text", "textarea", "html", "richtext"].includes(field.kind)) editable.push({ sectionId: section.id, blockId: null, key: field.key, label: field.label, multiline: field.kind !== "text", format: ["html", "richtext"].includes(field.kind) ? "html" : undefined, editable: field.kind === "text" || field.kind === "textarea" || canInlineFormat(String(section.settings[field.key] ?? "")) && ["html", "richtext"].includes(field.kind), text: String(section.settings[field.key] ?? "") });
+      for (const field of getSectionFields(section.type)) if (["text", "textarea", "html", "richtext"].includes(field.kind)) editable.push({ sectionId: section.id, blockId: null, key: field.key, label: field.label, multiline: field.kind !== "text", format: ["html", "richtext"].includes(field.kind) ? "html" : undefined, editable: !isConnectedValue(section.settings[field.key]) && (field.kind === "text" || field.kind === "textarea" || canInlineFormat(String(section.settings[field.key] ?? "")) && ["html", "richtext"].includes(field.kind)), text: isDynamic(section.settings[field.key]) ? "" : String(section.settings[field.key] ?? "") });
       scanBlocks(section, resolveSharedBlocks(section.settings[getBlocksKey(section.type)] || section.settings.blocks || [], designRef.current.sharedBlocks || []));
     }
     try { iframeRef.current?.contentWindow?.postMessage({ type: "SET_EDIT_MAP", items: editable }, window.location.origin); } catch { /* ignore */ }
@@ -1654,6 +1667,7 @@ export function StudioEditor({ settings, onExit, onPersisted, appearance = "ligh
 
   return (
     <StudioPickerProvider value={pickerData}>
+    <DynamicSourcesContext.Provider value={dynamicSourcesValue}>
     <div className="rp studio-editor" data-rp-appearance={appearance} data-studio-editor data-mobile-panel={mobilePanel}>
       {/* top bar */}
       <header className="studio-topbar">
@@ -1790,6 +1804,7 @@ export function StudioEditor({ settings, onExit, onPersisted, appearance = "ligh
         <div className="space-y-2">{[...designChecks(design), designSize(design)].map((r, i) => <p key={i} className={`p-3 rounded-lg text-sm ${r.tone === "warn" ? "bg-amber-50 text-amber-900" : "bg-emerald-50 text-emerald-900"}`}>{r.tone === "warn" ? "⚠" : "✓"} {r.text}</p>)}</div>
       </Dialog>
     </div>
+    </DynamicSourcesContext.Provider>
     </StudioPickerProvider>
   );
 }

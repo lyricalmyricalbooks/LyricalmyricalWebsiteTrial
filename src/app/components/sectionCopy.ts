@@ -1,5 +1,6 @@
 import { createContext, useContext } from "react";
 import { getCopy } from "../features/site/storeCopy";
+import type { DynamicContext } from "../features/site/dynamicSources";
 
 // Section renderers are pure (no data hooks), so the page's design travels down by context:
 // SectionList provides it, renderers read the shopper-facing helper words (image placeholders,
@@ -17,10 +18,11 @@ export function useSectionCopy() {
 }
 
 /**
- * What page the sections are on (Studio 2.6): on a product page, the book being shown. Book spotlight uses it when no
- * book is picked; the sticky add-to-bag bar needs it. Elsewhere it is empty.
+ * What page the sections are on: the book on a book page (BookDetail), the open category on a collection (MainSite),
+ * the custom page (PageView). Book spotlight and the sticky add-to-bag bar use the book; connected fields (Studio 2.7
+ * dynamic sources, `features/site/dynamicSources.ts`) read all three. Elsewhere it is empty.
  */
-export const SectionPageContext = createContext<{ book?: any }>({});
+export const SectionPageContext = createContext<DynamicContext>({});
 export function useSectionPage() {
   return useContext(SectionPageContext);
 }
