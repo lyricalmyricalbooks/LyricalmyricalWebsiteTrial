@@ -328,9 +328,12 @@ export function OrderDetail({
         restock: restockOnRefund,
       });
       const pending = result?.status === "pending";
+      const giftPaid = Number(order?.giftCardAmount) > 0;
       toast.success(
-        result?.provider === "manual"
-          ? "Order marked as refunded. Send the money back the way the customer paid."
+        result?.provider === "manual" && giftPaid && !(Number(order?.total) > 0)
+          ? "Order refunded. The gift card balance was put back — nothing else to send."
+          : result?.provider === "manual"
+          ? (giftPaid ? "Order marked as refunded and the gift card balance was put back. Send back only the part the customer paid another way." : "Order marked as refunded. Send the money back the way the customer paid.")
           : `${result?.provider === "paypal" ? "PayPal" : "Stripe"} refund ${pending ? "started — the order updates when it completes" : "issued and order cancelled"}`,
       );
       loadOrder();
@@ -631,6 +634,11 @@ export function OrderDetail({
                   ))}
                 </div>
               )}
+              <p className="fw-summary">A full refund in Stripe clears this by itself. If you settled it another way, mark it here.</p>
+              <SecondaryButton onClick={async () => {
+                try { await adminApi.resolvePaymentMismatch(orderId); toast.success("Marked as resolved"); await loadOrder(); }
+                catch (err: any) { toast.error(err.message || "Couldn't update the order."); }
+              }}>Mark resolved</SecondaryButton>
             </SectionCard>
           )}
           {order.customerRequest?.type === "return" && (order.customerRequest.status === "open" || order.returnProgress) && <ReturnWorkbench key={`${order.id}-${order.returnProgress?.state || "requested"}`} order={order} onUpdated={loadOrder} />}

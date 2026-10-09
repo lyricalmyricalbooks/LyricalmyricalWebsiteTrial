@@ -79,3 +79,16 @@ it("surfaces provider reconciliation without claiming it marks an order paid", (
   expect(rows.find(a => a.id === "payment-reconciliation")?.orderIds).toEqual(["P"]);
   expect(rows.find(a => a.id === "payment-reconciliation")?.detail).toMatch(/signed webhook/);
 });
+
+describe("gift cards not issued", () => {
+  const now = Date.parse("2026-10-09T12:00:00Z");
+  const paid = (minsAgo: number, extra: any = {}) => ({ id: "o1", paymentStatus: "paid", paidAt: new Date(now - minsAgo * 60000).toISOString(), items: [{ id: "gc", giftCard: true }], ...extra });
+  it("warns when a paid gift card order has no card after 10 minutes", () => {
+    expect(buildAdminAlerts([paid(11)], null, now).map(a => a.id)).toContain("gift-cards-not-issued");
+  });
+  it("stays quiet while issuing may still be running, once issued, and for test orders", () => {
+    for (const order of [paid(5), paid(30, { giftCardsIssuedAt: "t" }), paid(30, { isTest: true })]) {
+      expect(buildAdminAlerts([order], null, now).map(a => a.id)).not.toContain("gift-cards-not-issued");
+    }
+  });
+});

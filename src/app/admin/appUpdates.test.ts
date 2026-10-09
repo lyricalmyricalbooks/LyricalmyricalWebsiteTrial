@@ -1,5 +1,7 @@
 import { describe, expect, it } from "vitest";
-import { readdirSync } from "node:fs";
+import { readdirSync, readFileSync } from "node:fs";
+// @ts-expect-error plain .mjs script, no type declarations
+import { inlineEntries } from "../../../scripts/split-app-updates.mjs";
 import { APP_UPDATES, updateOrder } from "./appUpdates";
 import { NAV } from "./riso/nav";
 import { parseStudioLocation } from "../lib/studioLocation";
@@ -36,5 +38,14 @@ describe("app release notes", () => {
     // Within a day the higher number is the newer note.
     expect(updateOrder(["./updates/2026-10-09-01-a.ts", "./updates/2026-10-09-02-b.ts", "./updates/2026-10-08-07-c.ts"]))
       .toEqual(["./updates/2026-10-09-02-b.ts", "./updates/2026-10-09-01-a.ts", "./updates/2026-10-08-07-c.ts"]);
+  });
+
+  it("keeps every note in its own file, never inline in appUpdates.ts", () => {
+    // A branch made before notes moved to files may still prepend one here. Run
+    // `node scripts/split-app-updates.mjs` to move it into src/app/admin/updates/.
+    const source = readFileSync(new URL("./appUpdates.ts", import.meta.url), "utf8");
+    expect(source).not.toMatch(/\bid: "/);
+    const old = 'export const APP_UPDATES: AppUpdate[] = [\n  {\n    id: "a", date: "2026-10-09", title: "A",\n  },\n  {\n    id: "b", date: "2026-10-08", title: "B",\n  },\n];\n';
+    expect(inlineEntries(old).map((e: string) => e.match(/id: "(\w)"/)?.[1])).toEqual(["a", "b"]);
   });
 });

@@ -90,6 +90,13 @@ export function buildAdminAlerts(allOrders: any[], webhook: WebhookStatus = null
   if (giftCardConflict.length) out.push(alert("gift-card-conflict", "danger", `${plural(giftCardConflict.length, "payment needs", "payments need")} gift card reconciliation`,
     `A payment arrived but the gift card could no longer cover its part, so the order wasn't marked paid: ${list(giftCardConflict)}. Check the gift card in Gift cards, then refund the payment or contact the customer.`, giftCardConflict));
 
+  // Paid gift-card purchases whose cards were never created (the issuing step failed): the buyer has no code.
+  const paidAt = (o: any) => Date.parse(o.paidAt || o.updatedAt || o.createdAt || "") || now;
+  const giftCardsMissing = orders.filter((o) => o.paymentStatus === "paid" && !o.isTest && !o.giftCardsIssuedAt
+    && (o.items || []).some((item: any) => item && item.giftCard === true) && now - paidAt(o) >= 10 * 60 * 1000);
+  if (giftCardsMissing.length) out.push(alert("gift-cards-not-issued", "danger", `${plural(giftCardsMissing.length, "paid gift card order has", "paid gift card orders have")} no gift card yet`,
+    `The buyer paid but no gift card code was created: ${list(giftCardsMissing)}. Issue the card from Gift cards › Issue gift card and email it, then note it on the order.`, giftCardsMissing));
+
   const oversold = orders.filter((o) => o.oversold && o.paymentStatus === "paid" && !isFinished(o));
   if (oversold.length) out.push(alert("oversold", "warning", `${plural(oversold.length, "paid order was", "paid orders were")} oversold`,
     `More copies were sold than were in stock: ${list(oversold)}. Restock or contact the customer.`, oversold));
