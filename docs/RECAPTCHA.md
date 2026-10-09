@@ -1,7 +1,7 @@
 # reCAPTCHA Enterprise / Firebase App Check
 
 The app uses invisible, score-based reCAPTCHA Enterprise through Firebase App Check.
-It starts before Firestore and Auth in src/lib/firebase.ts. The Firebase SDK attaches
+It starts before Firestore and Auth in src/lib/firebaseApp.ts (imported by src/lib/firebase.ts and src/lib/firestoreLite.ts). The Firebase SDK attaches
 attestation to supported Firebase requests; functionFetch attaches X-Firebase-AppCheck
 to the shop's HTTP Functions. External requests (Stripe, exchange rates, address lookup)
 do not receive that token. Server handlers verify tokens with the Admin SDK and accept

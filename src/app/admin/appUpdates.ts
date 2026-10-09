@@ -10,6 +10,11 @@ export type AppUpdate = {
 // Newest first. Every PR adds an entry; links open the affected admin workspace.
 export const APP_UPDATES: AppUpdate[] = [
   {
+    id: "storefront-speed-oct-2026", date: "2026-10-09", title: "Your shop opens faster, especially on phones",
+    summary: "Shoppers now download about 40% less code before your shop appears (roughly 205 KB instead of 347 KB compressed). The sign-in, admin and full database tools only load when someone signs in, checks out or opens the admin, so the home page, book pages and shopping bag no longer wait for them. In our test on a slow phone connection, book covers appeared about a second sooner. Animations are smoother too: the shop grid and the Add to bag button no longer stutter, cards deep in a big catalog don't stay blank while you scroll, and the Add to bag \"Glow\" animation (Design studio › Theme settings › Product page) now actually glows. Visitors who ask their device for less motion get calmer animations. Nothing changes in checkout, payments or stock. These are local measurements; the live site gets faster once this update is deployed.",
+    links: [{ label: "Preview your shop in the Design studio", tab: "settings", settingsTab: "designer" }],
+  },
+  {
     id: "overview-front-page", date: "2026-10-09", title: "A livelier Overview that tells you how the shop is doing",
     summary: "Overview now opens like a newspaper front page. A headline sums up the period in one sentence (for example \"CA$1,530 taken, up 10% on the 30 days before\"), with the best-selling title underneath and the revenue or traffic chart in a bright panel. Beside it, a black \"Today's run sheet\" counts what needs you right now — orders to ship, reviews to moderate, titles to reprint, sold-out books — each with a button straight to the fix. The other figures sit in one ruled strip below, with green and red change badges. Ready to sell?, Newest orders and the Dig deeper tabs work as before.",
     links: [{ label: "Open Overview", tab: "overview" }],

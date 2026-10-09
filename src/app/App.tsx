@@ -1,6 +1,6 @@
 import { useState, lazy, Suspense, useEffect, type ReactNode } from "react";
 import { consentAllows } from "./lib/consent";
-import { motion } from "motion/react";
+import { LazyMotion, MotionConfig } from "motion/react";
 import { BrowserRouter, Routes, Route, useLocation } from "react-router";
 import { EditInStudioButton } from "./admin/EditInStudioButton";
 import { ScrollToTop } from "./lib/ScrollToTop";
@@ -17,6 +17,9 @@ import { ErrorBoundary } from "./components/ErrorBoundary";
 // import.meta.env.BASE_URL is the Vite `base` config (e.g. "/LyricalmyricalWebsiteTrial/").
 // Strip the trailing slash so React Router treats it as a basename.
 const ROUTER_BASENAME = (import.meta.env.BASE_URL || "/").replace(/\/$/, "");
+
+// Storefront animations use the slim `m` components; their engine arrives in its own small chunk.
+const loadMotionFeatures = () => import("./lib/motionFeatures").then(m => m.default);
 
 // Lazy-loaded components for performance
 const NotFoundPage = lazy(() => import("./features/site/NotFoundPage"));
@@ -86,6 +89,8 @@ export default function App() {
 
   return (
     <ThemeProvider attribute="class" defaultTheme="system" enableSystem>
+      <LazyMotion features={loadMotionFeatures}>
+      <MotionConfig reducedMotion="user">
       <CurrencyProvider>
         <CartProvider>
           <BrowserRouter basename={ROUTER_BASENAME}>
@@ -144,6 +149,8 @@ export default function App() {
           </BrowserRouter>
         </CartProvider>
       </CurrencyProvider>
+      </MotionConfig>
+      </LazyMotion>
     </ThemeProvider>
   );
 }

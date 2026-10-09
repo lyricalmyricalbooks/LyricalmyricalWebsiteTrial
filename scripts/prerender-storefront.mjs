@@ -44,6 +44,8 @@ try {
     try {
       // Public rendering must never inflate store analytics or mutate Firestore.
       await context.route(/google\.firestore\.v1\.Firestore\/Write\//, request => request.abort());
+      // Storefront Firestore Lite writes go over REST (documents:commit / beginTransaction).
+      await context.route(/firestore\.googleapis\.com\/v1\/.*documents:(commit|beginTransaction)/, request => request.abort());
       await context.route(/google-analytics\.com|googletagmanager\.com/, request => request.abort());
       await context.addInitScript(cache => {
         localStorage.setItem('lm:cookie-consent', JSON.stringify({ necessary: true, analytics: false, marketing: false, decidedAt: new Date().toISOString() }));

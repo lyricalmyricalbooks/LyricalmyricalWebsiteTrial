@@ -1,7 +1,7 @@
 import { layerDesign } from "../features/site/designModel";
 import { CartShippingPreview } from "./CartShippingPreview";
 import { useEffect, useMemo, useRef, useState } from "react";
-import { motion, AnimatePresence } from "motion/react";
+import { m, AnimatePresence } from "motion/react";
 import { useNavigate } from "react-router";
 import { useCart, catalogUnitPrice, MAX_LINE_QUANTITY, repriceCart } from "../CartContext";
 import { quickAddChoice } from "../features/site/buyable";
@@ -13,13 +13,13 @@ import { StorefrontThemeStyle } from "../features/site/StorefrontThemeStyle";
 import { cartDrawerCss, cartDrawerFontNames, cartDrawerWidth } from "../features/site/cartDrawerStyle";
 import { googleFontHref } from "../features/site/fonts";
 import { useFocusTrap } from "../lib/useFocusTrap";
-import { adminApi } from "../admin/api";
+import { publicApi } from "../lib/publicApi";
 import { catalogFulfillmentItems } from "../features/site/checkoutFulfillment";
 import { bagFreeShipThreshold } from "../features/site/freeShipThreshold";
 
 // Shipping rules are read once per visit (public collection) the first time the bag opens.
 let shippingProfilesLoad: Promise<any[] | null> | null = null;
-const loadShippingProfiles = () => (shippingProfilesLoad ||= adminApi.getShippingProfiles().catch(() => { shippingProfilesLoad = null; return null; }));
+const loadShippingProfiles = () => (shippingProfilesLoad ||= publicApi.getShippingProfiles().catch(() => { shippingProfilesLoad = null; return null; }));
 import { X, ShoppingBag, Minus, Plus as PlusIcon, Trash2, ArrowRight, ShieldCheck, Truck, Lock } from "lucide-react";
 
 // The shopping bag. Its look is the Studio › Style › "Cart drawer (shopping bag)" group (CSS from
@@ -101,14 +101,14 @@ export function CartDrawer() {
     <AnimatePresence>
       {isCartOpen && (
         <>
-          <motion.div
+          <m.div
             initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
             onClick={() => setIsCartOpen(false)}
             aria-hidden="true"
             className={`fixed inset-0 z-[60] ${backdropBlur ? "backdrop-blur-sm" : ""}`}
             style={{ backgroundColor: design.cartDrawerBackdropColor || "rgba(0, 0, 0, 0.55)" }}
           />
-          <motion.div
+          <m.div
             ref={drawerRef}
             role="dialog"
             data-studio-target="style:cartDrawer|copy:Cart" data-studio-label="Cart drawer"
@@ -258,7 +258,7 @@ export function CartDrawer() {
                 {showDeliveryNote && <p className="fm-bag-meta text-center" style={{ textTransform: "none", letterSpacing: "0.02em" }}>{getCopy(design, "cartDeliveryNote")}</p>}
               </div>
             )}
-          </motion.div>
+          </m.div>
         </>
       )}
     </AnimatePresence>

@@ -48,12 +48,12 @@ export function NavDropdown({ design, copyDesign, label, linkStyle, className, a
     const onKey = (e: KeyboardEvent) => { if (e.key === "Escape") { setOpen(false); btnRef.current?.focus(); } };
     document.addEventListener("pointerdown", onDown);
     document.addEventListener("keydown", onKey);
-    window.addEventListener("scroll", place, true);
+    window.addEventListener("scroll", place, { capture: true, passive: true });
     window.addEventListener("resize", place);
     return () => {
       document.removeEventListener("pointerdown", onDown);
       document.removeEventListener("keydown", onKey);
-      window.removeEventListener("scroll", place, true);
+      window.removeEventListener("scroll", place, { capture: true });
       window.removeEventListener("resize", place);
     };
   }, [open]);

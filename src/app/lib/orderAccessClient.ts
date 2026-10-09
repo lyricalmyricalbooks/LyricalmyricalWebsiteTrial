@@ -1,4 +1,4 @@
-import { auth } from "../../lib/firebase";
+import { restoredUser } from "../../lib/authSession";
 
 const memoryKeys = new Map<string, string>();
 const storageKey = (id: string) => `order-access:${id}`;
@@ -14,7 +14,7 @@ export function savedOrderAccess(id: string): string {
 }
 export async function orderAccessHeaders(id: string, key?: string): Promise<Record<string, string>> {
   const headers: Record<string, string> = { "Content-Type": "application/json" };
-  const token = await auth?.currentUser?.getIdToken();
+  const token = await (await restoredUser().catch(() => null))?.getIdToken();
   if (token) headers.Authorization = `Bearer ${token}`;
   const access = key || savedOrderAccess(id);
   if (access) headers["X-Order-Key"] = access;
