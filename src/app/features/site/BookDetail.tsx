@@ -37,6 +37,7 @@ import { resolveLogoDesign } from "./selectors";
 import { buildStorefrontTokenVars, RISO_STOREFRONT_CSS, risoGrainCss, STOREFRONT_TOKEN_CSS } from "./themeTokens";
 import { StorefrontOverrides } from "./StorefrontOverrides";
 import { resolveProductDesign } from "./surfaceDesign";
+import { bookTemplateSurface, previewTemplate } from "./templateAlternates";
 import { aspectRatioValue } from "./imageAspect";
 import { regionProps, regionVisible } from "./storefrontRegions";
 import { googleFontHref } from "./fonts";
@@ -115,7 +116,9 @@ export default function BookDetail() {
   // A new book starts with no extras and an empty gift form.
   useEffect(() => { setAddOnPicks({}); setAddOnError(""); setGiftForm(emptyGift); setGiftError(""); }, [book?.id]);
 
-  const storefrontDesign       = resolveProductDesign(settings?.design);
+  // Studio 2.8: the book's alternate template (Books › edit › Page template); the Studio preview can ask for one.
+  const productSurface         = bookTemplateSurface(settings?.design, book, previewTemplate());
+  const storefrontDesign       = resolveProductDesign(settings?.design, productSurface);
   const productImageLayout     = storefrontDesign.productImageLayout     || "slider";
   const productContentPosition = storefrontDesign.productContentPosition || "right";
   const showRelatedProducts    = storefrontDesign.showRelatedProducts    ?? true;
@@ -1192,7 +1195,7 @@ export default function BookDetail() {
         <RecentlyViewedRow excludeId={book?.id} />
 
         <SectionPageContext.Provider value={sectionPage}>
-          <TemplateSections design={settings?.design} templateId="productPage" books={books} />
+          <TemplateSections design={settings?.design} templateId={productSurface} books={books} />
 
           <GlobalSections design={settings?.design} books={books} />
         </SectionPageContext.Provider>

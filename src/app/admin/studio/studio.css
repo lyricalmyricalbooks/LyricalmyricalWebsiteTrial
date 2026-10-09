@@ -412,3 +412,8 @@
 .studio-connected p { display: flex; align-items: center; gap: 6px; margin: 0; font-size: 13px; }
 .studio-connected small { font-size: 11px; color: var(--rp-text-muted); }
 .studio-connected .studio-link-button { width: auto; justify-self: start; min-height: 32px; display: inline-flex; align-items: center; gap: 4px; font-size: 12px; }
+
+/* Page layout › Book page / Collection page template (StudioTemplateCard.tsx, Studio 2.8) */
+.studio-template-card { display: grid; gap: 8px; margin: 12px; padding: 12px; border: var(--rp-stroke, 2px) solid var(--rp-border-strong); background: var(--rp-surface); }
+.studio-template-card select { width: 100%; min-height: 36px; }
+.studio-template-card .studio-scheme-actions .studio-link-button { width: auto; min-height: 32px; display: inline-flex; align-items: center; gap: 4px; font-size: 12px; }

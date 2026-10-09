@@ -39,6 +39,7 @@ import { StoreHeader } from "../features/site/StoreHeader";
 import { StoreFooter } from "../features/site/StoreFooter";
 import { designNumber } from "../features/site/designNumber";
 import { resolveMainDesign } from "../features/site/surfaceDesign";
+import { categoryTemplateSurface, previewTemplate } from "../features/site/templateAlternates";
 import { regionProps } from "../features/site/storefrontRegions";
 
 const catNameForSEO = (category: any) => typeof category === "string" ? category : category?.name;
@@ -672,7 +673,7 @@ export default function MainSite({ setShowCatalog, showCatalog, setCurrentPage, 
         <main className="mx-auto w-full flex-1 px-6 py-12 md:py-20" style={{ maxWidth: isReferenceCatalog ? storefrontHeaderMaxWidth : storefrontMaxWidth }}>
           {/* Theme-editor sections authored for the storefront page template */}
           <SectionPageContext.Provider value={categoryContext}>
-            <TemplateSections design={activeDesign} templateId={onCollectionRoute ? "collectionPage" : "storefront"} books={books} />
+            <TemplateSections design={activeDesign} templateId={onCollectionRoute ? categoryTemplateSurface(activeDesign, categories.find((c: any) => c?.id && c.id === activeCategory?.id) || activeCategory, previewTemplate()) : "storefront"} books={books} />
           </SectionPageContext.Provider>
 
           {/* Catalog heading + title count */}

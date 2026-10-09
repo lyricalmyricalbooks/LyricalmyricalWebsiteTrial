@@ -1,3 +1,4 @@
+import { alternatesFor } from "../../features/site/templateAlternates";
 import { useEffect, useState } from "react";
 import { adminApi } from "../api";
 import { Checkbox, Dialog, PrimaryButton, SecondaryButton, SelectField, TextArea, TextField } from "../riso/components";
@@ -47,13 +48,18 @@ export function StudioCategories({ design, published, onChange, onReorder, onBoo
     if (validation) { setError(validation); return; }
     const index = cats.findIndex(c => c.id === editor.id);
     const next = index < 0 ? [...cats, { ...editor, name: editor.name.trim() }] : renameCategory(cats, index, editor.name)
-      .map(c => c.id === editor.id ? { ...c, description: editor.description, imageUrl: editor.imageUrl, showInNav: editor.showInNav, parentId: editor.parentId } : c);
+      .map(c => {
+        if (c.id !== editor.id) return c;
+        const { templateId: _old, ...rest } = c;
+        // No template = the key is left out (never saved as undefined).
+        return { ...rest, description: editor.description, imageUrl: editor.imageUrl, showInNav: editor.showInNav, parentId: editor.parentId, ...(editor.templateId ? { templateId: editor.templateId } : {}) };
+      });
     onChange(next); setEditor(null); setError(""); setNotice("Category details updated in your working design. Publish to update the shop.");
   };
   // Only existing saved-to-the-working-design categories can receive assignments.
   const current = editor && cats.find(c => c.id === editor.id);
   const liveCurrent = current && live.find(c => c.id === current.id);
-  const dirtyDetails = editor && (!current || ["name", "description", "imageUrl", "showInNav", "parentId"].some(k => (editor[k] ?? "") !== (current[k] ?? "")));
+  const dirtyDetails = editor && (!current || ["name", "description", "imageUrl", "showInNav", "parentId", "templateId"].some(k => (editor[k] ?? "") !== (current[k] ?? "")));
   const filteredBooks = books.filter(b => (!bookSearch || `${b.title || ""} ${b.sku || ""} ${b.isbn || ""}`.toLowerCase().includes(bookSearch.toLowerCase()))
     && (membership === "all" || directlyAssigned(b, current) === (membership === "assigned")))
     .sort((a, b) => (a.title || "").localeCompare(b.title || ""));
@@ -126,6 +132,12 @@ export function StudioCategories({ design, published, onChange, onReorder, onBoo
           <option value="">Its own spot in the menu</option>{cats.filter(c => c.id !== editor.id && !parentOf(c, cats)).map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
         </SelectField>
         {childCategories(editor, cats).length > 0 && <p>Move this category’s children elsewhere before making it a subcategory.</p>}
+        <SelectField label="Collection page template" value={editor.templateId || ""} disabled={busy}
+          hint="Which layout this category's collection page uses. Make more in Page layout › Collection page template › New template from this one."
+          onChange={e => { const { templateId: _old, ...rest } = editor; setEditor(e.target.value ? { ...rest, templateId: e.target.value } : rest); }}>
+          <option value="">Default collection page</option>
+          {alternatesFor(design, "collectionPage").map(t => <option key={t.id} value={t.id}>{t.name}</option>)}
+        </SelectField>
         {current && <>
           <h3>Book assignments</h3>
           <p>Counts show direct assignments, including earlier category names. Parent menus also include their children. PUBLICATIONS automatically shows every book on the storefront.</p>

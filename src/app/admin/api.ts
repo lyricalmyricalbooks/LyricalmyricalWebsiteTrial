@@ -1,5 +1,6 @@
 import { keepLiveStock } from "./bookStockMerge";
 import { BOOK_FIELDS_DOC, cleanBookFields, type BookFieldDef } from "../features/site/bookFields";
+import { alternatesFor, type AltBase, type AlternateTemplate } from "../features/site/templateAlternates";
 import { newOrderAccessKey, rememberOrderAccess, savedOrderAccess, orderAccessHeaders } from "../lib/orderAccessClient";
 import { addressKey, addressIssues, packingKey, dispatchProblem, disputeOpen, queueOf, fulfillmentMethod, trackingFields } from "./fulfillment";
 import { restampPreorderItems } from "../features/site/preorder";
@@ -501,6 +502,18 @@ export const adminApi = {
   // Shopper read of settings/website: no admin-only lookups, never writes, and never keeps the
   // unpublished draft or My themes (older documents may still carry them) in shopper state or cache.
   getPublicSettings: publicApi.getPublicSettings,
+
+  // Alternate templates (Studio 2.8) for the book editor's "Book page template": the live ones, plus ones that so far
+  // exist only in the Studio draft (marked unpublished — a book can use one; it shows the default until it's published).
+  getAlternateTemplates: async (base: AltBase): Promise<(AlternateTemplate & { published: boolean })[]> => {
+    const [live, draft] = await Promise.all([
+      publicApi.getPublicSettings().then(s => alternatesFor(s?.design, base)).catch(() => [] as AlternateTemplate[]),
+      readDraftField("alternateTemplates").then(v => alternatesFor({ alternateTemplates: v }, base)).catch(() => [] as AlternateTemplate[]),
+    ]);
+    const out = live.map(t => ({ ...t, name: draft.find(d => d.id === t.id)?.name || t.name, published: true }));
+    for (const t of draft) if (!out.some(o => o.id === t.id)) out.push({ ...t, published: false });
+    return out;
+  },
 
   // Custom book fields (Studio 2.7): definitions in the public, admin-written settings/bookFields doc.
   getBookFields: async (): Promise<BookFieldDef[]> => {

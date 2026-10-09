@@ -10,6 +10,7 @@ import { resolveSectionSharedBlocks } from "../features/site/sharedBlocks";
 import { UP_TO } from "../features/site/breakpoints";
 import { SectionDesignContext, useSectionPage } from "./sectionCopy";
 import { resolveDynamicSettings } from "../features/site/dynamicSources";
+import { sectionsSurface } from "../features/site/templateAlternates";
 import { SectionPriorityContext, sectionHasPriority } from "./ResponsiveImage";
 import {
   boxShadowValue,
@@ -340,7 +341,8 @@ export function TemplateSections({
   enableAnimations?: boolean;
 }) {
   const handlers = useDefaultSectionHandlers();
-  const surface = (design && design[templateId]) || {};
+  // An alternate template (Studio 2.8) without its own section list shows the default template's sections.
+  const surface = (design && design[sectionsSurface(design, templateId)]) || {};
   const sections: any[] = surface.sections || [];
   if (sections.length === 0) return null;
   const colorSchemes =

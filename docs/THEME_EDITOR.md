@@ -432,7 +432,25 @@ assistant, personalization/A-B tests, author/series/event pages, multi-language 
       text opens the inspector instead of inline editing; pre-publish checks count connections as content; outline
       labels use `displayValue`. Tests: `dynamicSources.test.ts`, `dynamicSections.render.test.tsx`,
       `StudioConnect.test.tsx`, `BookCustomFields.test.tsx`, `studioReliability.test.ts`; e2e: connect a title to Series.
-- [ ] 2.8 Alternate templates.
+- [x] 2.8 Alternate templates. Book and collection pages can have extra layouts. The list is the root-only
+      `design.alternateTemplates` (`{ productPage: [{ id, name }], collectionPage: [...] }`); each one's sections and
+      page-only styles live on `productPage~<id>` / `collectionPage~<id>` (`features/site/templateAlternates.ts`).
+      `designModel` treats them as surfaces (`isSurfaceKey`, `surfaceChain` storefront → default → alternate), so All
+      pages writes clear them like any page; an alternate without its own `sections` shows the default's
+      (`sectionsSurface`, used by `TemplateSections`). A book chooses one with `book.templateId` (Books › edit ›
+      Categories & tags › **Book page template**, `admin/BookTemplatePicker.tsx`; draft-only templates are listed as
+      "not published yet" via `adminApi.getAlternateTemplates`), a category with `category.templateId` (Navigation › Shop
+      categories › Edit › **Collection page template**). A deleted or unknown id = the default. `BookDetail` uses
+      `bookTemplateSurface` for sections and `resolveProductDesign(design, surface)` for page styles. Deviations: custom
+      pages are left out (each already has its own `page:<slug>` template), and collection alternates bring their own
+      sections only — `MainSite` resolves the collection page's styles before the open category is known, so Studio
+      disables "This page only" styling on a collection alternate rather than offer a control that would do nothing.
+      Studio: Page layout shows a **Book page / Collection page template** card (`studio/StudioTemplateCard.tsx`:
+      switch template, who uses it, **New template from this one** — sections copied with fresh ids, styles inherited
+      from the default — Rename, Delete with Undo, and **Preview with** a book); the page picker lists alternates; the
+      preview URL carries `?template=<id>` (or `default`) and `previewRoute` maps it back. Tests:
+      `templateAlternates.test.ts`, `alternateTemplates.render.test.tsx`, `templatePickerAlternates.test.ts`,
+      `BookTemplatePicker.test.tsx`; e2e: create "Poetry", add a section, save.
 - [ ] 2.9 Product information as blocks.
 
 **2.4 Media library + responsive images (done).** A **Media** rail tab (`studio/StudioMedia.tsx`) lists the

@@ -41,6 +41,7 @@ import { normalizeCategories, parentOf } from "../features/site/navItems";
 import { Book, Variant } from "../features/site/types";
 import { useCurrency } from "../CurrencyContext";
 import { BookCustomFields } from "./BookCustomFields";
+import { BookTemplatePicker } from "./BookTemplatePicker";
 import { ConfirmDialog, SectionCard, TextField, TextArea, SelectField, Toggle, StatusBadge, Tabs } from "./riso/components";
 import { prepareProductImage } from "./prepareImage";
 import { studioHash } from "../lib/studioLocation";
@@ -1118,6 +1119,7 @@ export function BookEditor({ book, onClose, onSave }: BookEditorProps) {
                   onKeyDown={(e) => { if ((e.key === "Enter" || e.key === ",") && tagInput.trim()) { e.preventDefault(); commitTags(); } }} />
               </div>
             </SectionCard>
+            <BookTemplatePicker value={formData.templateId} onChange={id => set("templateId", id ?? null)} />
             <SectionCard title="Curated recommendations" description="Choose up to four companion books in display order. Only published books appear to shoppers. Save this book to apply your selection.">
               <SelectField label="Recommendation source" value={Array.isArray(formData.relatedBookIds) ? "curated" : "automatic"} onChange={(event) => setFormData((prev: any) => {
                 const next = { ...prev };
