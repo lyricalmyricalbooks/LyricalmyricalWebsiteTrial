@@ -640,6 +640,35 @@ await check("the buy box follows Buy box blocks, and Add to bag still adds to th
   await frame.waitForFunction(() => (JSON.parse(localStorage.getItem("fm_cart") || "[]")).length === 1, undefined, { timeout: 10000 });
 }, "#designer?t=productPage");
 
+await check("Version history compares a version with the draft and takes one section back", desktop, async page => {
+  await page.getByRole("button", { name: "Add section" }).first().click();
+  await page.getByRole("button", { name: /^Newsletter/ }).first().click();
+  await expectText(page, "Home · 1 section");
+  await page.getByRole("button", { name: "Theme actions" }).click();
+  await page.getByRole("menuitem", { name: "Version history" }).click();
+  const dialog = page.getByRole("dialog", { name: "Version history" });
+  await dialog.waitFor({ timeout: 5000 });
+  // A named checkpoint of the current draft.
+  await dialog.getByRole("button", { name: "Save checkpoint…" }).click();
+  await page.getByRole("dialog", { name: "Save checkpoint" }).getByRole("textbox").fill("Before the newsletter");
+  await page.getByRole("dialog", { name: "Save checkpoint" }).getByRole("button", { name: "Save checkpoint" }).click();
+  await dialog.getByText("Before the newsletter").waitFor({ timeout: 5000 });
+  if (!(await calls(page)).some(c => c.method === "saveThemeCheckpoint" && c.args[0] === "Before the newsletter")) throw new Error("checkpoint not saved");
+  // Compare the published version with the draft: the new section is listed, in Studio's words.
+  await dialog.locator('[data-version-id="v-published"]').getByRole("button", { name: "Compare" }).click();
+  const compare = page.getByRole("dialog", { name: /^Compare/ });
+  const item = compare.locator('[data-diff-id^="section:"]').first();
+  await item.waitFor({ timeout: 5000 });
+  if (!/Newsletter/.test(await item.textContent()) || !/Added/.test(await item.textContent())) throw new Error(`diff item reads "${await item.textContent()}"`);
+  await item.getByRole("button", { name: "Use this version's" }).click();
+  await compare.getByText("No differences").waitFor({ timeout: 5000 });
+  await compare.getByRole("button", { name: "Close dialog" }).click();
+  await expectText(page, "Home · 0 sections");
+  // The restore is one undoable draft change.
+  await page.getByRole("button", { name: "Undo", exact: true }).click();
+  await expectText(page, "Home · 1 section");
+});
+
 await check("phone-sized editor loads without errors", { width: 390, height: 844 }, async page => {
   await page.waitForTimeout(1500);
   const overflow = await page.evaluate(() => document.documentElement.scrollWidth - window.innerWidth);

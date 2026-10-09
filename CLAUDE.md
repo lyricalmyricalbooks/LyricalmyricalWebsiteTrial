@@ -493,6 +493,14 @@ Page layout › **Buy box blocks** (`studio/StudioProductBlocks.tsx`). No list =
 (`productCard.parity.test.tsx` + `__fixtures__/productCardDom.json`); a new buy-card piece needs a built-in block type and a
 parity fixture refresh. `heading` and `buy` are required. Buy-card visibility reads `regionDesign` (the shown template).
 
+**Version history 2.0 (3.1):** Theme actions › **Version history** (`studio/StudioHistory.tsx`) keeps each Publish (last 30
+unpinned), `draft-latest` and named, pinned **checkpoints** (`adminApi.saveThemeCheckpoint` / `updateThemeVersion` /
+`deleteThemeVersion`; pinned rows are never pruned, max `THEME_PINNED_LIMIT` 20; `draft-latest` can't be renamed or pinned).
+**Compare** uses `studio/designDiff.ts` `diffDesigns` (labels from `STYLE_GROUPS`, `COPY_SCHEMA`, the registry and templates;
+sections matched by id) and **Use this version's** applies `restoreItem` as one named `change`. Publish/Discard dialogs list
+`summariseDiff` lines. New structured design keys with their own editor belong in `designDiff.ts` `STRUCTURAL` so they get
+a readable name. Studio's `confirmNode`/`promptNode` render last so questions asked from inside a dialog open on top.
+
 **Colour schemes (2.5):** Studio › Theme settings › **Colour schemes** (`StudioColorSchemes.tsx`, pure edits in
 `studio/colorSchemeOps.ts`) edits `design.colorSchemes` — ten roles (background, surface, text, muted, accent, onAccent,
 border, buttonBg, buttonText, link) with a live swatch and WCAG badges. `features/site/colorSchemes.ts` `schemeCss()`

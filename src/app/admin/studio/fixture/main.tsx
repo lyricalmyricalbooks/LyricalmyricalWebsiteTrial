@@ -16,6 +16,8 @@ const fixture = createStudioFixture({
   // `?media=denied` behaves as if the media library's Firestore rules weren't deployed yet.
   mediaDenied: new URLSearchParams(location.search).get("media") === "denied",
 });
+// Version history starts with the published design kept once (Studio › Theme actions › Version history).
+fixture.versions = [{ id: "v-published", kind: "published", label: "Published 8 Oct 2026", createdAt: "2026-10-08T15:00:00.000Z", design: JSON.parse(JSON.stringify(fixture.settings.design)) }];
 installFakeStudioApi(adminApi as any, fixture);
 (window as any).__studioFixture = fixture;
 

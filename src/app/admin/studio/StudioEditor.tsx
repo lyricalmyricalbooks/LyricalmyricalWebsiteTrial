@@ -65,6 +65,8 @@ import { StudioPageOverrides } from "./StudioPageOverrides";
 import { Panel, PanelGroup, PanelResizeHandle } from "react-resizable-panels";
 import { StudioRail } from "./StudioRail";
 import { MediaPickerDialog, StudioMediaPanel, useMediaLibrary } from "./StudioMedia";
+import { StudioHistory, versionName, type ThemeVersion } from "./StudioHistory";
+import { diffDesigns, restoreItem, summariseDiff, type DiffContext, type DiffItem } from "./designDiff";
 import { MediaLibraryButton, MediaPickerContext } from "./mediaPicker";
 import type { UsagePlace } from "./mediaLibrary";
 import { resolveShortcut, SHORTCUTS, type ShortcutAction } from "./shortcuts";
@@ -89,22 +91,6 @@ import "./studio.css";
 
 type LeftTab = "sections" | "style" | "text" | "menus" | "pages" | "media";
 type Toast = { kind: "ok" | "err"; text: string; action?: { label: string; run: () => void } } | null;
-type ThemeVersion = { id: string; kind: "draft" | "published"; label: string; createdAt: string; design: any };
-
-function describeChanges(from: any, to: any): string[] {
-  const out: string[] = [];
-  const surfaces = [...STATIC_SURFACES, ...Object.keys({ ...(from || {}), ...(to || {}) }).filter(isAltSurface)];
-  for (const id of surfaces) {
-    const a = (from?.[id]?.sections || []).length, b = (to?.[id]?.sections || []).length;
-    if (a !== b) out.push(`${id}: ${a} → ${b} sections`);
-  }
-  const labels: Record<string, string> = { copy: "Text & labels", menus: "Menus", colorSchemes: "Color schemes", sectionPresets: "Saved sections" };
-  for (const [key, label] of Object.entries(labels)) if (JSON.stringify(from?.[key]) !== JSON.stringify(to?.[key])) out.push(label);
-  const ignored = new Set([...surfaces, ...Object.keys(labels), ...SECTION_GROUP_KEYS]);
-  for (const g of SECTION_GROUPS) if (JSON.stringify(from?.[g.key]) !== JSON.stringify(to?.[g.key])) out.push(`Shared sections: ${g.label}`);
-  if (Object.keys({ ...from, ...to }).some(k => !ignored.has(k) && JSON.stringify(from?.[k]) !== JSON.stringify(to?.[k]))) out.push("Theme style and settings");
-  return out.length ? out : ["No saved design differences"];
-}
 
 function designChecks(design: any) {
   return buildDesignChecks(design, { sectionFields: getSectionFields, blockFields: getBlockFields, blocksKey: getBlocksKey });
@@ -479,6 +465,15 @@ export function StudioEditor({ settings, onExit, onPersisted, appearance = "ligh
   }, []);
   const dynamicSourcesValue = useMemo(() => ({ fields: bookFields }), [bookFields]);
   const fetchVersions = useCallback(() => adminApi.listThemeVersions() as Promise<ThemeVersion[]>, []);
+  // Version history (3.1) and the Publish / Discard dialogs describe differences in Studio's own words.
+  const diffContext = useMemo((): DiffContext => ({
+    templates, sectionName: (type: string) => getSectionMeta(type)?.label, sectionFields: (type: string) => getSectionFields(type),
+  }), [templates]);
+  const normalizeForDiff = useCallback((d: any) => normalizeDesign(d, defaults), [defaults]);
+  const publishSummary = (from: any, to: any) => {
+    const lines = summariseDiff(diffDesigns(normalizeForDiff(from), normalizeForDiff(to), diffContext));
+    return lines.length ? lines : ["No saved design differences"];
+  };
   const loadVersions = useCallback(async () => {
     try { setVersions(await adminApi.listThemeVersions() as ThemeVersion[]); }
     catch { say("err", "Could not load version history. Check your connection and try again."); }
@@ -1785,8 +1780,6 @@ export function StudioEditor({ settings, onExit, onPersisted, appearance = "ligh
       </MediaPickerContext.Provider>
       <MediaPickerDialog lib={mediaLib} />
 
-      {confirmNode}
-      {promptNode}
       <Dialog open={!!moveDialog} onClose={() => setMoveDialog(null)}
         title={moveDialog?.kind === "block" ? "Move block to another section" : `Move ${moveDialog?.kind === "sections" && moveDialog.ids.length > 1 ? `${moveDialog.ids.length} sections` : "section"} to another page`}
         description={moveDialog?.kind === "block" ? "Blocks can move to another section of the same kind, on any page." : "The section leaves this page and goes to the end of the page you pick. Undo brings it back."}
@@ -1813,21 +1806,24 @@ export function StudioEditor({ settings, onExit, onPersisted, appearance = "ligh
         </div>
       </Dialog>
       <StudioSearch open={findOpen} onClose={() => setFindOpen(false)} index={searchIndex} context={paletteContext} onPick={goToResult} />
-      <Dialog open={historyOpen} onClose={() => { setHistoryOpen(false); setHistoryPreview(null); }} title="Version history" description="Every saved draft and publish is kept here. Previewing never changes your draft." size="lg">
-        <div className="space-y-2 max-h-[60vh] overflow-auto">
-          {!versions.length && <p className="studio-empty">No saved versions yet.</p>}
-          {versions.map(v => <div key={v.id} className="border border-neutral-200 rounded-xl p-3 flex items-center gap-3">
-            <div className="flex-1"><strong className="block text-sm">{v.label}</strong><span className="text-xs text-neutral-500">{v.kind} · {new Date(v.createdAt).toLocaleString()}</span></div>
-            <button className={btn} onClick={() => { setHistoryPreview(v); }}>Preview</button>
-            <button className={btnPrimary} onClick={() => { change(() => normalizeDesign(v.design, defaults)); setHistoryPreview(null); setHistoryOpen(false); say("ok", "Version restored to the draft. Save or Publish when ready."); }}>Restore to draft</button>
-          </div>)}
-          {historyPreview && <p className="text-xs font-bold">Previewing: {historyPreview.label}. Close History to return to your current draft.</p>}
-        </div>
-      </Dialog>
+      <StudioHistory open={historyOpen} onClose={() => { setHistoryOpen(false); setHistoryPreview(null); }}
+        versions={versions} reload={loadVersions} draft={design} published={published} normalize={normalizeForDiff} ctx={diffContext}
+        previewingId={historyPreview?.id || null} onPreview={setHistoryPreview}
+        onRestoreAll={(v) => {
+          change(() => normalizeDesign(v.design, defaults), { label: `Restore “${versionName(v)}”` });
+          setHistoryPreview(null); setHistoryOpen(false);
+          say("ok", `“${versionName(v)}” restored to the draft. Save or Publish when ready.`, { label: "Undo", run: () => setHist(undo) });
+        }}
+        onRestoreItem={(v, item: DiffItem) => {
+          change(d => restoreItem(d, normalizeDesign(v.design, defaults), item), { label: `Restore ${item.label}` });
+          say("ok", `${item.label} restored from “${versionName(v)}”.`, { label: "Undo", run: () => setHist(undo) });
+        }}
+        actions={{ saveCheckpoint: (name, d) => adminApi.saveThemeCheckpoint(name, d) as Promise<ThemeVersion>, update: adminApi.updateThemeVersion, remove: adminApi.deleteThemeVersion }}
+        askText={askText} askConfirm={askConfirm} say={(kind, text) => say(kind, text)} />
       <Dialog open={confirmAction !== null} onClose={() => setConfirmAction(null)} title={confirmAction === "publish" ? "Publish this design?" : "Discard this draft?"}>
         <div className="space-y-4">
           <p className="text-sm">{confirmAction === "publish" ? "These changes will become visible to shoppers immediately:" : "These draft changes will be permanently replaced by the current live design:"}</p>
-          <ul className="list-disc pl-5 text-sm space-y-1">{describeChanges(confirmAction === "publish" ? published : design, confirmAction === "publish" ? design : published).map(x => <li key={x}>{x}</li>)}</ul>
+          <ul className="list-disc pl-5 text-sm space-y-1">{confirmAction !== null && publishSummary(confirmAction === "publish" ? published : design, confirmAction === "publish" ? design : published).map(x => <li key={x}>{x}</li>)}</ul>
           <div className="flex justify-end gap-2"><button className={btn} onClick={() => setConfirmAction(null)}>Cancel</button><button className={confirmAction === "publish" ? btnPrimary : `${btn} border-red-300 text-red-700`} onClick={() => { const action = confirmAction; setConfirmAction(null); action === "publish" ? publish() : discard(); }}>{confirmAction === "publish" ? "Publish now" : "Discard draft"}</button></div>
         </div>
       </Dialog>
@@ -1848,6 +1844,9 @@ export function StudioEditor({ settings, onExit, onPersisted, appearance = "ligh
       <Dialog open={checksOpen} onClose={() => setChecksOpen(false)} title="Pre-publish check" description="A quick accessibility, content and performance review of this draft.">
         <div className="space-y-2">{[...designChecks(design), designSize(design)].map((r, i) => <p key={i} className={`p-3 rounded-lg text-sm ${r.tone === "warn" ? "bg-amber-50 text-amber-900" : "bg-emerald-50 text-emerald-900"}`}>{r.tone === "warn" ? "⚠" : "✓"} {r.text}</p>)}</div>
       </Dialog>
+      {/* Last, so a question asked from inside another dialog (History, Media…) opens on top of it. */}
+      {confirmNode}
+      {promptNode}
     </div>
     </DynamicSourcesContext.Provider>
     </StudioPickerProvider>
