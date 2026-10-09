@@ -1,7 +1,7 @@
 import { SecondaryStorefrontNav } from "../features/site/SecondaryStorefrontNav";
 import { MobileStorefrontNav } from "../features/site/MobileStorefrontNav";
 import { accountsEnabled } from "../features/site/customerAccounts";
-import { motion, AnimatePresence } from "motion/react";
+import { m, AnimatePresence } from "motion/react";
 import { useStudioOverlay } from "../features/site/studioOverlay";
 import { type CSSProperties, useEffect, useMemo, useRef, useState } from "react";
 import { ChevronLeft, ChevronRight, X, Instagram, Mail, Send, Heart, User as UserIcon, Zap, Search as SearchIcon, ShoppingCart } from "lucide-react";
@@ -36,8 +36,8 @@ import { LogoMark, wordmarkSecondaryStyle } from "./LogoMark";
 import { googleFontHref } from "../features/site/fonts";
 import { ThemeToggle } from "./theme/ThemeToggle";
 import { CurrencySelector, useCurrency } from "../CurrencyContext";
-import { doc, setDoc } from "firebase/firestore";
-import { db } from "../../lib/firebase";
+import { doc, setDoc } from "firebase/firestore/lite";
+import { liteDb } from "../../lib/firestoreLite";
 import { SectionList, GlobalSections, TemplateSections } from "./sectionRender";
 import { useWishlist, liveWishlistCount } from "../lib/wishlist";
 import { isLiveBook } from "../features/site/liveBook";
@@ -103,6 +103,7 @@ function SkeletonImage({ src, alt, className, style }: { src: string; alt: strin
         src={src}
         alt={alt}
         loading="lazy"
+        decoding="async"
         className={`${className} transition-opacity duration-500 ${loaded ? "opacity-100" : "opacity-0"}`}
         style={style}
         onLoad={() => setLoaded(true)}
@@ -163,7 +164,7 @@ function Newsletter({ design }: { design?: any }) {
     try {
       const clean = email.trim().toLowerCase();
       // One row per address (the id is the email); signing up twice is already done.
-      await setDoc(doc(db, "newsletter", clean), {
+      await setDoc(doc(liteDb, "newsletter", clean), {
         email: clean,
         subscribedAt: new Date().toISOString(),
         source: "website-footer",
@@ -184,13 +185,13 @@ function Newsletter({ design }: { design?: any }) {
         </p>
       </div>
       {status === "success" ? (
-        <motion.p {...regionProps("newsletterStatus")}
+        <m.p {...regionProps("newsletterStatus")}
           initial={{ opacity: 0, y: 6 }}
           animate={{ opacity: 1, y: 0 }}
           className="text-[10px] tracking-[0.4em] text-white/60 uppercase"
         >
           {getCopy(design, "newsletterSuccess")}
-        </motion.p>
+        </m.p>
       ) : (
         <form {...regionProps("newsletterForm")} onSubmit={handleSubmit} className="flex gap-2 max-w-sm mx-auto">
           <input
@@ -695,7 +696,7 @@ export default function MainSite({ setShowCatalog, showCatalog, setCurrentPage, 
     const handleScroll = () => {
       setScrolled(window.scrollY > 20);
     };
-    window.addEventListener("scroll", handleScroll);
+    window.addEventListener("scroll", handleScroll, { passive: true });
     return () => window.removeEventListener("scroll", handleScroll);
   }, []);
 
@@ -1315,7 +1316,7 @@ export default function MainSite({ setShowCatalog, showCatalog, setCurrentPage, 
           {/* Category Header */}
           <AnimatePresence mode="wait">
             {activeCategory && (activeCategory.description || activeCategory.imageUrl) && (
-              <motion.div
+              <m.div
                 key={activeCategory.id || activeCategory.name}
                 initial={{ opacity: 0, y: 10 }}
                 animate={{ opacity: 1, y: 0 }}
@@ -1337,7 +1338,7 @@ export default function MainSite({ setShowCatalog, showCatalog, setCurrentPage, 
                     </p>
                   )}
                 </div>
-              </motion.div>
+              </m.div>
             )}
           </AnimatePresence>
 
@@ -1381,15 +1382,17 @@ export default function MainSite({ setShowCatalog, showCatalog, setCurrentPage, 
               })();
               const wished = isWished(item.id);
               return (
-                <motion.article
+                <m.article
                   key={item.id || index}
                   initial={(storefrontDesign?.enableAnimations ?? true) ? { opacity: 0, y: 30 } : { opacity: 1, y: 0 }}
                   animate={{ opacity: 1, y: 0 }}
                   transition={(storefrontDesign?.enableAnimations ?? true)
-                    ? { duration: 0.8, delay: index * 0.05, ease: [0.22, 1, 0.36, 1] }
+                    // Stagger only the first rows: deep in a big catalog, cards must not sit invisible for seconds.
+                    ? { duration: 0.8, delay: Math.min(index, 12) * 0.05, ease: [0.22, 1, 0.36, 1] }
                     : { duration: 0 }
                   }
-                  className={`group relative transition-all duration-500 ${storefrontDesign?.productHoverEffect === "lift" ? "hover:-translate-y-2" : ""} ${cardStyle === "card" ? "fm-surface border border-white/10 p-3" : ""}`}
+                  // CSS transitions skip opacity/transform, which the entrance animation drives every frame.
+                  className={`group relative transition-[translate,background-color,border-color,box-shadow] duration-500 ${storefrontDesign?.productHoverEffect === "lift" ? "hover:-translate-y-2" : ""} ${cardStyle === "card" ? "fm-surface border border-white/10 p-3" : ""}`}
                   style={cardStyle === "card" ? { borderRadius: storefrontCardRadius } : undefined}
                 >
                   <button
@@ -1512,7 +1515,7 @@ export default function MainSite({ setShowCatalog, showCatalog, setCurrentPage, 
                       )}
                     </div>
                   </Link>
-                </motion.article>
+                </m.article>
               );
             })}
           </div>

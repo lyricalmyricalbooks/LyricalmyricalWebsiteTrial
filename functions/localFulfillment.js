@@ -70,6 +70,12 @@ function discountedPhysicalSubtotal(items, discountAmount, discount, booksById =
     : discount?.appliesTo === 'categories'
       ? (booksById[item.id]?.categories || []).some(category => (discount.selectedCategories || []).includes(category))
       : true;
+  // A free gift's discount pays for the gift line itself.
+  if (discount?.type === 'gift') {
+    const gift = items.find(item => item.promoGift === true);
+    const giftCents = gift && isPhysicalItem(gift) ? cents(gift.price) * gift.quantity : 0;
+    return Math.max(0, physicalCents - Math.min(giftCents, discountCents)) / 100;
+  }
   const eligible = items.filter(selected);
   if (discount?.type === 'bogo') {
     const getQty = Number(discount.getQuantity) || 1;

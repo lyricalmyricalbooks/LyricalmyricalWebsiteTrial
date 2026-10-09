@@ -7,6 +7,7 @@
 // confirmed (webhook / verified capture), exactly as before.
 
 const crypto = require("crypto");
+const { stockLines } = require("./promotions");
 
 const HOLD_MS = 30 * 60 * 1000; // matches the hosted Stripe session lifetime
 
@@ -39,11 +40,13 @@ function heldUnits(holds, key) {
 }
 
 // Pure: what one book's lines need, grouped by edition. Quantities are clamped like checkout does.
+// A box set's quantity is clamped first, then counted as the books inside it.
 function linesByBook(items) {
   const byBook = new Map();
-  for (const item of items || []) {
+  const clamped = (items || []).map(item => item && { ...item, quantity: Math.max(1, Math.min(99, Math.floor(Number(item.quantity) || 1))) });
+  for (const item of stockLines(clamped)) {
     if (!item || !item.id) continue;
-    const qty = Math.max(1, Math.min(99, Math.floor(Number(item.quantity) || 1)));
+    const qty = Math.max(1, Math.floor(Number(item.quantity) || 1));
     const lines = byBook.get(item.id) || {};
     const key = lineKey(item.variantId);
     lines[key] = (lines[key] || 0) + qty;

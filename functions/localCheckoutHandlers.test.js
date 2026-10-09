@@ -17,6 +17,7 @@ function harness({ method = 'pickup', optionId = 'pickup:shop', paymentStatus = 
     collection(name) { return {
       doc(id) { return { _name: name, _id: id, async get() { const data = name === 'orders' ? (id === 'order1' ? order : docs.orders?.[id]) : docs[name]?.[id]; return { exists: !!data, data: () => data }; }, async update(change) { updates.push(change); if (name === 'orders' && id === 'order1') Object.assign(order, change); else { docs[name] ||= {}; Object.assign(docs[name][id] ||= {}, change); } }, async create(data) { docs.orders ||= {}; docs.orders[id] = data; } }; },
       async get() { return { docs: Object.entries(docs[name] || {}).map(([id, data]) => ({ id, data: () => data })) }; },
+      where(field, op, value) { const query = { where: (f2, o2, v2) => { const prev = query.get; query.get = async () => { const r = await prev(); const kept = r.docs.filter(d => d.data()[f2] === v2); return { empty: !kept.length, docs: kept }; }; return query; }, limit: () => query, async get() { const kept = Object.entries(docs[name] || {}).filter(([, data]) => data[field] === value).map(([id, data]) => ({ id, data: () => data })); return { empty: !kept.length, docs: kept }; } }; return query; },
     }; },
     async runTransaction(fn) { return fn({ get: async ref => { const data = ref._name === 'orders' ? (ref._id === 'order1' ? order : docs.orders?.[ref._id]) : docs[ref._name]?.[ref._id]; return { exists: !!data, data: () => data }; }, set: (ref, data) => { docs[ref._name] ||= {}; docs[ref._name][ref._id] = data; } }); },
   };

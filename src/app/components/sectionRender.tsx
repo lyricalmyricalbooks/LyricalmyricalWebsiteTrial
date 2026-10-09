@@ -1,6 +1,6 @@
 import { sectionSpacingCss } from "./sectionSpacing";
 import { Component, useEffect, type ReactNode } from "react";
-import { motion } from "motion/react";
+import { m } from "motion/react";
 import { useNavigate } from "react-router";
 import * as Sections from "./SectionComponents";
 import { hexToRgbTriplet } from "../features/site/themeTokens";
@@ -141,14 +141,14 @@ function SectionReveal({ animation, enableAnimations, children }: any) {
   const initial = initials[mode];
   if (!initial) return children;
   return (
-    <motion.div
+    <m.div
       initial={initial}
       whileInView={{ opacity: 1, x: 0, y: 0, scale: 1 }}
       viewport={{ once: true, margin: "-80px" }}
       transition={{ duration: 0.9, ease: [0.215, 0.61, 0.355, 1] }}
     >
       {children}
-    </motion.div>
+    </m.div>
   );
 }
 

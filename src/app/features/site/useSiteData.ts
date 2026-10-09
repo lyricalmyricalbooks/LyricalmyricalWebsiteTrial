@@ -4,7 +4,7 @@ import { isLiveBook } from "./liveBook";
 import { resolveSurfaceDesign } from "./surfaceDesign";
 import { dueScheduledDesign } from "./scheduledDesign.mjs";
 import { useEffect, useMemo, useState } from "react";
-import { adminApi } from "../../admin/api";
+import { publicApi } from "../../lib/publicApi";
 import { funnelApi } from "../../lib/commerce";
 import { DEFAULT_SETTINGS } from "./constants";
 import { readSiteCache, writeSiteCache, SITE_CACHE_EVENT } from "./siteCache";
@@ -13,6 +13,7 @@ import { RISO_NOIR_TOKENS, withRisoNoirDefault } from "./risoNoir";
 import { setSiteIdentity } from "../../lib/seo";
 import { applyCustomCode } from "./customCode";
 import { applyBackorderPolicy } from "./backorder";
+import { withBundleStock } from "./bundleStock";
 import { resolveProductRoutes } from "./productRoutes";
 import { loadCatalog, newestFirst } from "./loadCatalog";
 
@@ -36,9 +37,9 @@ function loadSiteData() {
     // Infinity marks an in-flight request, which every consumer should join.
     siteDataLoadedAt = Infinity;
     siteDataRequest = Promise.all([
-      loadCatalog((size, cursor) => adminApi.getStorefrontBooks(size, cursor)).then(newestFirst),
-      adminApi.getPublicSettings(),
-      adminApi.getPublishedPages(),
+      loadCatalog((size, cursor) => publicApi.getStorefrontBooks(size, cursor)).then(newestFirst),
+      publicApi.getPublicSettings(),
+      publicApi.getPublishedPages(),
     ]).then(result => {
       siteDataLoadedAt = Date.now();
       return result;
@@ -105,7 +106,7 @@ export function useSiteData() {
 
         const sessionKey = `fm_visit_${new Date().toISOString().split("T")[0]}`;
         if (!isPreview && consentAllows("analytics") && !sessionStorage.getItem(sessionKey)) {
-          adminApi.recordVisit();
+          publicApi.recordVisit();
           // Where the session came from and on what kind of screen (its own best-effort write).
           funnelApi.trackSession();
           sessionStorage.setItem(sessionKey, "true");
@@ -201,7 +202,8 @@ export function useSiteData() {
   const sellableBooks = useMemo(() => {
     const now = new Date().toISOString();
     const visible = studioPreview ? books : books.filter(book => isLiveBook(book as any, now));
-    return resolveProductRoutes(visible).map(applyBackorderPolicy);
+    // Box sets show the stock their books allow (parts are read from the whole catalog, drafts included, like the server).
+    return resolveProductRoutes(withBundleStock(visible, books)).map(applyBackorderPolicy);
   }, [books, studioPreview]);
 
   return { books: sellableBooks, settings: { ...settings, design: resolveSurfaceDesign(settings.design, location.pathname) }, pages, loading, fresh };

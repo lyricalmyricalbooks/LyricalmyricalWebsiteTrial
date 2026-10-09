@@ -353,3 +353,15 @@ ul.fw-problems {
 .fw-quantity {
   font-size: var(--rp-text-md);
 }
+
+/* Packing checklist extras: add-ons the packer must act on (sign, inscribe, wrap) and box-set contents. */
+.fw-item-addons {
+  margin: 6px 0 0;
+  padding: 6px 8px 6px 22px;
+  border-left: 3px solid var(--rp-warning, var(--rp-border-strong));
+  background: var(--rp-surface-inset);
+}
+.fw-item-name > .fw-item-extra {
+  margin-top: 6px;
+  font-weight: 600;
+}

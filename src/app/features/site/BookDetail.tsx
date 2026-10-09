@@ -1,6 +1,6 @@
 import { catName, categoryNames } from "./navItems";
 import { recommendedBooks, editionFacts } from "./merchandising";
-import { motion, AnimatePresence } from "motion/react";
+import { m, AnimatePresence } from "motion/react";
 import { Fragment, useEffect, useState } from "react";
 import toast from "react-hot-toast";
 import { useParams, Link, useNavigate, useLocation } from "react-router";
@@ -42,6 +42,8 @@ import { googleFontHref } from "./fonts";
 import { productPageCss, productPageFontNames } from "./productPageStyle";
 
 import { findProduct } from "./productRoutes";
+import { bookAddOns, isBundle, isGiftCardProduct, saleActive, saleEndDate, type GiftCardDetails } from "./promotions";
+import { AddOnPicker, BoxSetContents, GiftCardForm, addOnRequest, giftFormValid, missingWording, type AddOnPicks } from "./ProductOptions";
 const slugify = (s: string) => s.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/(^-|-$)/g, "");
 
 // ── small helper ────────────────────────────────────────────────────────────
@@ -80,6 +82,12 @@ export default function BookDetail() {
   const [imgBg, setImgBg]             = useState("transparent");
   const [selectedVariant, setSelectedVariant] = useState<any>(null);
   const [qty, setQty]                 = useState(1);
+  // Buy-card extras: ticked add-ons (with inscription wording) and a gift card's recipient.
+  const [addOnPicks, setAddOnPicks]   = useState<AddOnPicks>({});
+  const [addOnError, setAddOnError]   = useState("");
+  const emptyGift: GiftCardDetails = { recipientName: "", recipientEmail: "", senderName: "", message: "" };
+  const [giftForm, setGiftForm]       = useState<GiftCardDetails>(emptyGift);
+  const [giftError, setGiftError]     = useState("");
 
   const book: Book | undefined = findProduct(books, slug, new URLSearchParams(window.location.search).get("preview") === "true");
 
@@ -101,6 +109,8 @@ export default function BookDetail() {
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [book]);
   useEffect(() => { setQty(1); setVariantPhotoPinned(true); }, [selectedVariant?.id]);
+  // A new book starts with no extras and an empty gift form.
+  useEffect(() => { setAddOnPicks({}); setAddOnError(""); setGiftForm(emptyGift); setGiftError(""); }, [book?.id]);
 
   const storefrontDesign       = resolveProductDesign(settings?.design);
   const productImageLayout     = storefrontDesign.productImageLayout     || "slider";
@@ -308,12 +318,25 @@ export default function BookDetail() {
     }
   }, [slug]);
 
+  // What goes with this line: the extras and, for a gift card, its recipient. Null (with a message
+  // shown) when an inscription has no wording or the recipient email is malformed.
+  const lineOptions = () => {
+    const missing = missingWording(addOns, addOnPicks);
+    if (missing) { setAddOnError(getCopy(settings?.design, "pdpAddOnMissingText", { label: missing.label })); return null; }
+    setAddOnError("");
+    if (isGiftCard && !giftFormValid(giftForm)) { setGiftError(getCopy(settings?.design, "pdpGiftEmailError")); return null; }
+    setGiftError("");
+    return { addOns: addOnRequest(addOns, addOnPicks), ...(isGiftCard ? { giftCardDetails: giftForm } : {}) };
+  };
+
   const handleAddToCart = () => {
     if (!book) return;
     const stock = selectedVariant ? (selectedVariant.stockLevel ?? selectedVariant.stock ?? 0) : ((book as any).stockLevel ?? 999);
     if (Number(stock) <= 0) return;
+    const options = lineOptions();
+    if (!options) return;
     // Only confirm "Added" when a line really went into the bag.
-    if (!addToCart(book, selectedVariant || undefined, showQtyStepper ? qty : 1)) {
+    if (!addToCart(book, selectedVariant || undefined, showQtyStepper ? qty : 1, options)) {
       // Already at the most this line can hold: open the bag, where the line shows its limit,
       // instead of a click that seems to do nothing.
       if (inBag > 0) setIsCartOpen(true);
@@ -329,8 +352,10 @@ export default function BookDetail() {
 
   const handleAddBothToBag = () => {
     if (!book || !bundleBook || isOutOfStock) return;
-    // The edition the shopper has selected, and an in-stock edition of the companion book.
-    const addedThis = addToCart(book, selectedVariant || undefined);
+    const options = lineOptions();
+    if (!options) return;
+    // The edition the shopper has selected (with its extras), and an in-stock edition of the companion book.
+    const addedThis = addToCart(book, selectedVariant || undefined, 1, options);
     const companion = quickAddChoice(bundleBook);
     const addedCompanion = companion.inStock ? addToCart(bundleBook, companion.variant) : false;
     // Nothing went in (both lines already at their limit): just show the bag.
@@ -361,7 +386,8 @@ export default function BookDetail() {
     : [{ url: placeholderImage(settings?.design) }];
   const stockLevel    = selectedVariant ? (selectedVariant.stockLevel ?? selectedVariant.stock ?? 0) : ((book as any)?.stockLevel ?? 999);
   // Copies of this edition already in the bag count toward its stock and the 99-per-line limit.
-  const inBag = cart.find(item => item.id === book?.id && item.variantId === (selectedVariant?.id || undefined))?.quantity || 0;
+  // Lines of this edition with different extras share its stock, so all of them count.
+  const inBag = cart.filter(item => item.id === book?.id && (item.variantId || undefined) === (selectedVariant?.id || undefined)).reduce((n, item) => n + item.quantity, 0);
   const qtyMax = Math.max(1, lineQuantityCap(stockLevel === 999 || backorderable(book, selectedVariant) ? undefined : Number(stockLevel)) - inBag);
   useEffect(() => { setQty(q => Math.min(q, qtyMax)); }, [qtyMax]);
   // Oversold stock goes below zero: that is sold out too, not "in stock".
@@ -369,7 +395,12 @@ export default function BookDetail() {
   const isOutOfStock  = Number(stockLevel) <= 0 || (!!book && !Number.isFinite(catalogUnitPrice(book, selectedVariant || undefined)));
   const retailPrice   = selectedVariant ? selectedVariant.price : ((book as any)?.retailPrice ?? 0);
   const salePrice     = selectedVariant ? 0 : ((book as any)?.salePrice   ?? 0);
-  const isOnSale      = selectedVariant ? false : ((book as any)?.isOnSale && salePrice > 0);
+  // Only while the sale is on (inside its optional start/end dates) — the price the server charges.
+  const isOnSale      = selectedVariant ? false : (saleActive(book) && salePrice > 0);
+  const saleEnds      = isOnSale ? saleEndDate(book) : "";
+  const isGiftCard    = isGiftCardProduct(book);
+  const isBoxSet      = isBundle(book);
+  const addOns        = bookAddOns(book);
   const activeUrl     = (selectedVariant && selectedVariant.photoUrl && variantPhotoPinned) ? selectedVariant.photoUrl : (photos[activePhoto]?.url || placeholderImage(settings?.design));
 
   const alignCls      = productAlignment === "center" ? "items-center text-center" : "items-start text-left";
@@ -485,13 +516,13 @@ export default function BookDetail() {
         style={{ backgroundColor: settings?.design?.backgroundColor || "#050508" }}
       >
         <div className="flex flex-col items-center gap-5">
-          <motion.div
+          <m.div
             animate={{ scale: [1, 1.08, 1], opacity: [0.4, 1, 0.4] }}
             transition={{ duration: 2, repeat: Infinity }}
             className="w-14 h-14 rounded-[1.2rem] bg-white/[0.06] border border-white/10 flex items-center justify-center"
           >
             <Package size={20} className="text-white/50" />
-          </motion.div>
+          </m.div>
           <p className="text-white/30 text-[9px] font-black tracking-[0.5em] uppercase">{getCopy(settings?.design, "bookLoading")}</p>
         </div>
       </div>
@@ -641,7 +672,7 @@ export default function BookDetail() {
                       )}
 
                       <AnimatePresence mode="wait">
-                        <motion.img
+                        <m.img
                           key={activePhoto}
                           src={activeUrl}
                           alt={(activeUrl === photos[activePhoto]?.url && photos[activePhoto]?.altText?.trim()) || getCopy(settings?.design, "bookPhotoAlt", { title: book.title, n: activePhoto + 1 })}
@@ -830,7 +861,12 @@ export default function BookDetail() {
                         </span>
                       )}
                     </div>
-                    {pdpShowStock && (
+                    {saleEnds && !isOutOfStock && regionVisible(settings?.design, "productSaleEnds") && (
+                      <span {...regionProps("productSaleEnds")} className="fm-pdp-meta fm-pdp-sale-ends">
+                        {getCopy(settings?.design, "pdpSaleEnds", { date: formatReleaseDate(saleEnds) })}
+                      </span>
+                    )}
+                    {pdpShowStock && !isGiftCard && (
                       <span className="fm-pdp-meta fm-pdp-stock" data-state={isOutOfStock ? "out" : isPreorder ? "preorder" : isLowStock ? "low" : "in"}>
                         {stockText}
                       </span>
@@ -842,7 +878,7 @@ export default function BookDetail() {
                 <div className={`fm-pdp-card-section ${alignCls}`}>
                   {book.variants && book.variants.length > 0 && (
                     <div className={`flex flex-col gap-2.5 w-full ${productAlignment === "center" ? "items-center" : "items-start"}`}>
-                      <span id="pdp-format-label" className="fm-pdp-meta">{getCopy(settings?.design, "bookFormatLabel")}</span>
+                      <span id="pdp-format-label" className="fm-pdp-meta">{getCopy(settings?.design, isGiftCard ? "pdpGiftAmountLabel" : "bookFormatLabel")}</span>
                       <div role="group" aria-labelledby="pdp-format-label" className={`flex flex-wrap gap-2 ${productAlignment === "center" ? "justify-center" : "justify-start"}`}>
                         {book.variants.map((v: any) => {
                           const vStock = v.stockLevel ?? v.stock ?? 0;
@@ -861,6 +897,24 @@ export default function BookDetail() {
                         })}
                       </div>
                     </div>
+                  )}
+
+                  {isBoxSet && <BoxSetContents design={settings?.design} book={book} books={books} />}
+
+                  {!isOutOfStock && (
+                    <AddOnPicker
+                      design={settings?.design}
+                      addOns={addOns}
+                      picks={addOnPicks}
+                      onChange={(next) => { setAddOnPicks(next); setAddOnError(""); }}
+                      error={addOnError}
+                      formatPrice={formatPrice}
+                      unitPrice={catalogUnitPrice(book, selectedVariant || undefined)}
+                    />
+                  )}
+
+                  {isGiftCard && !isOutOfStock && (
+                    <GiftCardForm design={settings?.design} value={giftForm} onChange={(next) => { setGiftForm(next); setGiftError(""); }} error={giftError} />
                   )}
 
                   {/* CTA */}
@@ -888,7 +942,7 @@ export default function BookDetail() {
                         </button>
                       </div>
                     )}
-                    <motion.button
+                    <m.button
                       data-section="buttons"
                       onClick={handleAddToCart}
                       disabled={isOutOfStock}
@@ -897,7 +951,8 @@ export default function BookDetail() {
                         !isOutOfStock && !added && productCtaAnimation === "pulse"
                           ? { scale: [1, 1.02, 1] }
                           : !isOutOfStock && !added && productCtaAnimation === "glow"
-                          ? { boxShadow: [`0 0 0px ${buttonBg}00`, `0 0 20px ${buttonBg}50`, `0 0 0px ${buttonBg}00`] }
+                          // .custom-btn draws box-shadow from --btn-shadow with !important, so the glow animates that variable.
+                          ? { "--btn-shadow": [`0 0 0px ${buttonBg}00`, `0 0 20px ${buttonBg}50`, `0 0 0px ${buttonBg}00`] } as any
                           : {}
                       }
                       transition={
@@ -912,7 +967,7 @@ export default function BookDetail() {
                       }
                       className={`${productCtaWidth === "full" ? "flex-1 min-w-[170px]" : "px-8"} min-h-[52px] flex items-center justify-center gap-3 ${
                         productCtaSize === "medium" ? "py-3" : "py-4"
-                      } text-[10px] font-black tracking-[0.3em] transition-all duration-300 ${
+                      } text-[10px] font-black tracking-[0.3em] transition-colors duration-300 ${
                         isOutOfStock
                           ? "bg-white/[0.06] text-white/25 cursor-not-allowed border border-white/[0.06]"
                           : added
@@ -938,7 +993,7 @@ export default function BookDetail() {
                       ) : (
                         <><ShoppingBag size={14} /> {isPreorder ? getCopy(settings?.design, "preorderButton") : (storefrontDesign.addToBagLabel || settings?.design?.addToBagLabel || getCopy(settings?.design, "addToBagLabel"))}</>
                       )}
-                    </motion.button>
+                    </m.button>
 
                     <button
                       type="button"
@@ -1072,7 +1127,7 @@ export default function BookDetail() {
                   const relStock = relChoice.inStock ? 999 : 0;
                   const relPrice = getBookPrice(rel);
                   return (
-                    <motion.article
+                    <m.article
                       key={rel.id}
                       initial={{ opacity: 0, y: 20 }}
                       animate={{ opacity: 1, y: 0 }}
@@ -1114,7 +1169,7 @@ export default function BookDetail() {
                           </p>
                         )}
                       </Link>
-                    </motion.article>
+                    </m.article>
                   );
                 })}
               </div>

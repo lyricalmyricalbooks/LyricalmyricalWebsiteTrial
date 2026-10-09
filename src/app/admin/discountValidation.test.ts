@@ -31,3 +31,21 @@ describe("duplicate codes", () => {
     expect(validateDiscountDraft(valid, "2026-10-08", ["OTHER"]).code).toBeUndefined();
   });
 });
+
+describe("automatic offers and free gifts", () => {
+  const auto = { ...valid, code: "", method: "automatic", title: "Spring sale" };
+  it("needs a title instead of a code and skips the duplicate-code check", () => {
+    expect(validateDiscountDraft(auto, "2026-10-08", ["", "SAVE10"])).toEqual({});
+    expect(validateDiscountDraft({ ...auto, title: " " }, "2026-10-08").title).toBeTruthy();
+    expect(validateDiscountDraft({ ...auto, title: "x".repeat(61) }, "2026-10-08").title).toBeTruthy();
+  });
+  it("ignores automatic offers' blank codes when checking a code for duplicates", () => {
+    expect(validateDiscountDraft(valid, "2026-10-08", ["", ""]).code).toBeUndefined();
+  });
+  it("only allows a free gift as an automatic offer with a book (and edition) chosen", () => {
+    expect(validateDiscountDraft({ ...valid, type: "gift", giftBookId: "b" }, "2026-10-08").gift).toMatch(/automatic offer/);
+    expect(validateDiscountDraft({ ...auto, type: "gift" }, "2026-10-08").gift).toMatch(/Choose the book/);
+    expect(validateDiscountDraft({ ...auto, type: "gift", giftBookId: "b" }, "2026-10-08", [], { variants: [{ id: "pb" }] }).gift).toMatch(/edition/);
+    expect(validateDiscountDraft({ ...auto, type: "gift", giftBookId: "b", giftVariantId: "pb" }, "2026-10-08", [], { variants: [{ id: "pb" }] })).toEqual({});
+  });
+});

@@ -9,6 +9,7 @@ import { Login } from "./Login";
 import { BookCatalog } from "./BookCatalog";
 import { BookEditor } from "./BookEditor";
 import { Discounts } from "./Discounts";
+import { GiftCards } from "./GiftCards";
 import { Customers } from "./Customers";
 import { Inventory } from "./Inventory";
 import { ordersNeedingWork, refreshOrdersCache } from "./Orders";
@@ -50,6 +51,7 @@ export function Dashboard() {
   const [showEditor, setShowEditor] = useState(false);
   const [studioLocation, setStudioLocation] = useState<(StudioLocation & { key: number }) | null>(null);
   const [selectedOrder, setSelectedOrder] = useState<any | null>(null);
+  const [openGiftCard, setOpenGiftCard] = useState<string | null>(null);
   // Email links: /admin#orders opens Orders, /admin#orders/<id> opens that order.
   useEffect(() => {
     if (!user) return;
@@ -61,6 +63,16 @@ export function Dashboard() {
         setStudioLocation({ ...studio, key: Date.now() });
         setActiveTab("settings");
         setSettingsTab("designer");
+        history.replaceState(null, "", window.location.pathname + window.location.search);
+        return;
+      }
+      // /admin#gift-cards/<id> (links from an order) opens that gift card.
+      const card = window.location.hash.match(/^#gift-cards(?:\/([^/?#]+))?/);
+      if (card) {
+        setShowEditor(false);
+        setSelectedOrder(null);
+        setActiveTab("giftCards");
+        setOpenGiftCard(card[1] ? decodeURIComponent(card[1]) : null);
         history.replaceState(null, "", window.location.pathname + window.location.search);
         return;
       }
@@ -299,7 +311,7 @@ export function Dashboard() {
   ];
 
   // Pages fully built from Riso components render outside the legacy compatibility layer.
-  const migrated = activeTab === "reviews" || activeTab === "messages" || activeTab === "orders" || activeTab === "customers" || activeTab === "inventory" || activeTab === "overview" || activeTab === "analytics" || activeTab === "catalog" || activeTab === "discounts" || activeTab === "payments" || activeTab === "shipping" || (activeTab === "settings" && (settingsTab === "general" || settingsTab === "notifications" || settingsTab === "payments" || settingsTab === "shipping"));
+  const migrated = activeTab === "reviews" || activeTab === "messages" || activeTab === "orders" || activeTab === "customers" || activeTab === "inventory" || activeTab === "overview" || activeTab === "analytics" || activeTab === "catalog" || activeTab === "discounts" || activeTab === "giftCards" || activeTab === "payments" || activeTab === "shipping" || (activeTab === "settings" && (settingsTab === "general" || settingsTab === "notifications" || settingsTab === "payments" || settingsTab === "shipping"));
   const content = (() => {
     switch (activeTab) {
       case "overview":
@@ -309,6 +321,7 @@ export function Dashboard() {
       case "customers": return <Customers />;
       case "inventory": return <Inventory />;
       case "discounts": return <Discounts />;
+      case "giftCards": return <GiftCards openId={openGiftCard} onOpened={() => setOpenGiftCard(null)} />;
       case "reviews": return <ReviewsModeration />;
       case "messages": return <Messages />;
       case "orders":

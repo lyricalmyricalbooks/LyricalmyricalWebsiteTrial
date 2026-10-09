@@ -3,7 +3,7 @@ import { displayPrice } from "./displayPrice";
 import { regionProps } from "./storefrontRegions";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { Link } from "react-router";
-import { motion, AnimatePresence } from "motion/react";
+import { m, AnimatePresence } from "motion/react";
 import { Search, X } from "lucide-react";
 import { useCurrency } from "../../CurrencyContext";
 import { designNumber } from "./designNumber";
@@ -111,7 +111,7 @@ export function SearchOverlay({
   return (
     <AnimatePresence>
       {open && (
-        <motion.div
+        <m.div
           initial={{ opacity: 0 }}
           animate={{ opacity: 1 }}
           exit={{ opacity: 0 }}
@@ -124,7 +124,7 @@ export function SearchOverlay({
           aria-modal="true"
           aria-label={c("searchDialogAria")}
         >
-          <motion.div {...regionProps("searchPanel")}
+          <m.div {...regionProps("searchPanel")}
             initial={{ y: -20, opacity: 0 }}
             animate={{ y: 0, opacity: 1 }}
             exit={{ y: -20, opacity: 0 }}
@@ -198,8 +198,8 @@ export function SearchOverlay({
                 );
               })}
             </div>
-          </motion.div>
-        </motion.div>
+          </m.div>
+        </m.div>
       )}
     </AnimatePresence>
   );
