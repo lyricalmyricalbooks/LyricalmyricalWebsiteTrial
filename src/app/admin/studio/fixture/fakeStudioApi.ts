@@ -65,8 +65,25 @@ export function installFakeStudioApi(api: Record<string, any>, fixture: StudioFi
     saveThemeVersion: async (kind: string, label: string, design: any) => {
       record("saveThemeVersion", kind, label);
       const version = { id: `v${fixture.versions.length + 1}`, kind, label, createdAt: new Date().toISOString(), design: clone(design) };
+      if (kind === "draft") fixture.versions = fixture.versions.filter(v => v.id !== "draft-latest");
+      if (kind === "draft") version.id = "draft-latest";
       fixture.versions.unshift(version);
       return version;
+    },
+    saveThemeCheckpoint: async (name: string, design: any) => {
+      record("saveThemeCheckpoint", name);
+      const version = { id: `v${fixture.versions.length + 1}`, kind: "checkpoint", label: name, name, pinned: true, createdAt: new Date().toISOString(), design: clone(design) };
+      fixture.versions.unshift(version);
+      return clone(version);
+    },
+    updateThemeVersion: async (id: string, patch: any) => {
+      record("updateThemeVersion", id, patch);
+      fixture.versions = fixture.versions.map(v => (v.id === id ? { ...v, ...patch } : v));
+      return patch;
+    },
+    deleteThemeVersion: async (id: string) => {
+      record("deleteThemeVersion", id);
+      fixture.versions = fixture.versions.filter(v => v.id !== id);
     },
     createPage: async (page: any) => { record("createPage", page); const created = { ...page, id: `p${fixture.pages.length + 1}` }; fixture.pages.push(created); return created; },
     updatePage: async (id: string, page: any) => { record("updatePage", id, page); fixture.pages = fixture.pages.map(p => p.id === id ? { ...p, ...page } : p); },

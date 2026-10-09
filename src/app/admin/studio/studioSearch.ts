@@ -105,7 +105,7 @@ const ACTIONS: { id: StudioActionId; title: string; keywords: string }[] = [
   { id: "save", title: "Save draft", keywords: "keep store changes ctrl s" },
   { id: "publish", title: "Publish to the live shop", keywords: "go live release push shoppers" },
   { id: "discard", title: "Discard draft", keywords: "throw away reset revert to live" },
-  { id: "history", title: "Version history", keywords: "restore previous older versions" },
+  { id: "history", title: "Version history", keywords: "restore previous older versions checkpoint save compare differences pin undo published" },
   { id: "check", title: "Pre-publish check", keywords: "review accessibility problems warnings" },
   { id: "preview-tab", title: "Preview in new tab", keywords: "full screen window open" },
   { id: "undo", title: "Undo", keywords: "step back ctrl z" },

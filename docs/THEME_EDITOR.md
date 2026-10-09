@@ -498,7 +498,16 @@ background images (section backgrounds) have no `srcset`; old files of a replace
 the image; existing images are not migrated into the library.
 
 **Phase 3 — Theme management & quality**
-- [ ] 3.1 Version history 2.0. - [ ] 3.2 Live sync. - [ ] 3.3 Studio Health. - [ ] 3.4 Themes workspace + share previews.
+- [x] 3.1 Version history 2.0 (`studio/StudioHistory.tsx`, pure diff/restore in `studio/designDiff.ts`). Theme actions ›
+  **Version history** lists each Publish (last 30), the latest saved draft and named **checkpoints** (Save checkpoint…,
+  `adminApi.saveThemeCheckpoint`), which are pinned and never pruned (`pinned`, up to 20; Pin/Unpin/Rename/Delete in each
+  row's ··· menu; the latest-draft row offers Keep as checkpoint). **Compare** lists what differs from the current draft,
+  the live site or another version, labelled from `STYLE_GROUPS`, `COPY_SCHEMA`, the section registry and page templates
+  (sections matched by id across pages and groups: added, removed, moved, changed fields). Against the draft each line has
+  **Use this version's** (`restoreItem`: one named, undoable draft change). Publish/Discard dialogs use the same wording
+  (`summariseDiff`). Same `theme-versions` collection and rules; `listThemeVersions` adds pinned rows via a single-field
+  `where("pinned", "==", true)` (no composite index). Deviation: version bodies still load with their rows.
+- [ ] 3.2 Live sync. - [ ] 3.3 Studio Health. - [ ] 3.4 Themes workspace + share previews.
 - [ ] 3.5 Scheduling & campaigns.
 
 **Phase 4 — Performance (continuous).**
@@ -821,7 +830,8 @@ content from responsive layout overrides. Existing draft/publish persistence is 
       undoable draft; the published site is the active theme until Publish.
 - [x] Version history / restore previous published versions: every Save Draft / Publish
       writes a snapshot to the admin-only `theme-versions` Firestore collection
-      (`adminApi.saveThemeVersion`/`listThemeVersions`, last 30 kept, pruned on save),
+      (`adminApi.saveThemeVersion`/`listThemeVersions`; Publish adds one, Save draft refreshes `draft-latest`; last 30
+      unpinned kept, pinned versions/checkpoints never pruned — see 3.1),
       shown in Studio's History dialog so history survives reloads. Preview is
       non-destructive; Restore loads a snapshot into the working copy as an
       unsaved change, and nothing goes live until Publish.

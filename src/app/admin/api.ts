@@ -639,10 +639,13 @@ export const adminApi = {
     }
     const ref = await addDoc(collection(db, "theme-versions"), { kind, label, createdAt, design: snapshot });
     // Best-effort pruning of anything past the retention limit (each Publish adds one, so a
-    // short ordered page is enough — no need to download every stored design).
+    // short ordered page is enough — no need to download every stored design). Pinned versions
+    // and checkpoints (Studio › Version history) are never pruned.
     try {
       const snap = await getDocs(query(collection(db, "theme-versions"), orderBy("createdAt", "desc"), limit(adminApi.THEME_VERSION_LIMIT + 10)));
-      const stale = snap.docs.filter((d: any) => d.id !== adminApi.THEME_DRAFT_VERSION_ID).slice(adminApi.THEME_VERSION_LIMIT);
+      const stale = snap.docs
+        .filter((d: any) => d.id !== adminApi.THEME_DRAFT_VERSION_ID && d.data?.()?.pinned !== true)
+        .slice(adminApi.THEME_VERSION_LIMIT);
       await Promise.all(stale.map((d: any) => deleteDoc(doc(db, "theme-versions", d.id))));
     } catch (err) {
       console.warn("Could not prune theme versions:", err);
@@ -650,11 +653,63 @@ export const adminApi = {
     return { id: ref.id, kind, label, createdAt, design: snapshot };
   },
 
+  /** Most pinned versions/checkpoints kept at once (they never age out, so they are capped). */
+  THEME_PINNED_LIMIT: 20,
+
+  /** Pinned versions, newest first (a single-field filter: no composite index needed). */
+  listPinnedThemeVersions: async () => {
+    const snap = await getDocs(query(collection(db, "theme-versions"), where("pinned", "==", true)));
+    return snap.docs.map((d: any) => ({ id: d.id, ...d.data() }))
+      .sort((a: any, b: any) => String(b.createdAt || "").localeCompare(String(a.createdAt || "")));
+  },
+
+  /** A named, pinned snapshot of the current draft (Studio › Version history › Save checkpoint). */
+  saveThemeCheckpoint: async (name: string, design: any) => {
+    const clean = String(name || "").trim().slice(0, 80) || `Checkpoint ${new Date().toLocaleString()}`;
+    if ((await adminApi.listPinnedThemeVersions()).length >= adminApi.THEME_PINNED_LIMIT) throw new Error("THEME_PINNED_LIMIT");
+    const createdAt = new Date().toISOString();
+    const snapshot = JSON.parse(JSON.stringify(design));
+    const entry = { kind: "checkpoint", label: clean, name: clean, pinned: true, createdAt, design: snapshot };
+    const ref = await addDoc(collection(db, "theme-versions"), entry);
+    return { id: ref.id, ...entry };
+  },
+
+  /** Rename or pin/unpin a kept version. The latest-draft entry is overwritten by every save, so it can't be. */
+  updateThemeVersion: async (id: string, patch: { name?: string; pinned?: boolean }) => {
+    if (!id || id === adminApi.THEME_DRAFT_VERSION_ID) throw new Error("The latest draft can't be renamed or pinned — keep it as a checkpoint instead.");
+    const update: Record<string, any> = {};
+    if (typeof patch.name === "string") {
+      const clean = patch.name.trim().slice(0, 80);
+      if (clean) update.name = clean;
+    }
+    if (typeof patch.pinned === "boolean") {
+      if (patch.pinned) {
+        const pinned = await adminApi.listPinnedThemeVersions();
+        if (!pinned.some((v: any) => v.id === id) && pinned.length >= adminApi.THEME_PINNED_LIMIT) throw new Error("THEME_PINNED_LIMIT");
+      }
+      update.pinned = patch.pinned;
+    }
+    if (Object.keys(update).length) await updateDoc(doc(db, "theme-versions", id), update);
+    return update;
+  },
+
+  /** Delete a checkpoint or an older published version (never the latest-draft entry). */
+  deleteThemeVersion: async (id: string) => {
+    if (!id || id === adminApi.THEME_DRAFT_VERSION_ID) throw new Error("The latest draft entry can't be deleted.");
+    await deleteDoc(doc(db, "theme-versions", id));
+  },
+
+  /** The latest versions plus every pinned one (pinned ones may be older than the latest 30). */
   listThemeVersions: async () => {
     const snap = await getDocs(
       query(collection(db, "theme-versions"), orderBy("createdAt", "desc"), limit(adminApi.THEME_VERSION_LIMIT)),
     );
-    return snap.docs.map((d: any) => ({ id: d.id, ...d.data() }));
+    const recent = snap.docs.map((d: any) => ({ id: d.id, ...d.data() }));
+    let pinned: any[] = [];
+    try { pinned = await adminApi.listPinnedThemeVersions(); } catch (err) { console.warn("Could not load pinned theme versions:", err); }
+    const seen = new Set(recent.map((v: any) => v.id));
+    return [...recent, ...pinned.filter((v: any) => !seen.has(v.id))]
+      .sort((a: any, b: any) => String(b.createdAt || "").localeCompare(String(a.createdAt || "")));
   },
 
   // Schedule a design to go live at a future time. The storefront applies it
