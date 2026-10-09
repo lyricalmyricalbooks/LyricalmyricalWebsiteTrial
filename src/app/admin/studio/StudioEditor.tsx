@@ -52,7 +52,7 @@ import { ActionMenu, Dialog, PrimaryButton, SecondaryButton, useConfirm, useProm
 import { applyInlineText, INLINE_STYLE_KEYS } from "./inlineText";
 import { filterSettingGroups } from "./studioNavigation";
 import { designChecks as buildDesignChecks, designSize } from "./studioChecks";
-import { EXTRA_STYLE_CATEGORIES, TEXT_BLURBS, TEXT_HEADINGS, THEME_HEADINGS, blurbFor, changedCopyCount, changedCounts, changedFields, defaultFor, isChanged, subsectionsFor } from "./settingsMap";
+import { CATEGORY_PAGES, EXTRA_STYLE_CATEGORIES, textSubsectionsFor, TEXT_BLURBS, TEXT_HEADINGS, THEME_HEADINGS, blurbFor, changedCopyCount, changedCounts, changedFields, defaultFor, isChanged, subsectionsFor } from "./settingsMap";
 import { CategoryHeader, SettingsHome, SettingsSubsection, StudioTips, type HomeHeading } from "./StudioSettingsHome";
 
 import { saveSavedThemes, type Workspace } from "../themeStore";
@@ -775,6 +775,29 @@ export function StudioEditor({ settings, onExit, onPersisted, appearance = "ligh
       return label ? { ...rest, label } : rest;
     }), { label: label ? `Rename section to ${label}` : "Clear section name" });
   };
+  // Theme settings › "Show on page": open the page where a category's part appears, then select that
+  // part in the inspector once the preview has reported its structure (opening a pop-over if needed).
+  const pendingShow = useRef<null | { group: string; overlayOpened: boolean; until: number }>(null);
+  const showOnPage = (groupId: string) => {
+    const where = CATEGORY_PAGES[groupId]; if (!where) return;
+    pendingShow.current = { group: groupId, overlayOpened: false, until: Date.now() + 8000 };
+    setStyleCategory(null); setStyleFocus(null); setSelectedId(null); setBlockId(null); setShowGlobal(false);
+    setLeftTab("sections"); setMobilePanel("preview");
+    if (where.template && where.template !== template.id) setTemplateId(where.template);
+    else postPreview({ type: "SCAN_STRUCTURE" });
+  };
+  useEffect(() => {
+    const want = pendingShow.current; if (!want || !structure) return;
+    if (Date.now() > want.until) { pendingShow.current = null; return; }
+    const all = (items: StructureItem[]): StructureItem[] => items.flatMap(i => [i, ...all(i.children)]);
+    const found = all([...structure.header, ...structure.main, ...structure.footer, ...structure.overlay, ...structure.page])
+      .find(i => i.target.split("|").includes(`style:${want.group}`));
+    if (found) { pendingShow.current = null; openStructureItem(found); return; }
+    const overlay = CATEGORY_PAGES[want.group]?.overlay;
+    if (overlay && !want.overlayOpened) { want.overlayOpened = true; setMode("edit"); postPreview({ type: "OPEN_OVERLAY", overlay }); return; }
+    pendingShow.current = null;
+    say("ok", "That part isn't on this page right now. Pick a page where it shows with Page to edit, then click it in the preview.");
+  }, [structure]); // eslint-disable-line react-hooks/exhaustive-deps
   // preview → editor messages
   useEffect(() => {
     const h = (e: MessageEvent) => {
@@ -1104,12 +1127,21 @@ export function StudioEditor({ settings, onExit, onPersisted, appearance = "ligh
     if (t.type === "tab") { setLeftTab(t.tab); setStyleFocus(null); setSelectedId(null); setBlockId(null); return; }
     if (t.type === "style") {
       setSelectedId(null); setBlockId(null); setStyleSearch(""); setStyleCategory(t.groupId); setStyleFocus(null); setLeftTab("style");
-      if (t.key) setFieldFocus({ key: t.key, nonce: Date.now() });
-      const region = REGION_GROUPS.find(g => g.id === t.groupId)?.regions.find(r => t.key?.startsWith('regions.' + r.id));
-      if (region && t.key) { openRegion(t.groupId, region.label); setDevice(regionFieldDevice(t.key)); }
+      // Search lists an element setting once (its desktop field); open it at the size being previewed.
+      let key = t.key;
+      const region = key ? REGION_GROUPS.find(g => g.id === t.groupId)?.regions.find(r => {
+        const prefix = "regions." + regionKey(r.id, "", regionFieldDevice(key!));
+        return key!.startsWith(prefix) && REGION_SUFFIXES.includes(key!.slice(prefix.length));
+      }) : undefined;
+      if (region && key) {
+        const prefix = "regions." + regionKey(region.id, "", regionFieldDevice(key));
+        key = "regions." + regionKey(region.id, key.slice(prefix.length), device);
+        openRegion(t.groupId, region.label);
+      }
+      if (key) setFieldFocus({ key, nonce: Date.now() });
       const panel = `style:${t.groupId}`;
       setFocus(f => ({ id: panel, nonce: f.nonce + 1 }));
-      flashPanel(t.key ? `[data-style-key="${CSS.escape(t.key)}"]` : `[data-studio-panel="${CSS.escape(panel)}"]`, Boolean(t.key));
+      flashPanel(key ? `[data-style-key="${CSS.escape(key)}"]` : `[data-studio-panel="${CSS.escape(panel)}"]`, Boolean(key));
       return;
     }
     if (t.type === "copy") {
@@ -1137,7 +1169,7 @@ export function StudioEditor({ settings, onExit, onPersisted, appearance = "ligh
   const changed = useMemo(() => changedCounts(STYLE_GROUPS, design, defaults), [design, defaults]);
   const themeHome: HomeHeading[] = THEME_HEADINGS.map(h => ({ ...h, categories: h.groups.map(id => {
     const group = STYLE_GROUPS.find(g => g.id === id);
-    return { id, title: EXTRA_STYLE_CATEGORIES[id]?.title || group?.title || id, blurb: blurbFor(group, id), changed: changed.byGroup[id] };
+    return { id, title: EXTRA_STYLE_CATEGORIES[id]?.title || group?.title || id, blurb: blurbFor(group, id), changed: changed.byGroup[id], onPage: Boolean(CATEGORY_PAGES[id]) };
   }) }));
   const textHome: HomeHeading[] = TEXT_HEADINGS.map(h => ({ ...h, categories: h.groups.map(name => {
     const group = COPY_SCHEMA.find(g => g.group === name);
@@ -1221,7 +1253,7 @@ export function StudioEditor({ settings, onExit, onPersisted, appearance = "ligh
                 onMakeAll={(key, value) => change(d => writeDesignValue(d, key, value, "all"))} />
             )}
             {leftTab === "style" && !styleSearch.trim() && !styleCategory && !styleFocus && (
-              <SettingsHome headings={themeHome} onOpen={(id) => setStyleCategory(id)}
+              <SettingsHome headings={themeHome} onOpen={(id) => setStyleCategory(id)} onShowOnPage={showOnPage}
                 changedTotal={changed.total} onOpenChanged={() => setStyleCategory(CHANGED_CATEGORY)} />
             )}
             {leftTab === "style" && !styleSearch.trim() && styleCategory && !styleFocus && (() => {
@@ -1399,7 +1431,12 @@ export function StudioEditor({ settings, onExit, onPersisted, appearance = "ligh
                   if (!fs.length) return null;
                   const fieldsList = fs.map(f => <StudioCopyField key={f.key} field={f} design={design}
                     onChange={value => setStyle('copy.' + f.key, value)} />);
-                  if (!q) return <div key={g.group} data-studio-panel={`copy:${g.group}`} className="px-4 pb-4 space-y-4">{fieldsList}</div>;
+                  if (!q) return <div key={g.group} data-studio-panel={`copy:${g.group}`} className="px-4 pb-4 space-y-4">
+                    {textSubsectionsFor(g).map((sub, i, all) => <SettingsSubsection key={sub.title || "all"} title={all.length > 1 ? sub.title : ""} noun="word"
+                      count={sub.fields.length} changed={changedCopyCount(sub.fields, design)} defaultOpen={i === 0} keys={sub.fields.map(f => f.key)}>
+                      {sub.fields.map(f => <StudioCopyField key={f.key} field={f} design={design} onChange={value => setStyle('copy.' + f.key, value)} />)}
+                    </SettingsSubsection>)}
+                  </div>;
                   return (
                     <Group key={g.group} id={`copy:${g.group}`} title={g.group} open>
                       {fieldsList}

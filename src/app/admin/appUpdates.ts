@@ -10,6 +10,11 @@ export type AppUpdate = {
 // Newest first. Every PR adds an entry; links open the affected admin workspace.
 export const APP_UPDATES: AppUpdate[] = [
   {
+    id: "studio-2-theme-system", date: "2026-10-09", title: "Theme settings, sorted into your site's look and its parts",
+    summary: "Theme settings in the Design studio now opens in three parts. \"Site-wide design\" holds what every page shares: theme presets, logo, colours, fonts, buttons, spacing and the Riso print look. \"Parts of your shop\" holds the header and footer, the shop and book pages, and the bag, checkout and account pages — each has a \"Show on page\" button that opens that page in the preview (or opens the shopping bag) and selects the part, so you can see what you're changing. Long word lists in Text & labels (Checkout, Order tracking, Customer account, Product page, Cart) are split into short sections such as \"Discount codes\" and \"Error messages\". Find anything gives shorter result lists and opens an element's setting at the screen size you're previewing.",
+    links: [{ label: "Open Theme settings", tab: "settings", settingsTab: "designer", studio: "#designer?tab=style" }],
+  },
+  {
     id: "studio-2-list-tools", date: "2026-10-09", title: "Move, copy and tidy sections faster",
     summary: "In the Design studio's Page layout list, right-click a section (or use its ··· button) to copy it, paste it below another, copy its look and paste that look onto other sections, save it for reuse, or move it to another page — for example from Home to About. Hold Ctrl (⌘ on a Mac) and click several sections to hide, show, restyle, move or delete them together. Blocks inside a section can move to another section of the same kind with the arrows button, or by dragging them onto it in the preview. Every change can be undone.",
     links: [{ label: "Open Page layout", tab: "settings", settingsTab: "designer", studio: "#designer?tab=sections" }],

@@ -117,6 +117,18 @@ await check("find anything opens a setting", desktop, async page => {
   await page.getByRole("dialog").waitFor({ state: "detached", timeout: 5000 });
 });
 
+await check("find anything opens an element setting at the size being previewed", desktop, async page => {
+  await page.getByRole("button", { name: "mobile preview" }).click();
+  await page.waitForFunction(() => document.querySelector(".studio-preview-frame")?.style.width === "390px", null, { timeout: 5000 });
+  await page.keyboard.press(`${mod}+k`);
+  await page.getByRole("dialog").getByRole("combobox").fill("newsletter button padding top");
+  await page.getByRole("option").first().waitFor({ state: "attached", timeout: 5000 });
+  await page.keyboard.press("Enter");
+  await page.locator('[data-style-key="regions.newsletterButtonMobilePaddingTop"]').first().waitFor({ state: "attached", timeout: 8000 });
+  const width = await page.evaluate(() => document.querySelector(".studio-preview-frame")?.style.width);
+  if (width !== "390px") throw new Error(`the preview left phone size (${width})`);
+});
+
 await check("clicking a section in the preview opens its settings", desktop, async page => {
   await page.getByRole("button", { name: "Add section" }).first().click();
   await page.getByRole("button", { name: /^Newsletter/ }).first().click();
@@ -227,6 +239,26 @@ await check("pick several sections and hide them together", desktop, async page 
   await bar.getByText("2 selected").waitFor({ timeout: 5000 });
   await bar.getByRole("button", { name: "Hide" }).click();
   await page.waitForFunction(() => document.querySelectorAll(".studio-outline .studio-tree-row[data-hidden=true]").length === 2);
+});
+
+await check("Theme settings › Show on page selects that part, opening the bag when needed", desktop, async page => {
+  await expectText(page, "Preview connected", 30000);
+  await page.getByRole("button", { name: "Theme settings", exact: true }).first().click();
+  await page.getByText("Site-wide design").first().waitFor({ timeout: 5000 });
+  await page.getByRole("button", { name: "Show Header & announcement bar on the page" }).click();
+  await page.locator("[data-studio-element-inspector]").waitFor({ timeout: 10000 });
+  await page.getByRole("button", { name: "Theme settings", exact: true }).first().click();
+  await page.getByRole("button", { name: "Show Cart drawer (shopping bag) on the page" }).click();
+  const frame = page.frameLocator("iframe").first();
+  await frame.locator("[role=dialog][data-studio-label='Cart drawer']").waitFor({ state: "visible", timeout: 10000 });
+  await page.locator("[data-studio-element-inspector][aria-label='Cart drawer settings']").waitFor({ timeout: 10000 });
+});
+
+await check("long text groups open as short sub-sections", desktop, async page => {
+  await page.getByRole("button", { name: "Text & labels", exact: true }).first().click();
+  await page.getByRole("button", { name: /^Checkout/ }).first().click();
+  await page.getByRole("button", { name: /Payment & the Pay button/ }).waitFor({ timeout: 5000 });
+  await page.getByRole("button", { name: /Error messages/ }).waitFor({ timeout: 5000 });
 });
 
 await check("page-only overrides are listed and can follow all pages", desktop, async page => {

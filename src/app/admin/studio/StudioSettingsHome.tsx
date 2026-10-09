@@ -1,11 +1,11 @@
-import { useEffect, useState, type ReactNode } from "react";
-import { ArrowLeft, ChevronDown, ChevronRight } from "lucide-react";
+import { Fragment, useEffect, useState, type ReactNode } from "react";
+import { ArrowLeft, ChevronDown, ChevronRight, Eye } from "lucide-react";
 
 // Presentation-only pieces for Studio's friendlier Theme settings / Text & labels homes.
 // They never edit the design themselves; StudioEditor passes the existing editors in as children.
 
-export type HomeCategory = { id: string; title: string; blurb: string; changed?: number };
-export type HomeHeading = { id: string; title: string; blurb?: string; advanced?: boolean; categories: HomeCategory[] };
+export type HomeCategory = { id: string; title: string; blurb: string; changed?: number; onPage?: boolean };
+export type HomeHeading = { id: string; title: string; blurb?: string; advanced?: boolean; band?: string; categories: HomeCategory[] };
 
 const plural = (n: number, word: string) => `${n} ${word}${n === 1 ? "" : "s"}`;
 
@@ -15,9 +15,11 @@ export function ChangedBadge({ count, label = "changed" }: { count?: number; lab
 }
 
 /** Category cards under task headings. Advanced headings stay folded until asked for. */
-export function SettingsHome({ headings, onOpen, changedTotal, onOpenChanged, changedNoun = "setting" }: {
+export function SettingsHome({ headings, onOpen, changedTotal, onOpenChanged, changedNoun = "setting", onShowOnPage }: {
   headings: HomeHeading[]; onOpen: (id: string) => void;
   changedTotal?: number; onOpenChanged?: () => void; changedNoun?: string;
+  /** "Show on page": open the page where this category's part appears and select it. */
+  onShowOnPage?: (id: string) => void;
 }) {
   const [showAdvanced, setShowAdvanced] = useState<Record<string, boolean>>({});
   return (
@@ -32,9 +34,11 @@ export function SettingsHome({ headings, onOpen, changedTotal, onOpenChanged, ch
         const open = !h.advanced || showAdvanced[h.id];
         const changed = h.categories.reduce((n, c) => n + (c.changed || 0), 0);
         return (
-          <section key={h.id} className="studio-settings-heading" aria-labelledby={`studio-heading-${h.id}`}>
+          <Fragment key={h.id}>
+          {h.band && <h2 className="studio-settings-band">{h.band}</h2>}
+          <section className="studio-settings-heading" aria-labelledby={`studio-heading-${h.id}`}>
             <div className="studio-settings-heading-title">
-              <h3 id={`studio-heading-${h.id}`}>{h.title}</h3>
+              {h.title ? <h3 id={`studio-heading-${h.id}`}>{h.title}</h3> : <span id={`studio-heading-${h.id}`} className="rp-sr-only">{h.band}</span>}
               {h.advanced && <ChangedBadge count={changed} />}
             </div>
             {h.blurb && <p className="studio-hint">{h.blurb}</p>}
@@ -47,13 +51,18 @@ export function SettingsHome({ headings, onOpen, changedTotal, onOpenChanged, ch
             )}
             {open && <div className="studio-category-cards">
               {h.categories.map((c) => (
-                <button type="button" key={c.id} className="studio-category-card" onClick={() => onOpen(c.id)}>
-                  <span className="studio-category-card-text"><strong>{c.title}</strong>{c.blurb && <small>{c.blurb}</small>}</span>
-                  <span className="studio-category-card-side"><ChangedBadge count={c.changed} /><ChevronRight size={15} aria-hidden="true" /></span>
-                </button>
+                <div key={c.id} className="studio-category-item">
+                  <button type="button" className="studio-category-card" onClick={() => onOpen(c.id)}>
+                    <span className="studio-category-card-text"><strong>{c.title}</strong>{c.blurb && <small>{c.blurb}</small>}</span>
+                    <span className="studio-category-card-side"><ChangedBadge count={c.changed} /><ChevronRight size={15} aria-hidden="true" /></span>
+                  </button>
+                  {c.onPage && onShowOnPage && <button type="button" className="studio-show-on-page" aria-label={`Show ${c.title} on the page`}
+                    onClick={() => onShowOnPage(c.id)}><Eye size={13} aria-hidden="true" /> Show on page</button>}
+                </div>
               ))}
             </div>}
           </section>
+          </Fragment>
         );
       })}
     </div>
@@ -78,9 +87,10 @@ export function CategoryHeader({ title, blurb, backLabel, onBack, extra }: {
  * A short, collapsible list inside a category. Opens by default when asked, when it holds the field
  * Find anything is jumping to (`focusKey`), or when the owner opens it.
  */
-export function SettingsSubsection({ title, count, changed, defaultOpen = false, keys, focusKey, children }: {
+export function SettingsSubsection({ title, count, changed, defaultOpen = false, keys, focusKey, children, noun = "setting" }: {
   title: string; count: number; changed?: number; defaultOpen?: boolean;
   keys: string[]; focusKey?: { key: string; nonce: number } | null; children: ReactNode;
+  noun?: string;
 }) {
   const [open, setOpen] = useState(defaultOpen);
   useEffect(() => { if (focusKey && keys.includes(focusKey.key)) setOpen(true); }, [focusKey]); // eslint-disable-line react-hooks/exhaustive-deps
@@ -90,7 +100,7 @@ export function SettingsSubsection({ title, count, changed, defaultOpen = false,
       <button type="button" className="studio-subsection-toggle" aria-expanded={open} onClick={() => setOpen((o) => !o)}>
         {open ? <ChevronDown size={14} aria-hidden="true" /> : <ChevronRight size={14} aria-hidden="true" />}
         <span>{title}</span>
-        <small>{plural(count, "setting")}</small>
+        <small>{plural(count, noun)}</small>
         <ChangedBadge count={changed} />
       </button>
       {open && <div className="studio-subsection-body">{children}</div>}

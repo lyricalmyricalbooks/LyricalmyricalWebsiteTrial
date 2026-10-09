@@ -2,8 +2,8 @@ import { describe, expect, it } from "vitest";
 import { STYLE_GROUPS } from "./styleSchema";
 import { COPY_SCHEMA } from "../../features/site/storeCopy";
 import {
-  EXTRA_STYLE_CATEGORIES, GROUP_BLURBS, MORE_SETTINGS, STYLE_SUBSECTIONS, TEXT_BLURBS, TEXT_HEADINGS, THEME_HEADINGS,
-  blurbFor, changedCopyCount, changedCounts, changedFields, isChanged, subsectionsFor,
+  CATEGORY_PAGES, EXTRA_STYLE_CATEGORIES, GROUP_BLURBS, MORE_SETTINGS, MORE_WORDS, STYLE_SUBSECTIONS, TEXT_BLURBS, TEXT_HEADINGS, TEXT_SUBSECTIONS, THEME_HEADINGS,
+  blurbFor, changedCopyCount, changedCounts, changedFields, isChanged, subsectionsFor, textSubsectionsFor,
 } from "./settingsMap";
 
 // The friendlier Studio layout must never hide a control: these checks fail if a category, a text
@@ -97,5 +97,40 @@ describe("Text & labels home", () => {
   it("counts rewritten labels, including deliberately blank ones", () => {
     expect(changedCopyCount([{ key: "a" }, { key: "b" }, { key: "c" }], { copy: { a: "Hi", b: "" } })).toBe(2);
     expect(changedCopyCount([{ key: "a" }], {})).toBe(0);
+  });
+});
+
+describe("Theme settings bands and Show on page", () => {
+  it("opens with the site-wide design system, then the parts of the shop, then advanced tools", () => {
+    expect(THEME_HEADINGS.filter(h => h.band).map(h => h.band)).toEqual(["Site-wide design", "Parts of your shop", "Advanced"]);
+    expect(THEME_HEADINGS[0].groups[0]).toBe("themeLook");
+    expect(THEME_HEADINGS.filter(h => h.advanced).every(h => THEME_HEADINGS.indexOf(h) > THEME_HEADINGS.findIndex(x => x.band === "Advanced") - 1)).toBe(true);
+  });
+  it("can show every part-of-the-shop category on a page", () => {
+    const start = THEME_HEADINGS.findIndex(h => h.band === "Parts of your shop"), end = THEME_HEADINGS.findIndex(h => h.band === "Advanced");
+    const parts = THEME_HEADINGS.slice(start, end).flatMap(h => h.groups).filter(id => id !== "elements");
+    expect(parts.filter(id => !CATEGORY_PAGES[id])).toEqual([]);
+  });
+});
+
+describe("text sub-sections", () => {
+  it("never lose or duplicate a string", () => {
+    for (const g of COPY_SCHEMA) {
+      const keys = textSubsectionsFor(g).flatMap(s => s.fields.map(f => f.key));
+      expect(keys.sort(), g.group).toEqual(g.fields.map(f => f.key).sort());
+    }
+  });
+  it("only split groups that exist, and leave few strings in More words", () => {
+    for (const [name, subs] of Object.entries(TEXT_SUBSECTIONS)) {
+      const group = COPY_SCHEMA.find(g => g.group === name);
+      expect(group, name).toBeTruthy();
+      const parts = textSubsectionsFor(group!);
+      const rest = parts.find(p => p.title === MORE_WORDS)?.fields.length || 0;
+      expect(rest, `${name} More words: ${parts.find(p => p.title === MORE_WORDS)?.fields.map(f => f.key).join(" ")}`).toBeLessThanOrEqual(6);
+      expect(parts.filter(p => p.title !== MORE_WORDS).length, name).toBe(subs.length);
+    }
+  });
+  it("splits every text group with 30 or more strings", () => {
+    expect(COPY_SCHEMA.filter(g => g.fields.length >= 30 && !TEXT_SUBSECTIONS[g.group]).map(g => g.group)).toEqual([]);
   });
 });

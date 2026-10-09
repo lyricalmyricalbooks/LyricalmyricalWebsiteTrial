@@ -619,15 +619,20 @@ holds preview, history, checks and guarded discard. Inspector device context dis
 content from responsive layout overrides. Existing draft/publish persistence is unchanged.
 
 **Friendlier settings homes (October 2026).** `studio/settingsMap.ts` (pure, tested) decides *where* controls
-appear; it never adds or removes one. Theme settings opens on task headings: Overall look, Header, menu & footer,
-Shop & book pages, Bag, checkout & accounts, Pages & small details, and a folded **Fine-tune single elements**
-(per-element region groups + Custom code). Each category card has a one-line description (`GROUP_BLURBS`)
+appear; it never adds or removes one. Theme settings opens in three bands (`THEME_HEADINGS` `band`):
+**Site-wide design** (presets, logo, colours, typography, small print, buttons, layout, motion, Riso — the design
+system), **Parts of your shop** (Header, menu & footer · Shop & book pages · Bag, checkout & accounts · Pages &
+features) and **Advanced** (folded **Fine-tune single elements** + Custom code). Part cards have **Show on page**
+(`CATEGORY_PAGES` names the preview page or pop-over; Studio opens it and selects the part from the structure scan). Each category card has a one-line description (`GROUP_BLURBS`)
 and a **● N changed** badge. **Theme presets & saved themes** and **Payment icons** are categories now
 (`EXTRA_STYLE_CATEGORIES`; click-to-edit `style:paymentIcons` opens it). Big categories split into short collapsible
 sub-sections (`STYLE_SUBSECTIONS`; unlisted keys fall into **More settings**, so a new control always shows);
 Find anything opens the sub-section holding the field (`fieldFocus`). Fields that differ from the default
 design show **Changed from default** + **Reset to default**, and **What I've changed** lists them all.
-Text & labels uses the same home (`TEXT_HEADINGS`, `TEXT_BLURBS`, "Text I've changed"). Page layout shows
+Text & labels uses the same home (`TEXT_HEADINGS`, `TEXT_BLURBS`, "Text I've changed"); long groups (Checkout,
+Order tracking, Customer account, Product page, Cart) open as short sub-sections (`TEXT_SUBSECTIONS`, regex by key,
+leftovers in **More words**; a new key always shows). Find anything indexes region fields once (desktop entry,
+tagged tablet/phone) instead of per device. Page layout shows
 **Add section**, **Auto-fit page for phones** and a **Section tools** menu (copy / paste / save for reuse);
 saved sections are picked from Add section › **Your saved sections**. A dismissible **How Studio works** card
 (Theme actions › Show Studio tips) orients first-time use. `settingsMap.test.ts` fails if any Style category,

@@ -68,3 +68,17 @@ describe("searchStudio", () => {
     expect(searchStudio(index, "color", { limit: 5 }).length).toBeLessThanOrEqual(5);
   });
 });
+
+describe("search index size", () => {
+  it("indexes each element setting once, not once per screen size, and still finds phone settings", async () => {
+    const { buildStudioIndex, searchStudio } = await import("./studioSearch");
+    const { STYLE_GROUPS } = await import("./styleSchema");
+    const { COPY_SCHEMA } = await import("../../features/site/storeCopy");
+    const index = buildStudioIndex({ templates: [], pages: [], sectionsByTemplate: {}, sectionLabel: (t: string) => t, styleGroups: STYLE_GROUPS, copySchema: COPY_SCHEMA } as any);
+    const all = STYLE_GROUPS.reduce((n, g) => n + g.fields.length, 0);
+    const styleEntries = index.filter(e => e.kind === "style").length;
+    expect(styleEntries).toBeLessThan(all / 2);
+    expect(index.some(e => /Mobile|Tablet/.test(e.id) && e.id.startsWith("style:") && e.id.includes("regions."))).toBe(false);
+    expect(searchStudio(index, "newsletter button phone padding", { limit: 10 }).some(r => r.id.includes("regions.newsletterButton"))).toBe(true);
+  });
+});
