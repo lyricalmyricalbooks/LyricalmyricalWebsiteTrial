@@ -513,6 +513,13 @@ page size, title/description) and lists findings with **Show me** / **Edit this 
 `ownerOf`). New storefront parts are covered automatically when they carry the usual `data-fm-section` /
 `data-studio-target` hooks. The audit only reads the DOM; never change the preview from it except the brief Show me outline.
 
+**Themes workspace + share previews (3.4):** Studio › **Themes** (`studio/StudioThemes.tsx`) lists the live theme, the draft,
+My themes and presets with `ThemeThumb` drawings; Preview uses the canvas only (`themePreview` state, like History's
+preview). Share links are `previewTokens/{token}` (admin writes; public `get` by exact token while unexpired — never list);
+the storefront reads them only through `features/site/themePreview.ts` + `publicApi.getThemePreview`, never caches the
+shared design, keeps it noindex and out of analytics (`trackingGuard`, `useSiteData`), and always shows
+`ThemePreviewBanner`. Deploy `firestore.rules` with the frontend for share links to work.
+
 **Colour schemes (2.5):** Studio › Theme settings › **Colour schemes** (`StudioColorSchemes.tsx`, pure edits in
 `studio/colorSchemeOps.ts`) edits `design.colorSchemes` — ten roles (background, surface, text, muted, accent, onAccent,
 border, buttonBg, buttonText, link) with a live swatch and WCAG badges. `features/site/colorSchemes.ts` `schemeCss()`

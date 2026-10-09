@@ -67,6 +67,7 @@ import { StudioRail } from "./StudioRail";
 import { MediaPickerDialog, StudioMediaPanel, useMediaLibrary } from "./StudioMedia";
 import { StudioHistory, versionName, type ThemeVersion } from "./StudioHistory";
 import { StudioHealth } from "./StudioHealth";
+import { StudioThemes } from "./StudioThemes";
 import { POLICY_KEYS, policySlug } from "../../features/site/policyPages";
 import { auditDocument, summarise, type HealthFinding } from "./healthAudit";
 import { categoryOptions } from "./pickers";
@@ -93,7 +94,7 @@ const isConnectedValue = (v: any) => isDynamic(v) || hasTokens(v);
 import { CANDIDATE_ID, deletePreset, deleteSharedBlock, renamePreset, renameSharedBlock, withCandidate } from "./sectionLibrary";
 import "./studio.css";
 
-type LeftTab = "sections" | "style" | "text" | "menus" | "pages" | "media";
+type LeftTab = "sections" | "style" | "text" | "menus" | "pages" | "media" | "themes";
 type Toast = { kind: "ok" | "err"; text: string; action?: { label: string; run: () => void } } | null;
 
 function designChecks(design: any) {
@@ -386,6 +387,8 @@ export function StudioEditor({ settings, onExit, onPersisted, appearance = "ligh
   const [versions, setVersions] = useState<ThemeVersion[]>([]);
   const [historyOpen, setHistoryOpen] = useState(false);
   const [historyPreview, setHistoryPreview] = useState<ThemeVersion | null>(null);
+  // Studio › Themes › Preview: a whole theme shown in the canvas without touching the draft.
+  const [themePreview, setThemePreview] = useState<{ id: string; label: string; design: any } | null>(null);
   const [confirmAction, setConfirmAction] = useState<"publish" | "discard" | null>(null);
   const [checksOpen, setChecksOpen] = useState(false);
   const [copiedSection, setCopiedSection] = useState<Section | null>(null);
@@ -548,6 +551,13 @@ export function StudioEditor({ settings, onExit, onPersisted, appearance = "ligh
     change(() => normalizeDesign(JSON.parse(JSON.stringify(t.design)), defaults), { label: `Load “${t.name}”` });
     say("ok", `“${t.name}” loaded into the draft — Publish to make it live.`, { label: "Undo", run: () => setHist(undo) });
   };
+  // Themes › Publish…: load the theme into the draft, then the usual Publish confirmation (with its summary).
+  const publishSavedTheme = (t: SavedTheme) => {
+    setThemePreview(null);
+    applySavedTheme(t);
+    setTimeout(() => setConfirmAction("publish"), 0);
+  };
+  useEffect(() => { if (leftTab !== "themes") setThemePreview(null); }, [leftTab]);
   const renameTheme = async (t: SavedTheme) => {
     const name = await askText({ title: "Rename theme", label: "Theme name", defaultValue: t.name, confirmLabel: "Rename" });
     if (name === null || !name.trim()) return;
@@ -665,7 +675,7 @@ export function StudioEditor({ settings, onExit, onPersisted, appearance = "ligh
   const sendPreviewState = useCallback(() => {
     if (inlineEditingRef.current) return;
     const current = designRef.current;
-    const previewDesign = historyPreview?.design || (candidate && adding !== null
+    const previewDesign = historyPreview?.design || themePreview?.design || (candidate && adding !== null
       ? withCandidate(current, showGlobal ? globalGroup : template.id, getSections(current, target), adding, makeSection(candidate, getSectionMeta(candidate)?.defaults || {}))
       : current);
     const state = buildPreviewState(settings, previewDesign, withDraftPage(pages, draftPage), books);
@@ -673,7 +683,7 @@ export function StudioEditor({ settings, onExit, onPersisted, appearance = "ligh
       deliverPreviewState(iframeRef.current?.contentWindow, state, window.location.origin);
     } catch (err) { console.warn("[Studio] preview delivery failed", err); }
     try { channelRef.current?.postMessage(state); } catch (err) { console.warn("[Studio] preview tab delivery failed", err); }
-  }, [historyPreview, settings, pages, books, draftPage, candidate, adding, showGlobal, globalGroup, template.id]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [historyPreview, themePreview, settings, pages, books, draftPage, candidate, adding, showGlobal, globalGroup, template.id]); // eslint-disable-line react-hooks/exhaustive-deps
   const sendPreviewRef = useRef(sendPreviewState);
   sendPreviewRef.current = sendPreviewState;
   useEffect(() => {
@@ -1375,7 +1385,7 @@ export function StudioEditor({ settings, onExit, onPersisted, appearance = "ligh
     if (t.type === "page") { setLeftTab("pages"); setOpenPage({ slug: t.slug, nonce: Date.now() }); }
   };
 
-  const sidebarTabs: [LeftTab, string][] = [["sections", "Page layout"], ["style", "Theme settings"], ["text", "Text & labels"], ["menus", "Navigation"], ["pages", "Pages"], ["media", "Media"]];
+  const sidebarTabs: [LeftTab, string][] = [["sections", "Page layout"], ["style", "Theme settings"], ["text", "Text & labels"], ["menus", "Navigation"], ["pages", "Pages"], ["media", "Media"], ["themes", "Themes"]];
   const q = copyFilter.trim().toLowerCase();
   const visibleStyleGroups = filterSettingGroups(STYLE_GROUPS, styleSearch, styleCategory);
   // Theme settings home: task headings over the same categories, with "changed" counts.
@@ -1403,7 +1413,7 @@ export function StudioEditor({ settings, onExit, onPersisted, appearance = "ligh
           <div className="studio-panel-context">
             <strong>{panelTitle}</strong>
             <span>{leftTab === "sections" ? (showGlobal ? `Every page · ${groupLabel(globalGroup)}` : template.label) + ` · ${sections.length} sections` : `Previewing: ${showGlobal ? groupLabel(globalGroup) : template.label}`}</span>
-            <small>{leftTab === "sections" ? "Select content here or click it in the preview." : leftTab === "style" ? "Choose a category or search every setting." : leftTab === "text" ? "Edit the words your shoppers see." : leftTab === "menus" ? "Manage links, categories and their order." : leftTab === "media" ? "Upload images, describe them and see where each is used." : "Create pages and edit their content or layout."}</small>
+            <small>{leftTab === "sections" ? "Select content here or click it in the preview." : leftTab === "style" ? "Choose a category or search every setting." : leftTab === "text" ? "Edit the words your shoppers see." : leftTab === "menus" ? "Manage links, categories and their order." : leftTab === "media" ? "Upload images, describe them and see where each is used." : leftTab === "themes" ? "Save, compare, share and switch whole designs." : "Create pages and edit their content or layout."}</small>
           </div>
           <div className="flex-1 overflow-auto" ref={sidebarScrollRef}>
             <StudioTips forceOpen={tipsNonce} />
@@ -1513,6 +1523,7 @@ export function StudioEditor({ settings, onExit, onPersisted, appearance = "ligh
                     blurb={isChangedView ? undefined : blurbFor(group, styleCategory)} backLabel="All theme settings"
                     onBack={() => setStyleCategory(null)} extra={<p className="studio-scope-note">{scopeNote}</p>} />
                   {styleCategory === "themeLook" && <div className="px-4 pb-4 space-y-4">
+                    <button type="button" className={`${btn} w-full justify-center`} onClick={() => setLeftTab("themes")}>Open Themes (thumbnails, preview, share links)</button>
                     <p className="studio-hint">Current look: {design.themeLibraryPreset === RISO_NOIR_ID ? "Riso Noir" : riso ? "Riso Press" : "Standard / custom"}. One click sets every colour, font and print detail; you can still change each one afterwards.</p>
 
                 <button type="button" className={`${btnPrimary} w-full justify-center`} onClick={applyNoirLook}>Apply Riso Noir (black &amp; white)</button>
@@ -1706,6 +1717,20 @@ export function StudioEditor({ settings, onExit, onPersisted, appearance = "ligh
                 onEditSections={(slug) => { setShowGlobal(false); setTemplateId(`page:${slug}`); setSelectedId(null); setLeftTab("sections"); }} />
             </div>
 
+            {leftTab === "themes" && (
+              <StudioThemes design={design} published={published} unpublished={unpublished || dirtyDraft} savedThemes={savedThemes}
+                presets={THEME_LIBRARY as any[]} currentPresetId={design.themeLibraryPreset}
+                previewingId={themePreview?.id || null} onPreview={setThemePreview}
+                onSaveCurrent={saveCurrentAsTheme} onImport={file => importTheme(file)}
+                onLoad={t => { setThemePreview(null); applySavedTheme(t); }} onPublish={publishSavedTheme}
+                onRename={renameTheme} onDuplicate={t => persistThemes(duplicateSavedTheme(savedThemes, t.id), "Theme duplicated.")}
+                onDownload={exportTheme}
+                onDelete={t => { void askConfirm({ title: "Delete saved theme?", message: `“${t.name}” will be removed from My themes. This can't be undone.`, confirmLabel: "Delete theme" }).then(ok => { if (ok) persistThemes(removeSavedTheme(savedThemes, t.id), "Theme deleted."); }); }}
+                onApplyPreset={preset => { setThemePreview(null); applyLibraryTheme(preset); }}
+                links={{ create: (d, name, days) => adminApi.createPreviewLink(d, name, days), list: () => adminApi.listPreviewLinks(), revoke: token => adminApi.revokePreviewLink(token) }}
+                askConfirm={askConfirm} say={(kind, text) => say(kind, text)} />
+            )}
+
             {leftTab === "media" && (
               <StudioMediaPanel lib={mediaLib} design={design} published={published} pages={pages} names={mediaNames}
                 savedThemes={savedThemes} getVersions={fetchVersions}
@@ -1795,6 +1820,10 @@ export function StudioEditor({ settings, onExit, onPersisted, appearance = "ligh
       <div className="studio-mobile-tabs" role="tablist" aria-label="Studio workspace">{["outline", "preview", "settings"].map(panel => <button key={panel} role="tab" aria-selected={mobilePanel === panel} onClick={() => setMobilePanel(panel)}>{panel}</button>)}</div>
       {inlineEditing && <div className="studio-inline-status" role="status">Editing {inlineEditing} in the preview. Finish the text edit or release the spacing handle to keep it; Escape cancels.</div>}
       {recovery && <div className="studio-recovery" role="status"><span>Local edits from {new Date(recovery.savedAt).toLocaleString()}.{recovery.conflict ? " The server draft has changed; recovering will load your local version as unsaved edits." : " Recover your unsaved work?"}</span><SecondaryButton onClick={recover}>Recover local changes</SecondaryButton><SecondaryButton onClick={dismissRecovery}>Discard local recovery</SecondaryButton></div>}
+      {themePreview && <div className="studio-recovery studio-incoming" role="status" data-studio-theme-preview>
+        <span>Previewing “{themePreview.label}” in the canvas. Your draft hasn't changed.</span>
+        <SecondaryButton size="sm" onClick={() => setThemePreview(null)}>Stop preview</SecondaryButton>
+      </div>}
       {incoming && <div className="studio-recovery studio-incoming" role="status" data-studio-incoming>
         <span>
           {incoming.remote.published ? "This design was published" : "This design was saved"} in another tab or device{incoming.remote.updatedAt ? ` at ${new Date(incoming.remote.updatedAt).toLocaleTimeString()}` : ""}.{" "}

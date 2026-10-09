@@ -101,6 +101,18 @@ service cloud.firestore {
     match /theme-versions/{versionId} {
       allow read, write: if isAdmin();
     }
+    // Share previews (Studio 3.4): an unpublished design behind an unguessable token. Anyone holding the link can
+    // read that one document until it expires; nobody but the admin can list, create, change or remove them.
+    match /previewTokens/{token} {
+      allow get: if resource.data.expiresAt is timestamp && resource.data.expiresAt > request.time;
+      allow list: if isAdmin();
+      allow create, update: if isAdmin()
+        && request.resource.data.keys().hasOnly(["design", "name", "createdAt", "expiresAt"])
+        && request.resource.data.expiresAt is timestamp
+        && request.resource.data.expiresAt <= request.time + duration.value(31, "d")
+        && token.size() >= 24 && token.size() <= 64;
+      allow delete: if isAdmin();
+    }
     // Studio's private working copy (themes/workspace: unpublished draft + save revision)
     // and My themes. Never public: shoppers only ever read the published settings/website.design.
     match /themes/{themeId} {

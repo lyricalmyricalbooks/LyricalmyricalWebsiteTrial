@@ -13,6 +13,8 @@ export type StudioFixture = {
   media: MediaItem[]; mediaDenied?: boolean;
   /** Live sync (3.2): Studio's watchers, and a helper that acts like a save from another tab or device. */
   watchers?: ((remote: any) => void)[];
+  /** Studio › Themes share links (previewTokens). `previewDenied` acts as if their rules weren't deployed. */
+  previewLinks?: any[]; previewDenied?: boolean;
   remoteSave?: (draft: any, options?: { publish?: boolean }) => void;
 };
 
@@ -65,6 +67,19 @@ export function installFakeStudioApi(api: Record<string, any>, fixture: StudioFi
     getBookFields: async () => clone(FIXTURE_BOOK_FIELDS),
     getCategoryBooks: async () => clone(fixture.books),
     listThemeVersions: async () => clone(fixture.versions),
+    createPreviewLink: async (design: any, name: string, days: number) => {
+      if (fixture.previewDenied) throw Object.assign(new Error("Missing or insufficient permissions."), { code: "permission-denied" });
+      record("createPreviewLink", name, days);
+      const link = { token: `fixtureToken${String((fixture.previewLinks || []).length + 1).padStart(14, "0")}`, name, createdAt: new Date().toISOString(),
+        expiresAt: new Date(Date.now() + days * 86_400_000).toISOString(), design: clone(design) };
+      fixture.previewLinks = [link, ...(fixture.previewLinks || [])];
+      return { token: link.token, name, createdAt: link.createdAt, expiresAt: link.expiresAt };
+    },
+    listPreviewLinks: async () => {
+      if (fixture.previewDenied) throw Object.assign(new Error("Missing or insufficient permissions."), { code: "permission-denied" });
+      return (fixture.previewLinks || []).map(({ design: _d, ...rest }) => rest);
+    },
+    revokePreviewLink: async (token: string) => { record("revokePreviewLink", token); fixture.previewLinks = (fixture.previewLinks || []).filter(l => l.token !== token); },
     saveThemeVersion: async (kind: string, label: string, design: any) => {
       record("saveThemeVersion", kind, label);
       const version = { id: `v${fixture.versions.length + 1}`, kind, label, createdAt: new Date().toISOString(), design: clone(design) };

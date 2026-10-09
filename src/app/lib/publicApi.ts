@@ -40,6 +40,12 @@ export const publicApi = {
     return merged;
   },
 
+  /** A shared preview link (Studio 3.4): readable by its exact token while unexpired (firestore.rules), never listed. */
+  getThemePreview: async (token: string) => {
+    const snap = await getDoc(doc(liteDb, "previewTokens", token));
+    return snap.exists() ? snap.data() : null;
+  },
+
   getPublishedPages: async (): Promise<Page[]> => {
     const q = query(collection(liteDb, "pages"), where("status", "==", "published"));
     const snap = await getDocs(q);

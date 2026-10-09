@@ -205,6 +205,13 @@ page size, title/description) and lists findings with **Show me** / **Edit this 
 `ownerOf`). New storefront parts are covered automatically when they carry the usual `data-fm-section` /
 `data-studio-target` hooks. The audit only reads the DOM; never change the preview from it except the brief Show me outline.
 
+**Themes workspace + share previews (3.4):** Studio › **Themes** (`studio/StudioThemes.tsx`) lists the live theme, the draft,
+My themes and presets with `ThemeThumb` drawings; Preview uses the canvas only (`themePreview` state, like History's
+preview). Share links are `previewTokens/{token}` (admin writes; public `get` by exact token while unexpired — never list);
+the storefront reads them only through `features/site/themePreview.ts` + `publicApi.getThemePreview`, never caches the
+shared design, keeps it noindex and out of analytics (`trackingGuard`, `useSiteData`), and always shows
+`ThemePreviewBanner`. Deploy `firestore.rules` with the frontend for share links to work.
+
 **Media library (2.4).** Studio › **Media** (`studio/StudioMedia.tsx`) lists admin-only `media/{id}` records; library
 uploads (`uploadMediaImage`) store WebP copies at 480/960/1600 px under `assets/media/<id>/`. Picking a picture for a
 section/block field writes its URL plus a public `${field}__media` record (Theme settings images get the URL only, but
