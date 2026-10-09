@@ -1,6 +1,6 @@
 import { regionProps } from "../features/site/storefrontRegions";
 import { useEffect, useState } from "react";
-import { motion, AnimatePresence } from "motion/react";
+import { m, AnimatePresence } from "motion/react";
 import { StorefrontThemeStyle } from "../features/site/StorefrontThemeStyle";
 import { useLiveDesign } from "../features/site/useSiteData";
 import { getCopy } from "../features/site/storeCopy";
@@ -66,7 +66,7 @@ export function CookieConsent() {
   return (
     <AnimatePresence>
       {!decided && (
-        <motion.div {...regionProps("cookiePanel")}
+        <m.div {...regionProps("cookiePanel")}
           data-fm-store
           initial={{ y: 80, opacity: 0 }}
           animate={{ y: 0, opacity: 1 }}
@@ -144,7 +144,7 @@ export function CookieConsent() {
               </button>
             )}
           </div>
-        </motion.div>
+        </m.div>
       )}
     </AnimatePresence>
   );

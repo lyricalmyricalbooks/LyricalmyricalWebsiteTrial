@@ -4,7 +4,7 @@ import { DEVICE_MEDIA, UP_TO } from "./breakpoints";
 export type Region = { id: string; label: string; required?: boolean; grid?: boolean; image?: boolean; copy?: string };
 export type RegionGroup = { id: string; title: string; copy: string; files: string[]; regions: Region[] };
 export const REGION_GROUPS: RegionGroup[] = [
-  { id: "catalogElements", title: "Catalog & shared content · layout", copy: "Search & filters", files: ["features/site/CatalogControls.tsx", "features/site/RecentlyViewedRow.tsx", "components/MainSite.tsx"], regions: [
+  { id: "catalogElements", title: "Catalog & shared content · layout", copy: "Search & filters", files: ["features/site/CatalogControls.tsx", "features/site/RecentlyViewedRow.tsx", "components/MainSite.tsx", "features/site/StoreFooter.tsx"], regions: [
     { id: "catalogSearch", label: "Catalog search field" }, { id: "catalogSort", label: "Catalog sort selector" },
     { id: "catalogStock", label: "In-stock filter" }, { id: "catalogResults", label: "Filter result count" },
     { id: "catalogFormat", label: "Format filter" }, { id: "catalogPrice", label: "Price filter" },
@@ -16,9 +16,13 @@ export const REGION_GROUPS: RegionGroup[] = [
     { id: "newsletterStatus", label: "Newsletter success & error", copy: "Newsletter" },
     { id: "footerPanel", label: "Footer layout", required: true, copy: "Footer" },
   ] },
-  { id: "productContent", title: "Product details · content layout", copy: "Product page", files: ["features/site/BookDetail.tsx"], regions: [
+  { id: "productContent", title: "Product details · content layout", copy: "Product page", files: ["features/site/BookDetail.tsx", "features/site/ProductOptions.tsx"], regions: [
     { id: "productDescription", label: "Book description" }, { id: "productSpecs", label: "Book specifications" },
     { id: "productReviews", label: "Book reviews" },
+    { id: "productSaleEnds", label: "Sale end date (under the price)" },
+    { id: "productAddOns", label: "Extras (signed copy, inscription, gift wrap)" },
+    { id: "productBoxSet", label: "Box set contents" },
+    { id: "productGiftCardForm", label: "Gift card recipient form" },
   ] },
   { id: "wishlistLayout", title: "Wishlist · layout & elements", copy: "Collection & wishlist pages", files: ["features/site/Wishlist.tsx"], regions: [
     { id: "wishlistHeader", label: "Wishlist header" }, { id: "wishlistTitle", label: "Wishlist title" },
@@ -34,6 +38,7 @@ export const REGION_GROUPS: RegionGroup[] = [
     { id: "accountAddressForm", label: "Address form", required: true }, { id: "accountHistory", label: "Order history", required: true },
     { id: "accountDownloads", label: "Purchased downloads", required: true }, { id: "accountShipment", label: "Shipment information", required: true },
     { id: "accountTrackOrder", label: "Track order link" },
+    { id: "accountLineDetails", label: "Extras, gift cards & box sets under ordered books" },
     { id: "accountGlow", label: "Account background glow" },
   ] },
   { id: "trackingLayout", title: "Order tracking · layout & elements", copy: "Order tracking", files: ["features/site/OrderTracking.tsx", "features/site/OrderRequests.tsx"], regions: [
@@ -43,6 +48,7 @@ export const REGION_GROUPS: RegionGroup[] = [
     { id: "trackingDownloads", label: "Purchased downloads", required: true }, { id: "trackingItems", label: "Order items & totals", required: true },
     { id: "trackingStatusBanner", label: "Payment, cancelled & refunded notice", required: true }, { id: "trackingShipping", label: "Shipping method & estimate" },
     { id: "trackingHelp", label: "Help line" },
+    { id: "trackingLineDetails", label: "Extras, gift cards & box sets under ordered books" },
     { id: "trackingPreorder", label: "Pre-order shipping note" },
     { id: "trackingRequests", label: "Cancel & return requests" }, { id: "trackingPrivacy", label: "Privacy request form (copy / delete my data)" },
     { id: "trackingGlow", label: "Tracking background glow" },
@@ -58,6 +64,7 @@ export const REGION_GROUPS: RegionGroup[] = [
     { id: "checkoutForm", label: "Checkout form", required: true }, { id: "checkoutSummary", label: "Order summary", required: true },
     { id: "checkoutFulfillment", label: "Shipping, pickup & local delivery choices", required: true, copy: "Checkout" },
     { id: "checkoutPreorder", label: "Pre-order shipping notice" },
+    { id: "checkoutGiftCard", label: "Gift card box" },
     { id: "checkoutPromise", label: "Message under Pay button" }, { id: "checkoutSuccess", label: "Order confirmation", required: true }, { id: "checkoutAccountOffer", label: "Order confirmation: sign-in box", copy: "Checkout" },
     { id: "checkoutSuccessSummary", label: "Order confirmation: order summary", copy: "Checkout" }, { id: "checkoutTrackOrder", label: "Order confirmation: track order button", required: true, copy: "Checkout" },
     { id: "checkoutEmpty", label: "Empty cart", required: true },

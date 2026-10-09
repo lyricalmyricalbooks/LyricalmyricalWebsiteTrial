@@ -8,10 +8,13 @@
 // sign:   -1 to take stock out (a sale), +1 to put it back (refund/restock)
 // Returns { updates: [{ id, data }], oversold: boolean } — oversold is true when
 // a sale asked for more copies than were in stock (stock is floored at 0).
+// Box-set lines count as the books inside them (promotions.stockLines).
+const { stockLines } = require("./promotions");
+
 function stockChanges(items, books, sign) {
   const get = id => (books instanceof Map ? books.get(id) : books[id]);
   const perBook = new Map();
-  for (const item of items || []) {
+  for (const item of stockLines(items)) {
     const book = item && get(item.id);
     if (!book || !book.trackInventory) continue;
     const qty = Math.max(0, Math.floor(Number(item.quantity) || 0));
@@ -48,7 +51,7 @@ function stockChanges(items, books, sign) {
 // that follows a read (Firestore requires all reads first) — callers read
 // books up front via `readBooks` and pass the result to `writeStock`.
 async function readBooks(transaction, db, items) {
-  const ids = [...new Set((items || []).map(item => item && item.id).filter(Boolean))];
+  const ids = [...new Set(stockLines(items).map(item => item && item.id).filter(Boolean))];
   const docs = await Promise.all(ids.map(id => transaction.get(db.collection("books").doc(id))));
   const books = new Map();
   docs.forEach((doc, i) => { if (doc.exists) books.set(ids[i], doc.data()); });

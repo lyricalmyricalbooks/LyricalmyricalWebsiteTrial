@@ -51,18 +51,21 @@ vi.mock("firebase/auth", () => ({ signInWithPopup: vi.fn(), signOut: vi.fn(), on
 vi.mock("firebase/storage", () => ({ ref: vi.fn(), uploadBytes: vi.fn(), getDownloadURL: vi.fn() }));
 vi.mock("firebase/database", () => ({ ref: vi.fn(), get: vi.fn() }));
 vi.mock("../../lib/firebase", () => ({ db: {}, auth: { currentUser: null }, storage: {}, googleProvider: {} }));
+vi.mock("../../lib/firebaseApp", () => ({ app: {}, db: {}, appCheck: null, authState: { loaded: true } }));
+vi.mock("../../lib/firestoreLite", () => ({ liteDb: {} }));
+vi.mock("firebase/firestore/lite", () => import("firebase/firestore"));
 vi.mock("../../lib/legacyFirebase", () => ({ legacyDb: {}, legacyAuth: {} }));
 
 const themeStore = await import("./themeStore");
 const { adminApi } = await import("./api");
-const { openWorkspace, saveDraft, publishDesign, discardDraft, saveSavedThemes, ThemeConflictError, __resetThemeStoreMode } = themeStore;
+const { openWorkspace, saveDraft, publishDesign, discardDraft, saveSavedThemes, ThemeConflictError, ThemeStoreUnavailableError } = themeStore;
 
 const live = { primaryColor: "black", heroPage: { sections: [] } };
 const draft = { primaryColor: "red", heroPage: { sections: [{ id: "s1", type: "HeroSection", settings: {} }] } };
 const theme = { id: "t1", name: "Spring", design: { primaryColor: "green" }, savedAt: "2026-10-01" };
 
 beforeEach(() => {
-  store.clear(); denyPrivate = false; __resetThemeStoreMode();
+  store.clear(); denyPrivate = false;
   store.set("settings/website", { design: live, draftDesign: draft, savedThemes: [theme], info: { name: "Shop" } });
   vi.spyOn(adminApi, "recordAuditLog").mockResolvedValue(undefined as any);
 });
@@ -71,7 +74,7 @@ describe("Studio theme store", () => {
   it("moves the public draft and My themes into private documents, then removes the public copies", async () => {
     const settings = clone(store.get("settings/website"));
     const ws = await openWorkspace(settings);
-    expect(ws).toMatchObject({ mode: "store", draft, rev: 1 });
+    expect(ws).toMatchObject({ draft, rev: 1 });
     expect(ws.savedThemes.map(t => t.id)).toEqual(["t1"]);
     expect(store.get("themes/workspace").draft).toEqual(draft);
     expect(store.get("savedThemes/t1").name).toBe("Spring");
@@ -84,9 +87,8 @@ describe("Studio theme store", () => {
 
   it("opening again is a no-op that keeps the private draft", async () => {
     await openWorkspace(clone(store.get("settings/website")));
-    __resetThemeStoreMode();
     const again = await openWorkspace(clone(store.get("settings/website")));
-    expect(again).toMatchObject({ mode: "store", draft, rev: 1 });
+    expect(again).toMatchObject({ draft, rev: 1 });
   });
 
   it("saves drafts privately with a rising revision and never touches the live design", async () => {
@@ -131,15 +133,22 @@ describe("Studio theme store", () => {
     expect(store.get("savedThemes/t2").name).toBe("Winter");
   });
 
-  it("keeps working on the old public fields until the new rules are deployed", async () => {
+  it("never falls back to saving the draft in the public document when private storage is refused", async () => {
     denyPrivate = true;
-    const update = vi.spyOn(adminApi, "updateSettings").mockResolvedValue(undefined as any);
-    const ws = await openWorkspace(clone(store.get("settings/website")));
-    expect(ws).toMatchObject({ mode: "legacy", draft, rev: 0 });
+    const update = vi.spyOn(adminApi, "updateSettings");
+    await expect(openWorkspace(clone(store.get("settings/website")))).rejects.toBeInstanceOf(ThemeStoreUnavailableError);
+    await expect(saveDraft({ draft, rev: 0, savedThemes: [] }, { ...draft, primaryColor: "pink" }, 0)).rejects.toBeInstanceOf(ThemeStoreUnavailableError);
+    expect(update).not.toHaveBeenCalled();
     expect(store.get("settings/website").draftDesign).toEqual(draft);
-    await saveDraft(ws, draft, 0);
-    expect(update).toHaveBeenCalledWith({ design: draft }, { publish: false });
     update.mockRestore();
+  });
+
+  it("a tool that changes the draft before Studio was ever opened copies the older draft across first", async () => {
+    await adminApi.setUnderConstruction(true);
+    const ws = store.get("themes/workspace");
+    expect(ws.draft).toEqual({ ...draft, showUnderConstruction: true });
+    expect(ws.rev).toBe(1);
+    expect(store.get("savedThemes/t1").name).toBe("Spring");
   });
 
   it("other admin tools update the private draft without forcing a Studio conflict", async () => {

@@ -1,6 +1,6 @@
 import { useState } from "react";
-import { doc, setDoc } from "firebase/firestore";
-import { db } from "../../../lib/firebase";
+import { doc, setDoc } from "firebase/firestore/lite";
+import { liteDb } from "../../../lib/firestoreLite";
 import { getCopy } from "./storeCopy";
 
 export function isValidAlertEmail(value: string) {
@@ -39,7 +39,7 @@ export default function BackInStockForm({
     try {
       const clean = email.trim().toLowerCase();
       // One alert per address + book + edition (the id); asking twice is already done.
-      await setDoc(doc(db, "stockAlerts", stockAlertId(clean, bookId, variantId || "")), {
+      await setDoc(doc(liteDb, "stockAlerts", stockAlertId(clean, bookId, variantId || "")), {
         email: clean,
         bookId,
         bookTitle,
