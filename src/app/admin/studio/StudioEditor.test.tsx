@@ -50,7 +50,7 @@ const homeSections = (design: any) => (design?.heroPage?.sections || []).map((s:
 describe("Studio editor (mounted with an in-memory API)", () => {
   it("opens on the page outline with every workspace and lists draft pages as templates", async () => {
     await mount();
-    for (const tab of ["Page layout", "Theme settings", "Text & labels", "Navigation", "Pages"]) expect(buttons(tab).length).toBeGreaterThan(0);
+    for (const tab of ["Page layout", "Theme settings", "Text & labels", "Navigation", "Pages", "Media"]) expect(buttons(tab).length).toBeGreaterThan(0);
     await click(buttons("Page to edit")[0]);
     const pagePicker = [...document.querySelectorAll("[role=option]")].map(o => o.querySelector("span")?.textContent);
     expect(pagePicker).toEqual(expect.arrayContaining(["Home", "About", "Open call (draft)", "Night Pages", "Header & footer sections (every page)"]));
@@ -95,6 +95,59 @@ describe("Studio editor (mounted with an in-memory API)", () => {
     const publish = fixture.calls.find(c => c.method === "updateSettings");
     expect(publish?.args[1]).toEqual({ publish: true });
     expect(homeSections(fixture.settings.design)).toEqual(["NewsletterSection"]);
+  });
+
+  it("Media lists library images with filters, details and a saved description", async () => {
+    await mount();
+    await click(buttons("Media")[0]);
+    const card = document.querySelector("[data-media-id='m-riso-print']");
+    expect(card?.textContent).toContain("riso-print.jpg");
+    expect(card?.textContent).toMatch(/Unused.*Over budget.*No description/);
+    await click(buttons(/^Over size budget/)[0]);
+    expect(document.querySelector("[data-media-id='m-riso-print']")).not.toBeNull();
+    await click(card!);
+    expect(host.textContent).toContain("Not used anywhere yet");
+    expect(host.textContent).toMatch(/1600 px.*over 200 KB/);
+    const alt = document.querySelector<HTMLTextAreaElement>("textarea[id^='media-alt-']")!;
+    await act(async () => {
+      Object.getOwnPropertyDescriptor(HTMLTextAreaElement.prototype, "value")!.set!.call(alt, "Red dot on yellow paper");
+      alt.dispatchEvent(new Event("input", { bubbles: true }));
+    });
+    await click(buttons("Save description")[0]);
+    expect(fixture.calls.find(c => c.method === "saveMedia")?.args[0]).toMatchObject({ id: "m-riso-print", alt: "Red dot on yellow paper" });
+  });
+
+  it("an image field picks from the library and stores the picture's srcset record; delete is refused while used", async () => {
+    await mount();
+    await click(buttons("Add section")[0]);
+    await click(buttons(/^Image Banner/)[0]);
+    await click(document.querySelector("[data-media-choose='imageUrl']")!);
+    expect(document.querySelector("[role=dialog]")?.textContent).toContain("Choose an image");
+    await click(document.querySelector("[role=dialog] [data-media-id='m-riso-print']")!);
+    expect(document.querySelector("[role=dialog]")).toBeNull();
+    await click(buttons("Save draft")[0]);
+    const saved = fixture.calls.find(c => c.method === "updateSettings")?.args[0].design.heroPage.sections[0].settings;
+    expect(saved.imageUrl__media).toMatchObject({ id: "m-riso-print", src: saved.imageUrl });
+    expect(saved.imageUrl__media.srcset.map((v: any) => v.w)).toEqual([480, 960, 1600]);
+
+    await click(buttons("Media")[0]);
+    await click(document.querySelector("[data-media-id='m-riso-print']")!);
+    expect(host.textContent).toMatch(/Home › Image Banner/);
+    await click(buttons("Delete image")[0]);
+    expect(host.textContent).toContain("still in use");
+    expect(fixture.calls.some(c => c.method === "removeMedia")).toBe(false);
+  });
+
+  it("explains a media library whose rules aren't deployed, and image fields keep working", async () => {
+    fixture.mediaDenied = true;
+    await mount();
+    await click(buttons("Media")[0]);
+    expect(host.textContent).toContain("The media library isn't switched on yet");
+    await click(buttons("Page layout")[0]);
+    await click(buttons("Add section")[0]);
+    await click(buttons(/^Image Banner/)[0]);
+    expect(document.querySelector("input[placeholder='https://… or upload']")).not.toBeNull();
+    expect(buttons("Upload image").length).toBeGreaterThan(0);
   });
 
   it("opens Theme settings on its design-system and parts headings, and Find anything with Ctrl/Cmd+K", async () => {

@@ -10,6 +10,11 @@ export type AppUpdate = {
 // Newest first. Every PR adds an entry; links open the affected admin workspace.
 export const APP_UPDATES: AppUpdate[] = [
   {
+    id: "studio-2-media", date: "2026-10-09", title: "A media library for your shop's pictures",
+    summary: "The Design studio has a new Media button in its left rail. Pictures you upload there — or with Upload image on any image field — are saved as three sizes (480, 960 and 1600 pixels wide), so phones download a small file and big screens a sharp one; pictures in the first section of the home page load first. Each picture has a description for screen readers, a focal point, its file sizes (with a warning when one is larger than recommended), and a list of where it's used — click a place to open that section. Filters show unused pictures, pictures over the size budget and pictures without a description. Replace swaps a picture everywhere in your draft at once; Delete refuses while a picture is still used. Image fields have a new Choose from library button. Pictures already on your site look exactly as before. The library needs its new security rules switched on; until then Media explains this and image fields work as they always have.",
+    links: [{ label: "Open Media", tab: "settings", settingsTab: "designer", studio: "#designer?tab=media" }],
+  },
+  {
     id: "studio-2-theme-system", date: "2026-10-09", title: "Theme settings, sorted into your site's look and its parts",
     summary: "Theme settings in the Design studio now opens in three parts. \"Site-wide design\" holds what every page shares: theme presets, logo, colours, fonts, buttons, spacing and the Riso print look. \"Parts of your shop\" holds the header and footer, the shop and book pages, and the bag, checkout and account pages — each has a \"Show on page\" button that opens that page in the preview (or opens the shopping bag) and selects the part, so you can see what you're changing. Long word lists in Text & labels (Checkout, Order tracking, Customer account, Product page, Cart) are split into short sections such as \"Discount codes\" and \"Error messages\". Find anything gives shorter result lists and opens an element's setting at the screen size you're previewing.",
     links: [{ label: "Open Theme settings", tab: "settings", settingsTab: "designer", studio: "#designer?tab=style" }],

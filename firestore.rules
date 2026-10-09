@@ -107,6 +107,12 @@ service cloud.firestore {
     match /savedThemes/{themeId} {
       allow read, write: if isAdmin();
     }
+    // Studio media library (2.4): image records (description, focal point, sizes, files). Admin only —
+    // the picture files are public under Storage assets/media/, and a placed picture's srcset details
+    // travel in the published design, so shoppers never read these.
+    match /media/{mediaId} {
+      allow read, write: if isAdmin();
+    }
     match /audit-log/{logId} {
       allow read, write: if isAdmin();
     }

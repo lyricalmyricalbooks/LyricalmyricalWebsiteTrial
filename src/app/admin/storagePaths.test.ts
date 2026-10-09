@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { readdirSync, readFileSync, statSync } from "node:fs";
 import { join, relative } from "node:path";
-import { studioUploadPath, uploadErrorMessage } from "./studio/mediaUpload";
+import { MEDIA_UPLOAD_ROOT, mediaUploadPath, newMediaId, studioUploadPath, uploadErrorMessage } from "./studio/mediaUpload";
 
 // Every browser upload must land in a Storage folder the admin may write (storage.rules),
 // otherwise the upload is refused in production — Studio uploads once silently failed this way.
@@ -46,8 +46,18 @@ describe("upload paths", () => {
     expect(studioUploadPath("....")).toMatch(/\/\d+-image$/);
   });
 
+  it("Media library copies go under assets/media/<id>/, one file per width", () => {
+    const path = mediaUploadPath("m1abc", 1728400000000, 960, "summer-960w.webp");
+    expect(path).toBe("assets/media/m1abc/1728400000000-960w.webp");
+    expect(mediaUploadPath("m/../x", 1, 0, "anim.GIF")).toBe("assets/media/mx/1-original.gif");
+    expect(MEDIA_UPLOAD_ROOT).toBe("assets/media");
+    expect(writable).toContain(path.split("/")[0]);
+    expect(newMediaId()).toMatch(/^m[\w]+$/);
+  });
+
   it("explains failed uploads in plain words", () => {
     expect(uploadErrorMessage({ code: "storage/unauthorized" })).toMatch(/sign in again/);
     expect(uploadErrorMessage(new Error("x"))).toMatch(/try again/);
+    expect(uploadErrorMessage({ code: "permission-denied" })).toMatch(/isn't switched on yet/);
   });
 });

@@ -29,3 +29,59 @@ export async function prepareProductImage(file: File, maxEdge = MAX_IMAGE_EDGE):
     return file;
   }
 }
+
+// ── Studio media library (2.4) ─────────────────────────────────────────────
+// Every library picture is stored as WebP copies 480, 960 and 1600 px wide, so phones download the
+// small one and big screens the large one (`srcset`). Smaller originals are never enlarged.
+export const MEDIA_WIDTHS = [480, 960, 1600] as const;
+export const MEDIA_QUALITY = 0.82;
+
+/** The copy widths made for a picture `originalWidth` px wide: [480, 960, 1600], [480, 960, 1200], [300]… */
+export function mediaWidthsFor(originalWidth: number): number[] {
+  const original = Math.round(originalWidth);
+  if (!(original > 0)) return [];
+  const widths: number[] = MEDIA_WIDTHS.filter(w => w <= original);
+  const largest = MEDIA_WIDTHS[MEDIA_WIDTHS.length - 1];
+  if (original < largest && !widths.includes(original)) widths.push(original);
+  return widths;
+}
+
+export type MediaVariantFile = { width: number; height: number; file: File };
+export type PreparedMedia = { width: number; height: number; variants: MediaVariantFile[]; resized: boolean };
+
+/**
+ * Resizes a photo into the library's copies. GIFs (animation), SVGs (vector) and browsers that can't
+ * decode the file keep the original as the only copy (`resized: false`) — still usable, just without
+ * `srcset`.
+ */
+export async function prepareMediaVariants(file: File): Promise<PreparedMedia> {
+  const original: PreparedMedia = { width: 0, height: 0, variants: [{ width: 0, height: 0, file }], resized: false };
+  if (!/^image\/(jpeg|png|webp)$/.test(file.type) || typeof createImageBitmap !== "function") return original;
+  let bitmap: ImageBitmap | null = null;
+  try {
+    bitmap = await createImageBitmap(file);
+    const { width, height } = bitmap;
+    const base = file.name.replace(/\.[^.]+$/, "") || "image";
+    const variants: MediaVariantFile[] = [];
+    for (const w of mediaWidthsFor(width)) {
+      const h = Math.max(1, Math.round((height * w) / width));
+      const canvas = document.createElement("canvas");
+      canvas.width = w;
+      canvas.height = h;
+      const ctx = canvas.getContext("2d")!;
+      ctx.imageSmoothingQuality = "high";
+      ctx.drawImage(bitmap, 0, 0, w, h);
+      let blob = await new Promise<Blob | null>(res => canvas.toBlob(res, "image/webp", MEDIA_QUALITY));
+      // Browsers without a WebP encoder hand back PNG; use JPEG for photos instead (PNG keeps transparency).
+      if (blob && blob.type !== "image/webp" && file.type !== "image/png") blob = await new Promise<Blob | null>(res => canvas.toBlob(res, "image/jpeg", MEDIA_QUALITY));
+      if (!blob) return { ...original, width, height, variants: [{ width, height, file }] };
+      const ext = blob.type === "image/webp" ? "webp" : blob.type === "image/jpeg" ? "jpg" : "png";
+      variants.push({ width: w, height: h, file: new File([blob], `${base}-${w}w.${ext}`, { type: blob.type }) });
+    }
+    return variants.length ? { width, height, variants, resized: true } : { ...original, width, height, variants: [{ width, height, file }] };
+  } catch {
+    return original;
+  } finally {
+    bitmap?.close?.();
+  }
+}

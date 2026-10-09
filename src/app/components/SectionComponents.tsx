@@ -13,6 +13,8 @@ import { fb } from "./sectionFallbacks";
 import { submitContactMessage } from "../features/site/contactMessages";
 import { useSectionCopy } from "./sectionCopy";
 import { aspectRatioValue } from "../features/site/imageAspect";
+import { ResponsiveImage } from "./ResponsiveImage";
+import { mediaKey } from "../features/site/mediaRef";
 
 // ──────────────────────────────
 // Animation helper
@@ -84,7 +86,7 @@ function CompositionBlock({ block, index = 0, depth = 0 }: any) {
     </div>
   );
   if (block.type === "image") return <figure {...attrs} className="fm-composition-block" style={style}>
-    {block.imageUrl && <img src={block.imageUrl} alt={block.alt || ""} loading="lazy" className="w-full h-auto object-cover" />}
+    {block.imageUrl && <ResponsiveImage src={block.imageUrl} media={block[mediaKey("imageUrl")]} sizes="(min-width: 768px) 50vw, 100vw" alt={block.alt || ""} loading="lazy" className="w-full h-auto object-cover" />}
     {block.title && <figcaption data-theme-field="title">{block.title}</figcaption>}
   </figure>;
   if (block.type === "button") return <div {...attrs} className="fm-composition-block" style={style}><a href={siteHref(block.url)} className="inline-flex min-h-11 items-center border border-current px-5 py-3 font-bold" data-theme-field="text">{block.text || fb("CompositionSection.block.text")}</a></div>;
@@ -265,7 +267,7 @@ function MagneticButton({ magnetic, children, className, style, onClick, ...rest
 // the companion keys are set.
 // ──────────────────────────────
 
-function StyledImage({ src, alt = "", settings, fieldKey, className = "", imgClassName = "", loading, decoding, fetchPriority }: any) {
+function StyledImage({ src, alt = "", settings, fieldKey, className = "", imgClassName = "", loading, decoding, fetchPriority, sizes }: any) {
   if (!src) return null;
   const s = settings || {};
   const k = (suffix: string) => `${fieldKey}__${suffix}`;
@@ -278,8 +280,10 @@ function StyledImage({ src, alt = "", settings, fieldKey, className = "", imgCla
 
   return (
     <div className={`relative w-full h-full ${hoverZoom ? "group overflow-hidden" : ""} ${className}`}>
-      <img
+      <ResponsiveImage
         src={src}
+        media={s[k("media")]}
+        sizes={sizes}
         alt={alt}
         loading={loading}
         decoding={decoding}
@@ -386,7 +390,7 @@ export function HeroSection({ settings, onCtaClick, enableAnimations }: any) {
           className="hidden lg:block absolute right-[8%] top-1/2 -translate-y-1/2 z-10 w-[280px] rounded-[2px] overflow-hidden shadow-[0_30px_60px_rgba(0,0,0,0.5)]"
           style={{ aspectRatio: "4 / 5", transform: "translateY(-50%) rotate(-2deg)" }}
         >
-          <StyledImage src={settings.sideImageUrl} alt="" settings={settings} fieldKey="sideImageUrl" loading="lazy" decoding="async" />
+          <StyledImage src={settings.sideImageUrl} alt="" settings={settings} fieldKey="sideImageUrl" sizes="(min-width: 768px) 50vw, 100vw" loading="lazy" decoding="async" />
         </div>
       )}
     </section>
@@ -848,7 +852,7 @@ export function MulticolumnSection({ settings, enableAnimations }: any) {
               <div {...blockEditAttrs(item, idx)} className={`space-y-4 ${textAlign}`}>
                 {item.imageUrl && (
                   <div className="aspect-square w-32 mx-auto rounded-full overflow-hidden border border-white/10">
-                    <img src={item.imageUrl} loading="lazy" decoding="async" className="w-full h-full object-cover" alt={item.title || ""} />
+                    <ResponsiveImage src={item.imageUrl} media={item[mediaKey("imageUrl")]} sizes="128px" loading="lazy" decoding="async" className="w-full h-full object-cover" alt={item.title || ""} />
                   </div>
                 )}
                 <h3 className="text-lg font-bold text-white" style={bStyle(settings)}>{item.title || fb("MulticolumnSection.item.title")}</h3>
@@ -1050,7 +1054,7 @@ export function LogoListSection({ settings, enableAnimations }: any) {
             {items.map((item: any, idx: number) => (
               <div key={idx} {...blockEditAttrs(item, idx)} className="opacity-60 hover:opacity-100 transition-opacity">
                 {item.logoUrl ? (
-                  <img src={item.logoUrl} alt={item.alt || ""} loading="lazy" decoding="async" className="h-10 w-auto object-contain" />
+                  <ResponsiveImage src={item.logoUrl} media={item[mediaKey("logoUrl")]} sizes="160px" alt={item.alt || ""} loading="lazy" decoding="async" className="h-10 w-auto object-contain" />
                 ) : (
                   <span className="text-white/40 text-sm font-bold uppercase tracking-widest">{item.alt || fb("LogoListSection.item.alt")}</span>
                 )}
@@ -1133,7 +1137,7 @@ export function CollectionListSection({ settings, enableAnimations }: any) {
             <AnimationContainer key={idx} enabled={enableAnimations} delay={idx * 0.05}>
               <a href={siteHref(item.linkUrl)} {...blockEditAttrs(item, idx)} className="group relative block aspect-[3/4] overflow-hidden rounded-2xl bg-white/5">
                 {item.imageUrl && (
-                  <img src={item.imageUrl} alt={item.title || ""} loading="lazy" decoding="async" className="absolute inset-0 w-full h-full object-cover transition-transform duration-700 group-hover:scale-105" />
+                  <ResponsiveImage src={item.imageUrl} media={item[mediaKey("imageUrl")]} sizes="(min-width: 768px) 33vw, 50vw" alt={item.title || ""} loading="lazy" decoding="async" className="absolute inset-0 w-full h-full object-cover transition-transform duration-700 group-hover:scale-105" />
                 )}
                 <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-black/20 to-transparent" />
                 <div className="absolute bottom-0 left-0 right-0 p-5">
@@ -1822,7 +1826,7 @@ export function BlogPostsSection({ settings, enableAnimations }: any) {
                 <a href={siteHref(article.linkUrl)} className="block h-full focus:outline-none focus-visible:ring-2 focus-visible:ring-white/60 rounded-3xl">
                   <div className="aspect-[4/3] bg-white/5 overflow-hidden">
                     {article.imageUrl ? (
-                      <img src={article.imageUrl} alt={article.title || fb("BlogPostsSection.article.title")} loading="lazy" decoding="async" className="w-full h-full object-cover transition-transform duration-700 hover:scale-105" />
+                      <ResponsiveImage src={article.imageUrl} media={article[mediaKey("imageUrl")]} sizes="(min-width: 768px) 33vw, 100vw" alt={article.title || fb("BlogPostsSection.article.title")} loading="lazy" decoding="async" className="w-full h-full object-cover transition-transform duration-700 hover:scale-105" />
                     ) : (
                       <div className="w-full h-full flex items-center justify-center text-white/20 text-[10px] font-bold uppercase tracking-[0.3em]">
                         Article Image
@@ -2052,7 +2056,7 @@ function RowBlock({ block, blockIndex = 0, accentFallback, settings }: any) {
     return (
       <div {...blockEditAttrs(block, blockIndex)} className="overflow-hidden rounded-2xl border border-white/10 bg-white/5">
         {block.imageUrl ? (
-          <img src={block.imageUrl} alt={block.title || ""} loading="lazy" decoding="async" className="w-full h-auto object-cover" />
+          <ResponsiveImage src={block.imageUrl} media={block[mediaKey("imageUrl")]} sizes="(min-width: 768px) 50vw, 100vw" alt={block.title || ""} loading="lazy" decoding="async" className="w-full h-auto object-cover" />
         ) : (
           <div className="aspect-video w-full flex items-center justify-center text-white/20 text-xs uppercase tracking-widest">{sc("sectionNoImage")}</div>
         )}
@@ -2208,6 +2212,7 @@ export function GallerySection({ settings, enableAnimations }: any) {
                   alt={item.alt || ""}
                   settings={item}
                   fieldKey="imageUrl"
+                  sizes="(min-width: 768px) 25vw, 50vw"
                   loading="lazy"
                   decoding="async"
                   imgClassName="transition-transform duration-500 hover:scale-105"

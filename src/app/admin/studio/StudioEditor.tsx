@@ -60,6 +60,9 @@ import { writeDesignValue } from "../../features/site/designModel";
 import { StudioPageOverrides } from "./StudioPageOverrides";
 import { Panel, PanelGroup, PanelResizeHandle } from "react-resizable-panels";
 import { StudioRail } from "./StudioRail";
+import { MediaPickerDialog, StudioMediaPanel, useMediaLibrary } from "./StudioMedia";
+import { MediaPickerContext } from "./mediaPicker";
+import type { UsagePlace } from "./mediaLibrary";
 import { resolveShortcut, SHORTCUTS, type ShortcutAction } from "./shortcuts";
 import { StudioPreviewFrame } from "./StudioPreviewFrame";
 import { TemplatePicker } from "./TemplatePicker";
@@ -69,7 +72,7 @@ import { auth } from "../../../lib/firebase";
 import type { StudioLocation } from "../../lib/studioLocation";
 import "./studio.css";
 
-type LeftTab = "sections" | "style" | "text" | "menus" | "pages";
+type LeftTab = "sections" | "style" | "text" | "menus" | "pages" | "media";
 type Toast = { kind: "ok" | "err"; text: string; action?: { label: string; run: () => void } } | null;
 type ThemeVersion = { id: string; kind: "draft" | "published"; label: string; createdAt: string; design: any };
 
@@ -416,6 +419,8 @@ export function StudioEditor({ settings, onExit, onPersisted, appearance = "ligh
   const [toast, setToast] = useState<Toast>(null);
   const [askConfirm, confirmNode] = useConfirm();
   const [askText, promptNode] = usePrompt();
+  // Studio › Media (2.4): the image library, also behind every image field's "Choose from library".
+  const mediaLib = useMediaLibrary();
   const [copyFilter, setCopyFilter] = useState("");
   const [savedThemes, setSavedThemes] = useState<SavedTheme[]>(() => (Array.isArray(settings?.savedThemes) ? settings.savedThemes : []));
   const iframeRef = useRef<HTMLIFrameElement>(null);
@@ -1162,7 +1167,7 @@ export function StudioEditor({ settings, onExit, onPersisted, appearance = "ligh
     if (t.type === "page") { setLeftTab("pages"); setOpenPage({ slug: t.slug, nonce: Date.now() }); }
   };
 
-  const sidebarTabs: [LeftTab, string][] = [["sections", "Page layout"], ["style", "Theme settings"], ["text", "Text & labels"], ["menus", "Navigation"], ["pages", "Pages"]];
+  const sidebarTabs: [LeftTab, string][] = [["sections", "Page layout"], ["style", "Theme settings"], ["text", "Text & labels"], ["menus", "Navigation"], ["pages", "Pages"], ["media", "Media"]];
   const q = copyFilter.trim().toLowerCase();
   const visibleStyleGroups = filterSettingGroups(STYLE_GROUPS, styleSearch, styleCategory);
   // Theme settings home: task headings over the same categories, with "changed" counts.
@@ -1178,12 +1183,19 @@ export function StudioEditor({ settings, onExit, onPersisted, appearance = "ligh
   const textChangedTotal = COPY_SCHEMA.reduce((n, g) => n + changedCopyCount(g.fields, design), 0);
   const panelTitle = sidebarTabs.find(([id]) => id === leftTab)?.[1];
 
+  // Media › Where it's used: section names as Page layout shows them; a click opens that section.
+  const mediaNames = useMemo(() => ({ surface: surfaceLabel, section: (s: any) => s.label || sectionTitle(s).label }), [templates]);
+  const openMediaPlace = (place: UsagePlace) => {
+    if (!place.templateId || !place.sectionId) return;
+    goToResult({ target: { type: "section", templateId: place.templateId, sectionId: place.sectionId } } as SearchEntry);
+  };
+
   const sidebarPanel = (
         <div className="studio-sidebar" aria-label="Editor panel" role="region">
           <div className="studio-panel-context">
             <strong>{panelTitle}</strong>
             <span>{leftTab === "sections" ? (showGlobal ? "Shared sections · every page" : template.label) + ` · ${sections.length} sections` : `Previewing: ${showGlobal ? "shared sections" : template.label}`}</span>
-            <small>{leftTab === "sections" ? "Select content here or click it in the preview." : leftTab === "style" ? "Choose a category or search every setting." : leftTab === "text" ? "Edit the words your shoppers see." : leftTab === "menus" ? "Manage links, categories and their order." : "Create pages and edit their content or layout."}</small>
+            <small>{leftTab === "sections" ? "Select content here or click it in the preview." : leftTab === "style" ? "Choose a category or search every setting." : leftTab === "text" ? "Edit the words your shoppers see." : leftTab === "menus" ? "Manage links, categories and their order." : leftTab === "media" ? "Upload images, describe them and see where each is used." : "Create pages and edit their content or layout."}</small>
           </div>
           <div className="flex-1 overflow-auto" ref={sidebarScrollRef}>
             <StudioTips forceOpen={tipsNonce} />
@@ -1458,6 +1470,14 @@ export function StudioEditor({ settings, onExit, onPersisted, appearance = "ligh
                 onEditSections={(slug) => { setShowGlobal(false); setTemplateId(`page:${slug}`); setSelectedId(null); setLeftTab("sections"); }} />
             </div>
 
+            {leftTab === "media" && (
+              <StudioMediaPanel lib={mediaLib} design={design} published={published} pages={pages} names={mediaNames}
+                onDesignChange={(fn, label) => change(fn, { label })}
+                onOpenPlace={openMediaPlace}
+                onOpenPage={slug => { setLeftTab("pages"); setOpenPage({ slug, nonce: Date.now() }); }}
+                say={say} askConfirm={askConfirm} />
+            )}
+
             {leftTab === "menus" && (
               <>
                 <StudioCategories design={design} published={published} onChange={(c) => setStyle("categories", c)}
@@ -1546,6 +1566,7 @@ export function StudioEditor({ settings, onExit, onPersisted, appearance = "ligh
         </div>
       )}
 
+      <MediaPickerContext.Provider value={mediaLib.pickerApi}>
       <FocusContext.Provider value={focus}>
       <div className="studio-workspace" {...(busy === "discard" ? { inert: "" } : {})}>
         <StudioRail active={leftTab} onSelect={id => { setLeftTab(id); setStyleFocus(null); setSelectedId(null); setBlockId(null); setSelectedElement(null); setMobilePanel("outline"); }} />
@@ -1569,6 +1590,8 @@ export function StudioEditor({ settings, onExit, onPersisted, appearance = "ligh
         )}
       </div>
       </FocusContext.Provider>
+      </MediaPickerContext.Provider>
+      <MediaPickerDialog lib={mediaLib} />
 
       {confirmNode}
       {promptNode}

@@ -6,7 +6,7 @@
 import type { Section } from "./studioModel";
 import { regionFieldDevice } from "../../features/site/storefrontRegions";
 
-export type StudioTab = "sections" | "style" | "text" | "menus" | "pages";
+export type StudioTab = "sections" | "style" | "text" | "menus" | "pages" | "media";
 export type StudioActionId =
   | "save" | "publish" | "discard" | "history" | "check" | "preview-tab" | "undo" | "redo"
   | "device-desktop" | "device-tablet" | "device-mobile" | "mode-toggle" | "autofit-page" | "add-section";
@@ -101,6 +101,7 @@ const TABS: { tab: StudioTab; title: string; keywords: string }[] = [
   { tab: "text", title: "Text & labels", keywords: "words wording copy messages" },
   { tab: "menus", title: "Menus", keywords: "navigation header footer categories links" },
   { tab: "pages", title: "Pages", keywords: "about journal custom page content" },
+  { tab: "media", title: "Media library", keywords: "images pictures photos uploads files alt text description srcset replace delete unused" },
 ];
 
 const MENU_PANELS: { panel: string; title: string; keywords: string }[] = [

@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from "react";
+import { MediaLibraryButton, uploadIntoField, useMediaPicker } from "./studio/mediaPicker";
 import { SortableList, SortableRow } from "./dndSortable";
 import {
   ChevronDown,
@@ -1183,6 +1184,7 @@ export function BlockFieldEditor({
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [uploading, setUploading] = useState(false);
   const [uploadError, setUploadError] = useState("");
+  const media = useMediaPicker();
 
   const labelEl = (
     <label className="text-[9px] font-black tracking-[0.25em] text-neutral-400 uppercase block mb-1.5">
@@ -1313,12 +1315,12 @@ export function BlockFieldEditor({
         className="hidden"
         onChange={async (e) => {
           const f = e.target.files?.[0];
-          if (!f || !uploadFile) return;
+          e.target.value = "";
+          if (!f || (!uploadFile && !media)) return;
           setUploading(true);
           setUploadError("");
           try {
-            const url = await uploadFile(f);
-            onChange(url);
+            await uploadIntoField(media, f, { fieldKey: field.key, record: block, onPatch: onPatchBlock, onChange, uploadFile });
           } catch (err) {
             setUploadError(uploadErrorMessage(err));
           } finally {
@@ -1334,6 +1336,7 @@ export function BlockFieldEditor({
         <ImageIcon size={11} />
         {uploading ? "Uploading…" : "Upload image"}
       </button>
+      <MediaLibraryButton fieldKey={field.key} label={field.label} record={block} onPatch={onPatchBlock} onChange={onChange} />
       {uploadError && <p role="alert" className="studio-upload-error mt-1 text-[11px]">{uploadError}</p>}
       {onPatchBlock && (
         <div className="mt-2">
@@ -1831,6 +1834,7 @@ export function SectionFieldEditor({
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [uploading, setUploading] = useState(false);
   const [uploadError, setUploadError] = useState("");
+  const media = useMediaPicker();
 
   const labelEl = (
     <label className="text-[9px] font-black tracking-[0.25em] text-neutral-400 uppercase block mb-1.5">
@@ -2012,12 +2016,12 @@ export function SectionFieldEditor({
             className="hidden"
             onChange={async (e) => {
               const f = e.target.files?.[0];
-              if (!f || !uploadFile) return;
+              e.target.value = "";
+              if (!f || (!uploadFile && !media)) return;
               setUploading(true);
               setUploadError("");
               try {
-                const url = await uploadFile(f);
-                onChange(url);
+                await uploadIntoField(media, f, { fieldKey: field.key, record: settings, onPatch, onChange, uploadFile });
               } catch (err) {
                 setUploadError(uploadErrorMessage(err));
               } finally {
@@ -2033,6 +2037,7 @@ export function SectionFieldEditor({
             <ImageIcon size={11} />
             {uploading ? "Uploading…" : "Upload image"}
           </button>
+          <MediaLibraryButton fieldKey={field.key} label={field.label} record={settings} onPatch={onPatch} onChange={onChange} />
           {uploadError && <p role="alert" className="studio-upload-error mt-1 text-[11px]">{uploadError}</p>}
           {onPatch && (
             <div className="mt-2">
