@@ -200,52 +200,32 @@ export function OrderDetail({
     setChecked(new Set());
   }, [order ? packingKey(order) : ""]);
 
+  const hasLabel = !!(order?.labelUrl && order?.trackingNumber);
   const markAsShipped = async () => {
-    if (!trackingNumber.trim() || !carrierName) {
+    if (!hasLabel && (!trackingNumber.trim() || !carrierName)) {
       toast.error("Enter the carrier and tracking number.");
       return;
     }
     const editing = showShipForm === "edit";
     setIsShipping(true);
     try {
+      // A Shippo label keeps its own carrier and number; only the link is the publisher's.
       await adminApi.fulfillmentAction(orderId, editing ? "edit_tracking" : "dispatch", {
-        trackingCarrier: carrierName,
-        trackingNumber,
+        trackingCarrier: hasLabel ? order.trackingCarrier || "Canada Post" : carrierName,
+        trackingNumber: hasLabel ? order.trackingNumber : trackingNumber,
         trackingUrl: trackingLink,
       });
       setShowShipForm(false);
-      toast.success(editing ? "Tracking updated" : "Order marked as shipped");
+      toast.success(
+        editing
+          ? "Tracking updated"
+          : emailOn("shipping_confirmation")
+            ? `Shipped — tracking emailed to ${order?.customer?.email || "the customer"}`
+            : "Marked shipped (shipping email is switched off)",
+      );
       if (editing || !goToNext()) loadOrder();
     } catch (err: any) {
       toast.error(err?.message || "Error updating order.");
-    } finally {
-      setIsShipping(false);
-    }
-  };
-
-  // Shippo label already holds the carrier and number: one click marks it shipped
-  // and sends the customer's Shipping confirmation email.
-  const handOverToCarrier = async () => {
-    if (!order?.labelUrl || !order.trackingNumber) {
-      fillTracking(order);
-      setShowShipForm("dispatch");
-      return;
-    }
-    setIsShipping(true);
-    try {
-      await adminApi.fulfillmentAction(orderId, "dispatch", {
-        trackingCarrier: order.trackingCarrier || "Canada Post",
-        trackingNumber: order.trackingNumber,
-        trackingUrl: order.trackingUrl || "",
-      });
-      toast.success(
-        emailOn("shipping_confirmation")
-          ? `Shipped — tracking emailed to ${order.customer?.email || "the customer"}`
-          : "Marked shipped (shipping email is switched off)",
-      );
-      if (!goToNext()) loadOrder();
-    } catch (err: any) {
-      toast.error(err?.message || "Couldn't mark the order shipped.");
     } finally {
       setIsShipping(false);
     }
@@ -618,7 +598,6 @@ export function OrderDetail({
           onResendEmail={() => setConfirmResend(true)}
           onCheckAll={(indices) => setChecked(new Set(indices))}
           onPackingSlip={handlePrintPackingSlip}
-          onHandedOver={handOverToCarrier}
           onLocalAdvance={() => {
             const next = order.fulfillmentSelection?.method === "pickup"
               ? order.fulfillmentStatus === "ready_for_pickup" ? "record customer collection" : "mark the order ready for pickup"
@@ -994,11 +973,13 @@ export function OrderDetail({
       <Dialog
         open={!!showShipForm}
         onClose={() => !isShipping && setShowShipForm(false)}
-        title={showShipForm === "edit" ? "Correct tracking" : "Confirm dispatch"}
+        title={showShipForm === "edit" ? (hasLabel ? "Edit tracking link" : "Correct tracking") : "Confirm dispatch"}
         description={
           showShipForm === "edit"
-            ? "Fix the carrier, tracking number or link. The customer is not emailed again; their account and order tracking page show the new details."
-            : "Confirm only after handing the parcel to the carrier. This sends the customer's shipping notification."
+            ? hasLabel
+              ? "Change the link behind Track shipment. The customer is not emailed again; their account and order tracking page use the new link."
+              : "Fix the carrier, tracking number or link. The customer is not emailed again; their account and order tracking page show the new details."
+            : "Confirm only after handing the parcel to the carrier. This sends the customer's shipping email with the tracking number and a Track shipment button."
         }
         footer={
           <>
@@ -1012,8 +993,7 @@ export function OrderDetail({
               disabled={
                 isShipping ||
                 (showShipForm === "dispatch" && !!problem) ||
-                !trackingNumber.trim() ||
-                !carrierName ||
+                (!hasLabel && (!trackingNumber.trim() || !carrierName)) ||
                 (!!trackingLink.trim() && !cleanTrackingLink(trackingLink))
               }
               onClick={markAsShipped}
@@ -1028,10 +1008,9 @@ export function OrderDetail({
         }
       >
         <div className="rp-stack">
-          {order.labelUrl && showShipForm === "dispatch" ? (
+          {hasLabel ? (
             <p className="fw-summary" style={{ margin: 0 }}>
-              <strong>Shippo label:</strong> {order.trackingCarrier || "Carrier"} ·{" "}
-              {order.trackingNumber || "Tracking pending"}
+              <strong>Shippo label:</strong> {order.trackingCarrier || "Carrier"} · {order.trackingNumber}
             </p>
           ) : (
           <>
@@ -1060,6 +1039,8 @@ export function OrderDetail({
             maxLength={100}
             placeholder="Enter the carrier tracking number"
           />
+          </>
+          )}
           <TextField
             label="Tracking link (optional)"
             value={trackingLink}
@@ -1070,20 +1051,20 @@ export function OrderDetail({
                 ? "The link must start with https://"
                 : undefined
             }
-            hint="Leave blank to use the carrier's own tracking page. Paste a link for carriers we don't recognise."
+            hint={`This is the link behind Track shipment in the customer's email, account and order tracking page. Leave blank to use ${(hasLabel ? order.trackingCarrier : carrierName) || "the carrier"}'s own tracking page.`}
           />
-          {trackingNumber.trim() && carrierName && (
+          {(hasLabel || (trackingNumber.trim() && carrierName)) && (
             <a
               className="rp-btn rp-btn-secondary rp-btn-sm"
-              href={getTrackingUrl(carrierName, trackingNumber, trackingLink)}
+              href={hasLabel
+                ? getTrackingUrl(order.trackingCarrier || "", order.trackingNumber, trackingLink)
+                : getTrackingUrl(carrierName, trackingNumber, trackingLink)}
               target="_blank"
               rel="noopener noreferrer"
               style={{ alignSelf: "flex-start" }}
             >
               Test tracking link <ExternalLink size={12} aria-hidden />
             </a>
-          )}
-          </>
           )}
           {showShipForm === "dispatch" && (
             <p className="rp-hint" role="status" style={{ margin: 0 }}>
