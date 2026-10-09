@@ -20,11 +20,17 @@ const clone = <T,>(v: T): T => JSON.parse(JSON.stringify(v ?? null));
 /** Normalizes legacy flat blocks and recursive composition blocks without mutating. */
 export function normalizeBlocks(blocks: any[], parent = "block", depth = 0): StudioBlock[] {
   if (!Array.isArray(blocks) || depth >= MAX_BLOCK_DEPTH) return [];
-  return blocks.filter(b => b && typeof b === "object").map((block, index) => {
+  const kept = blocks.filter(b => b && typeof b === "object");
+  let same = kept.length === blocks.length;
+  const out = kept.map((block, index) => {
     const id = block.id || `${parent}-${index}`;
     const children = normalizeBlocks(block.children, id, depth + 1);
+    // Already normal: keep the very same object, so unchanged blocks keep their identity between edits (Phase 4).
+    if (block.id && (children.length ? children === block.children : block.children === undefined)) return block;
+    same = false;
     return { ...block, id, ...(children.length ? { children } : { children: undefined }) };
   });
+  return same && out.every((b, i) => b === kept[i]) ? blocks : out;
 }
 
 /** Linked shared blocks inherit source content while keeping placement/layout overrides. */

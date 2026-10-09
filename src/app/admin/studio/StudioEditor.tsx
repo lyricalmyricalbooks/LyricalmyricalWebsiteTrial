@@ -1253,7 +1253,9 @@ export function StudioEditor({ settings, onExit, onPersisted, appearance = "ligh
     for (const [zone, items] of zones) walk(items, `This page › ${zone}`);
     return out;
   }, [structure]);
-  const searchIndex = useMemo(() => buildStudioIndex({
+  // Built only while Find anything is open: it indexes thousands of entries, so rebuilding it on every keystroke
+  // with the window closed was wasted work (Phase 4).
+  const searchIndex = useMemo(() => !findOpen ? [] as ReturnType<typeof buildStudioIndex> : buildStudioIndex({
     styleGroups: [...STYLE_GROUPS, ...Object.entries(EXTRA_STYLE_CATEGORIES).map(([id, c]) => ({ id, title: c.title, hint: c.blurb, fields: [] }))],
     copySchema: COPY_SCHEMA, templates, pages,
     sectionsByTemplate: {
@@ -1265,7 +1267,7 @@ export function StudioEditor({ settings, onExit, onPersisted, appearance = "ligh
     sectionLabel: (type: string) => getSectionMeta(type)?.label || type,
     elements: structureElements,
     books,
-  }), [design, templates, pages, structureElements, books]);
+  }), [findOpen, design, templates, pages, structureElements, books]);
   // Commands for the current selection, offered first in Find anything.
   const selectedIndex = selected ? sections.findIndex(x => x.id === selected.id) : -1;
   const paletteContext = useMemo(() => contextCommands({
@@ -1393,7 +1395,9 @@ export function StudioEditor({ settings, onExit, onPersisted, appearance = "ligh
   const q = copyFilter.trim().toLowerCase();
   const visibleStyleGroups = filterSettingGroups(STYLE_GROUPS, styleSearch, styleCategory);
   // Theme settings home: task headings over the same categories, with "changed" counts.
-  const changed = useMemo(() => changedCounts(STYLE_GROUPS, design, defaults), [design, defaults]);
+  // "N changed" badges walk every Theme settings field: only while Theme settings is open (Phase 4).
+  const changed = useMemo(() => leftTab === "style" ? changedCounts(STYLE_GROUPS, design, defaults) : { total: 0, byGroup: {} as Record<string, number> },
+    [leftTab, design, defaults]);
   const themeHome: HomeHeading[] = THEME_HEADINGS.map(h => ({ ...h, categories: h.groups.map(id => {
     const group = STYLE_GROUPS.find(g => g.id === id);
     return { id, title: EXTRA_STYLE_CATEGORIES[id]?.title || group?.title || id, blurb: blurbFor(group, id), changed: changed.byGroup[id], onPage: Boolean(CATEGORY_PAGES[id]) };
@@ -1402,7 +1406,7 @@ export function StudioEditor({ settings, onExit, onPersisted, appearance = "ligh
     const group = COPY_SCHEMA.find(g => g.group === name);
     return { id: name, title: name, blurb: TEXT_BLURBS[name] || "", changed: group ? changedCopyCount(group.fields, design) : 0 };
   }) }));
-  const textChangedTotal = COPY_SCHEMA.reduce((n, g) => n + changedCopyCount(g.fields, design), 0);
+  const textChangedTotal = useMemo(() => leftTab === "text" ? COPY_SCHEMA.reduce((n, g) => n + changedCopyCount(g.fields, design), 0) : 0, [leftTab, design]);
   const panelTitle = sidebarTabs.find(([id]) => id === leftTab)?.[1];
 
   // Media › Where it's used: section names as Page layout shows them; a click opens that section.

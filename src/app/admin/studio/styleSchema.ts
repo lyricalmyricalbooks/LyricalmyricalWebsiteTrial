@@ -170,6 +170,7 @@ export const STYLE_GROUPS: StyleGroup[] = [
       { key: "containerWidth", label: "Content width", kind: "range", min: 800, max: 1800, step: 20, suffix: "px" },
       { key: "sectionSpacing", label: "Space between sections", kind: "range", min: 0, max: 160, step: 4, suffix: "px" },
       { key: "cardRadius", label: "Card corner radius", kind: "range", min: 0, max: 40, step: 1, suffix: "px" },
+      { key: "lazySections", label: "Draw sections lower on the page only when shoppers scroll near them (faster first load)", kind: "toggle", defaultValue: true },
     ],
   },
   {

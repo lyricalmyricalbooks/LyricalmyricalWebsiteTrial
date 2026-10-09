@@ -45,9 +45,14 @@ export function useStudioPersistence(props: {
         if (!warned.current) { warned.current = true; p.say("err", "Local recovery is unavailable. Use Save draft to keep your work."); }
       }
     };
-    const timer = setTimeout(store, 400);
+    // Written when the browser is idle (within 1.5 s), so serialising the design never competes with typing (Phase 4).
+    const idle = (window as any).requestIdleCallback as undefined | ((fn: () => void, o: { timeout: number }) => number);
+    const handle = idle ? idle(store, { timeout: 1500 }) : setTimeout(store, 400);
     window.addEventListener("pagehide", store);
-    return () => { clearTimeout(timer); window.removeEventListener("pagehide", store); };
+    return () => {
+      if (idle) (window as any).cancelIdleCallback?.(handle); else clearTimeout(handle);
+      window.removeEventListener("pagehide", store);
+    };
   }, [props.design, props.savedDraft, recoveryKey, recovery]);
 
   const dismissRecovery = () => {
@@ -71,16 +76,19 @@ export function useStudioPersistence(props: {
     const p = current.current;
     let lost: ThemeConflictError | null = null;
     try {
-      const snapshot = await writer.current.run(override ?? (kind === "discard" ? p.published : p.design), async captured => {
+      // Designs are never mutated, so the object that was saved can stand for "saved" afterwards: later
+      // comparisons then skip every part the owner hasn't touched since (Phase 4).
+      const source = override ?? (kind === "discard" ? p.published : p.design);
+      const snapshot = await writer.current.run(source, async captured => {
         const ws = p.workspace;
         rev.current = kind === "discard" ? await discardDraft(ws, captured, rev.current)
           : kind === "publish" ? await publishDesign(ws, captured, rev.current)
           : await saveDraft(ws, captured, rev.current);
       });
       if (!snapshot) return;
-      p.setSavedDraft(snapshot);
-      if (kind === "publish") p.setPublished(snapshot);
-      if (kind === "discard") { p.reset(snapshot); dismissRecovery(); }
+      p.setSavedDraft(source);
+      if (kind === "publish") p.setPublished(source);
+      if (kind === "discard") { p.reset(source); dismissRecovery(); }
       p.onPersisted?.(snapshot, kind === "publish");
       p.say("ok", kind === "publish" ? "Published. Newer edits remain in your draft." : kind === "discard" ? "Draft discarded." : "Draft saved. Publish when you’re ready to go live.");
       if (kind !== "discard") {

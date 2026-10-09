@@ -208,6 +208,13 @@ export type SectionListProps = {
   design?: any;
 };
 
+/** Sections from this position on are drawn when shoppers scroll near them (the first screens render at once). */
+export const LAZY_FROM_INDEX = 2;
+/** Every-page groups stay as they are: they sit in the header, above the footer or in a pop-up. */
+const LAZY_EXCLUDED_GROUPS = new Set(["headerSections", "globalSections", "overlaySections"]);
+/** Sections with a bar fixed to the screen: content-visibility would pin it inside the section instead. */
+const LAZY_EXCLUDED_TYPES = new Set(["StickyAddToBagSection"]);
+
 /**
  * Renders an ordered list of theme sections. Pure (no router/data hooks) so it
  * can be used on any surface. Returns null when there is nothing to render.
@@ -226,6 +233,11 @@ export function SectionList({
   const list = (sections || []).filter((section: any) => section.visible !== false && sectionInWindow(section));
   const pageContext = useSectionPage();
   const preview = typeof window !== "undefined" && window.location.search.includes("preview=true");
+  // Style › Layout & spacing › "Draw sections lower on the page only when shoppers scroll near them" (Phase 4):
+  // sections from the third on use CSS content-visibility, so the browser skips laying them out until they come near
+  // the screen. The DOM stays complete (prerendered HTML, search, find-in-page and screen readers see everything).
+  // Never in the Studio preview (its tools measure every section) or in the shared header/footer/pop-up groups.
+  const lazy = !preview && design?.lazySections !== false && !LAZY_EXCLUDED_GROUPS.has(dataSection);
   if (list.length === 0) return null;
   // The scheme list this stack was given (a page's own, else the design's), else the starter schemes.
   const schemes: any[] = schemeList({ colorSchemes });
@@ -259,6 +271,7 @@ export function SectionList({
             .join(" ") || undefined;
 
         const hasGlowHover = s.hoverEffect === "glow";
+        const drawLater = lazy && index >= LAZY_FROM_INDEX && !LAZY_EXCLUDED_TYPES.has(section.type);
 
         return (
           <div
@@ -268,8 +281,10 @@ export function SectionList({
             data-section-id={section.id}
             data-fm-section={section.id}
             data-scheme={scheme?.id || undefined}
+            data-draw-later={drawLater || undefined}
             className={wrapperCls}
             style={{
+              ...(drawLater && { contentVisibility: "auto", containIntrinsicSize: "auto 600px" }),
               paddingTop: s.paddingTop != null ? `${s.paddingTop}px` : undefined,
               paddingBottom: s.paddingBottom != null ? `${s.paddingBottom}px` : undefined,
               paddingLeft: s.paddingLeft != null ? `${s.paddingLeft}px` : undefined,
