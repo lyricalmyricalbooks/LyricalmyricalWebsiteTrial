@@ -51,8 +51,14 @@ describe("atomic fulfillment actions", () => {
   await adminApi.fulfillmentAction("a", "delivery_status", { status: "delivered" });
   expect(tx.update.mock.calls[0][1]).toMatchObject({ fulfillmentStatus: "delivered" });
   expect(tx.update.mock.calls[0][1]).not.toHaveProperty("paymentStatus");
-  records.set("orders/a", { ...base(), status: "completed", fulfillmentStatus: "shipped", labelUrl: "label" });
-  await expect(adminApi.fulfillmentAction("a", "edit_tracking", { trackingCarrier: "UPS", trackingNumber: "3" })).rejects.toThrow("Shippo");
+  // A Shippo label keeps its carrier and number; only the customer's tracking link changes.
+  records.set("orders/a", { ...base(), status: "completed", fulfillmentStatus: "shipped", labelUrl: "label", trackingCarrier: "canada_post", trackingNumber: "SH1" });
+  tx.update.mockClear();
+  await adminApi.fulfillmentAction("a", "edit_tracking", { trackingCarrier: "UPS", trackingNumber: "3", trackingUrl: "https://track.example.com/SH1" });
+  expect(tx.update.mock.calls[0][1]).toMatchObject({ trackingUrl: "https://track.example.com/SH1" });
+  expect(tx.update.mock.calls[0][1]).not.toHaveProperty("trackingNumber");
+  expect(tx.update.mock.calls[0][1]).not.toHaveProperty("trackingCarrier");
+  await expect(adminApi.fulfillmentAction("a", "edit_tracking", { trackingUrl: "javascript:alert(1)" })).rejects.toThrow("https://");
  });
  it("resends the shipping email only for tracked parcels in transit, without changing status", async () => {
   await expect(adminApi.fulfillmentAction("a", "resend_shipping_email")).rejects.toThrow("in transit");

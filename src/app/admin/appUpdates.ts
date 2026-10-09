@@ -10,6 +10,11 @@ export type AppUpdate = {
 // Newest first. Every PR adds an entry; links open the affected admin workspace.
 export const APP_UPDATES: AppUpdate[] = [
   {
+    id: "orders-tracking-link-oct-2026", date: "2026-10-09", title: "Adding a tracking link to the shipping email is easier",
+    summary: "When an order is ready to ship, press Enter tracking & mark shipped (it used to say \"I made my own label\") to type the carrier, tracking number and, if you like, your own tracking link. That link is what the Track shipment button in the customer's shipping email opens; leave it blank and the email uses the carrier's own tracking page. Orders with a Shippo label now show the same box before you mark them shipped, so you can check or change the link. After an order ships you can fix the link from Edit tracking (or Edit tracking link for Shippo orders), and the order shows a Customer's tracking link to check what the customer sees. Fixing a link doesn't send the customer another email; use Resend shipping email if you want them to get the new one.",
+    links: [{ label: "Open Orders", tab: "orders" }],
+  },
+  {
     id: "studio-2-colour-schemes", date: "2026-10-09", title: "Colour schemes you can name, edit and reuse",
     summary: "Theme settings in the Design studio has a new Colour schemes category. A scheme is a named set of colours: background, panels, text, muted text, accent, text on the accent, borders, button colours and links. Add, rename, duplicate, reorder or delete schemes; each shows a small preview and checks that its text, buttons and accent are easy to read (WCAG contrast). Give a section a scheme in its Style tab › Colour scheme, or pick one for the book cards, the product page's buy card or the shopping bag. Change a scheme and everything using it follows. The starter schemes now use the Riso black, white and red instead of purple. Schemes you saved before keep their current look until you change one of their colours. Deleting a scheme that's in use asks first, and those parts go back to the theme's own colours.",
     links: [{ label: "Open Theme settings", tab: "settings", settingsTab: "designer", studio: "#designer?tab=style" }],

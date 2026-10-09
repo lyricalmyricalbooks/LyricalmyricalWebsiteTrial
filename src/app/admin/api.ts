@@ -744,10 +744,16 @@ export const adminApi = {
         message = `Dispatched via ${tracking.trackingCarrier}. Tracking: ${tracking.trackingNumber}`;
       } else if (action === "edit_tracking") {
         if (fulfillmentMethod(o) !== "shipping" || queueOf(o) !== "In transit") throw new Error("Tracking can only be corrected while the parcel is in transit.");
-        if (o.labelUrl) throw new Error("This order has a Shippo label. Its tracking comes from Shippo.");
-        const tracking = trackingFields(payload);
-        tx.update(ref, { ...tracking, updatedAt: now });
-        message = `Tracking corrected: ${tracking.trackingCarrier} · ${tracking.trackingNumber}`;
+        if (o.labelUrl) {
+          // Shippo owns the carrier and number (its webhook finds the order by number); only the link may change.
+          const { trackingUrl } = trackingFields({ trackingCarrier: o.trackingCarrier || "Carrier", trackingNumber: o.trackingNumber || "-", trackingUrl: payload.trackingUrl });
+          tx.update(ref, { trackingUrl, updatedAt: now });
+          message = trackingUrl ? `Tracking link set: ${trackingUrl}` : "Tracking link cleared (carrier's page is used).";
+        } else {
+          const tracking = trackingFields(payload);
+          tx.update(ref, { ...tracking, updatedAt: now });
+          message = `Tracking corrected: ${tracking.trackingCarrier} · ${tracking.trackingNumber}`;
+        }
       } else if (action === "resend_shipping_email") {
         if (fulfillmentMethod(o) !== "shipping" || queueOf(o) !== "In transit" || o.fulfillmentStatus === "delivered") throw new Error("The shipping email can only be resent while the parcel is in transit.");
         if (!String(o.trackingNumber || "").trim()) throw new Error("Add tracking before resending the shipping email.");
