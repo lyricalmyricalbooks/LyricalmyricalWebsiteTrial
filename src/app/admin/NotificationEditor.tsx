@@ -1,35 +1,63 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, type SyntheticEvent } from "react";
 import { collection, doc, getDoc, getDocs, limit, orderBy, query, setDoc } from "firebase/firestore";
 import { db, auth } from "../../lib/firebase";
 import { functionFetch } from "../lib/functionsBase";
 import toast from "react-hot-toast";
 import { risoButton, risoLayout } from "./emailTheme";
 import { GmailSendingCard } from "./GmailSendingCard";
-import { emailLogBadge, emailLogDetail } from "./emailLogDisplay";
+import { emailLogBadge, emailLogDetail, needsAttention } from "./emailLogDisplay";
+import { fillSample, insertAt, PLACEHOLDERS, templateProblems, withRequiredPlaceholders, type TemplateFields } from "./emailTemplateChecks";
 import { adminApi } from "./api";
 import {
-  DataTable, GhostButton, LoadingState, PrimaryButton, SaveBar, SectionCard, SectionHead, SecondaryButton, SelectField, StatusBadge, Tabs, TextArea, TextField, Toggle,
+  DataTable, GhostButton, LoadingState, SaveBar, SectionCard, SectionHead, SecondaryButton, SelectField, StatusBadge, Tabs, TextArea, TextField, Toggle, useConfirm,
 } from "./riso/components";
-
-type TemplateFields = {
-  subject: string;
-  body: string;
-  buttonText: string;
-  signoff: string;
-  enabled?: boolean;
-};
 
 type EmailLogEntry = {
   id: string;
   at?: string;
   to?: string;
   subject?: string;
-  /** "fallback" = Gmail missed and the backup sender (Resend) was tried; the next row has the outcome. */
-  status?: "sent" | "failed" | "fallback" | "bounced" | "complained";
+  /** "fallback" = Gmail missed and the backup sender (Resend) was tried; the next row has the outcome.
+   *  "queued" = every sender refused it; the retry queue will try again. "cancelled" = the owner stopped it. */
+  status?: "sent" | "failed" | "fallback" | "bounced" | "complained" | "queued" | "cancelled";
   error?: string;
   note?: string;
   keySource?: string;
+  sandbox?: boolean;
+  from?: string;
+  attempt?: number;
+  retryAt?: string | null;
+  outboxId?: string;
 };
+
+/** One email in the server's retry queue (Settings › Notifications › Waiting to send). Never its HTML. */
+type QueuedEmail = {
+  id: string;
+  to: string;
+  subject: string;
+  kind: string;
+  status: "pending" | "failed";
+  attempts: number;
+  nextAttemptAt: string | null;
+  lastError: string;
+  createdAt: string | null;
+};
+
+const MAX_TRIES = 8;
+
+// Admin-only calls to the sendTestEmail function (test sends and the retry queue actions).
+async function emailFunction(body: Record<string, unknown>) {
+  const idToken = await auth.currentUser?.getIdToken();
+  if (!idToken) throw new Error("Sign in again as the shop administrator.");
+  const response = await functionFetch("sendTestEmail", {
+    method: "POST",
+    headers: { "Content-Type": "application/json", "Authorization": `Bearer ${idToken}` },
+    body: JSON.stringify(body),
+  });
+  const data = await response.json().catch(() => ({}));
+  if (!response.ok) throw new Error(data.error || `The email service answered ${response.status}. Check that Cloud Functions are deployed.`);
+  return data;
+}
 
 type NotificationSettings = {
   brand: {
@@ -144,37 +172,18 @@ const TABS = [
 ] as const;
 
 function compilePreviewHtml(templateId: keyof Omit<NotificationSettings, "brand">, data: NotificationSettings) {
-  const brand = data.brand || {};
+  const brand: Partial<NotificationSettings["brand"]> = data.brand || {};
   const brandColor = brand.brandColor || "#e8402a";
   
   const template = data[templateId] || DEFAULT_SETTINGS[templateId];
-  const body = template.body || "";
-  const buttonText = template.buttonText || "";
-  const signoff = template.signoff || "";
-  
-  let finalBody = body
-    .replace(/\{\{customer_name\}\}/g, "Julianne Smith")
-    .replace(/\{\{order_id\}\}/g, "LM-98241")
-    .replace(/\{\{tracking_carrier\}\}/g, "Canada Post")
-    .replace(/\{\{tracking_number\}\}/g, "123456789012")
-    .replace(/\{\{total_price\}\}/g, "CA$45.00")
-    .replace(/\{\{payment_method\}\}/g, "Interac e-Transfer")
-    .replace(/\{\{email\}\}/g, "julianne.smith@gmail.com")
-    .replace(/\{\{status\}\}/g, "out for delivery")
-    .replace(/\{\{subject\}\}/g, "Stocking your books")
-    .replace(/\{\{message\}\}/g, templateId === "gift_card" ? "Happy birthday! Enjoy something new to read." : "Hello! Do you sell wholesale to independent bookshops?")
-    .replace(/\{\{tracking_url\}\}/g, "#")
-    .replace(/\{\{cart_url\}\}/g, "#")
-    .replace(/\{\{order_url\}\}/g, "#")
-    .replace(/\{\{shipping_method\}\}/g, "Canada Post Expedited Parcel")
-    .replace(/\{\{delivery_estimate\}\}/g, "2-4 business days after dispatch")
-    .replace(/\{\{recipient_name\}\}/g, "Sam")
-    .replace(/\{\{sender_name\}\}/g, "Julianne")
-    .replace(/\{\{amount\}\}/g, "CA$50.00")
-    .replace(/\{\{code\}\}/g, "ABCD-EFGH-JKMN-PQRS")
-    .replace(/\{\{expires\}\}/g, "It never expires.")
-    .replace(/\{\{shop_url\}\}/g, "#")
-    .replace(/\n/g, "<br/>");
+  // Same rules as the server: empty fields fall back to the default, required lines come back,
+  // unknown placeholders read as blank.
+  const fallback = DEFAULT_SETTINGS[templateId];
+  const body = withRequiredPlaceholders(templateId, template.body || fallback.body);
+  const buttonText = fillSample(templateId, template.buttonText || "");
+  const signoff = fillSample(templateId, template.signoff || fallback.signoff);
+
+  const finalBody = fillSample(templateId, body).replace(/\n/g, "<br/>");
 
   const ctaButtonHtml = buttonText ? risoButton("#", buttonText, brandColor, brand.emailTheme) : "";
 
@@ -205,7 +214,7 @@ function compilePreviewHtml(templateId: keyof Omit<NotificationSettings, "brand"
     `;
   }
 
-  let signoffHtml = signoff.replace(/\n/g, "<br/>");
+  const signoffHtml = signoff.replace(/\n/g, "<br/>");
 
   return risoLayout(`
     <p style="margin-top:0;">${finalBody}</p>
@@ -230,17 +239,24 @@ export function NotificationEditor() {
   const [testResult, setTestResult] = useState<{ ok: boolean; message: string } | null>(null);
   const [deliveries, setDeliveries] = useState<EmailLogEntry[] | null>(null);
   const [deliveriesError, setDeliveriesError] = useState("");
+  const [deliveryFilter, setDeliveryFilter] = useState<"all" | "attention">("all");
+  const [queue, setQueue] = useState<QueuedEmail[]>([]);
+  const [queueBusy, setQueueBusy] = useState("");
+  // Where a placeholder chip inserts: the field the admin last clicked or typed in, at the caret.
+  const [cursor, setCursor] = useState<{ field: "subject" | "body" | "signoff"; start: number | null; end: number | null }>({ field: "body", start: null, end: null });
+  const [confirm, confirmNode] = useConfirm();
 
   useEffect(() => {
     loadSettings();
     loadDeliveries();
+    loadQueue();
     // Default the test recipient to the signed-in admin so Send test works straight away.
     if (auth.currentUser?.email) setTestEmail((prev) => prev || auth.currentUser?.email || "");
   }, []);
 
   async function loadDeliveries() {
     try {
-      const snap = await getDocs(query(collection(db, "emailLog"), orderBy("at", "desc"), limit(15)));
+      const snap = await getDocs(query(collection(db, "emailLog"), orderBy("at", "desc"), limit(50)));
       setDeliveries(snap.docs.map((d) => ({ id: d.id, ...(d.data() as any) })));
       setDeliveriesError("");
     } catch (err: any) {
@@ -249,6 +265,48 @@ export function NotificationEditor() {
       setDeliveriesError(err?.code === "permission-denied"
         ? "The delivery log needs the latest Firestore rules deployed."
         : "Could not load recent deliveries.");
+    }
+  }
+
+  async function loadQueue() {
+    try {
+      const data = await emailFunction({ action: "emailQueue" });
+      setQueue(Array.isArray(data.entries) ? data.entries : []);
+    } catch (err) {
+      // Older Functions without the queue: the Recent deliveries table still shows every attempt.
+      console.warn("Could not load the email retry queue:", err);
+      setQueue([]);
+    }
+  }
+
+  async function retryQueued(entry: QueuedEmail) {
+    setQueueBusy(entry.id);
+    try {
+      const result = await emailFunction({ action: "retryEmail", id: entry.id });
+      if (result.status === "sent") toast.success(`Sent to ${entry.to}.`);
+      else toast.error(`Still not sent: ${result.error || "the sender refused it"}${result.status === "queued" ? " It will be tried again automatically." : ""}`);
+    } catch (err: any) {
+      toast.error(err?.message || "Could not retry this email.");
+    } finally {
+      setQueueBusy("");
+      loadQueue();
+      loadDeliveries();
+    }
+  }
+
+  async function stopQueued(entry: QueuedEmail) {
+    const ok = await confirm({ title: "Stop sending this email?", message: `“${entry.subject}” to ${entry.to} will be removed from the queue and never sent. This can't be undone.`, confirmLabel: "Stop sending" });
+    if (!ok) return;
+    setQueueBusy(entry.id);
+    try {
+      await emailFunction({ action: "cancelEmail", id: entry.id });
+      toast.success("Removed from the queue.");
+    } catch (err: any) {
+      toast.error(err?.message || "Could not stop this email.");
+    } finally {
+      setQueueBusy("");
+      loadQueue();
+      loadDeliveries();
     }
   }
 
@@ -357,25 +415,15 @@ export function NotificationEditor() {
     setSendingTest(true);
     setTestResult(null);
     try {
-      const idToken = await auth.currentUser?.getIdToken();
-      if (!idToken) throw new Error("Unauthorized: You must be logged in as administrator.");
-
-      const response = await functionFetch("sendTestEmail", {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          "Authorization": `Bearer ${idToken}`
-        },
-        body: JSON.stringify({
-          templateId: activeTab,
-          email: testEmail.trim()
-        })
+      // What is on screen, saved or not: the template's words and the email branding.
+      const { subject, body, buttonText, signoff } = currentTemplate;
+      const { logoUrl, brandColor, emailTheme } = data.brand || ({} as NotificationSettings["brand"]);
+      await emailFunction({
+        templateId: activeTab,
+        email: testEmail.trim(),
+        template: { subject, body, buttonText, signoff },
+        brand: { logoUrl, brandColor, emailTheme },
       });
-
-      if (!response.ok) {
-        const err = await response.json().catch(() => ({}));
-        throw new Error(err.error || `The email service answered ${response.status}. Check that Cloud Functions are deployed.`);
-      }
 
       setTestResult({ ok: true, message: `Sent to ${testEmail.trim()}. Check that inbox (and its spam folder).` });
       toast.success(`Test email sent to ${testEmail}!`);
@@ -392,25 +440,12 @@ export function NotificationEditor() {
     }
   };
 
-  const placeholders = {
-    order_confirmation: ["{{customer_name}}", "{{order_id}}", "{{order_url}}", "{{items_table}}", "{{total_price}}", "{{shipping_method}}", "{{delivery_estimate}}"],
-    order_pending_payment: ["{{customer_name}}", "{{order_id}}", "{{total_price}}", "{{payment_method}}", "{{items_table}}"],
-    shipping_confirmation: ["{{customer_name}}", "{{order_id}}", "{{tracking_carrier}}", "{{tracking_number}}", "{{tracking_url}}"],
-    abandoned_cart: ["{{customer_name}}", "{{cart_url}}", "{{items_table}}"],
-    order_cancelled: ["{{customer_name}}", "{{order_id}}"],
-    order_refunded: ["{{customer_name}}", "{{order_id}}", "{{total_price}}"],
-    customer_welcome: ["{{customer_name}}", "{{email}}"],
-    delivery_update: ["{{customer_name}}", "{{order_id}}", "{{status}}", "{{tracking_carrier}}", "{{tracking_number}}", "{{tracking_url}}"],
-    contact_reply: ["{{customer_name}}", "{{email}}"],
-    gift_card: ["{{recipient_name}}", "{{sender_name}}", "{{amount}}", "{{code}}", "{{message}}", "{{expires}}", "{{shop_url}}"]
-  };
-
   if (loading) return <LoadingState label="Loading notification templates…" />;
 
   const currentTemplate = data[activeTab] || DEFAULT_SETTINGS[activeTab];
   const dirty = JSON.stringify(data) !== original;
   const GROUPS = {
-    orders: { label: "Orders", ids: ["order_confirmation", "shipping_confirmation", "delivery_update", "order_cancelled", "order_refunded"] },
+    orders: { label: "Orders", ids: ["order_confirmation", "order_pending_payment", "shipping_confirmation", "delivery_update", "order_cancelled", "order_refunded"] },
     cart: { label: "Cart", ids: ["abandoned_cart"] },
     account: { label: "Account", ids: ["customer_welcome"] },
     contact: { label: "Contact form", ids: ["contact_reply"] },
@@ -423,7 +458,26 @@ export function NotificationEditor() {
     if (!testEmail && auth.currentUser?.email) setTestEmail(auth.currentUser.email);
   };
   const enabled = currentTemplate.enabled !== false;
-  const subjectPreview = currentTemplate.subject.replace(/\{\{order_id\}\}/g, "LM-98241").replace(/\{\{status\}\}/g, "out for delivery").replace(/\{\{amount\}\}/g, "CA$50.00");
+  const subjectPreview = fillSample(activeTab, currentTemplate.subject || DEFAULT_SETTINGS[activeTab].subject);
+  const problems = templateProblems(activeTab, currentTemplate);
+  const defaults = DEFAULT_SETTINGS[activeTab];
+  const isDefault = (["subject", "body", "buttonText", "signoff"] as const).every((k) => (currentTemplate[k] || "") === (defaults[k] || ""));
+  const resetTemplate = () => {
+    setData((prev) => ({ ...prev, [activeTab]: { ...defaults, enabled: prev[activeTab]?.enabled } }));
+    toast.success("Default words restored. Save to keep them, or Discard to undo.");
+  };
+  const remember = (field: "subject" | "body" | "signoff") => (e: SyntheticEvent<HTMLInputElement | HTMLTextAreaElement>) =>
+    setCursor({ field, start: e.currentTarget.selectionStart, end: e.currentTarget.selectionEnd });
+  const addPlaceholder = (name: string) => {
+    const token = `{{${name}}}`;
+    const field = cursor.field;
+    const next = insertAt(currentTemplate[field] || "", token, cursor.start, cursor.end);
+    handleFieldChange(field, next.value);
+    setCursor({ field, start: next.caret, end: next.caret });
+    toast.success(`Added ${token} to the ${field === "body" ? "body copy" : field === "subject" ? "subject line" : "sign-off"}.`);
+  };
+  const shownDeliveries = (deliveries || []).filter((r) => deliveryFilter === "all" || needsAttention(r));
+  const attentionCount = (deliveries || []).filter(needsAttention).length;
 
   return (
     <div className="rp-stack">
@@ -467,23 +521,36 @@ export function NotificationEditor() {
 
       <div className="rp-split" style={{ gridTemplateColumns: "repeat(auto-fit, minmax(min(100%, 460px), 1fr))" }}>
         <SectionCard title={TABS.find((t) => t.id === activeTab)?.label || "Template"}
-          actions={<StatusBadge tone={enabled ? "success" : "neutral"}>{enabled ? "Sending" : "Paused"}</StatusBadge>}>
+          actions={<div style={{ display: "flex", gap: 8, alignItems: "center", flexWrap: "wrap" }}>
+            {!isDefault && <SecondaryButton size="sm" onClick={resetTemplate}>Reset to default</SecondaryButton>}
+            <StatusBadge tone={enabled ? "success" : "neutral"}>{enabled ? "Sending" : "Paused"}</StatusBadge>
+          </div>}>
           <div className="rp-stack" style={{ gap: 20 }}>
             <Toggle label="Send this email automatically" checked={enabled} onChange={() => handleToggleActive()} />
-            <TextField label="Subject line" value={currentTemplate.subject} placeholder="Subject line" onChange={(e) => handleFieldChange("subject", e.target.value)} />
-            <TextArea label="Body copy" rows={7} value={currentTemplate.body} placeholder="Write your email body here…" onChange={(e) => handleFieldChange("body", e.target.value)} />
+            <TextField label="Subject line" value={currentTemplate.subject} placeholder="Subject line" onSelect={remember("subject")} onChange={(e) => handleFieldChange("subject", e.target.value)} />
+            <TextArea label="Body copy" rows={7} value={currentTemplate.body} placeholder="Write your email body here…" onSelect={remember("body")} onChange={(e) => handleFieldChange("body", e.target.value)} />
             <TextField label="Button text" value={currentTemplate.buttonText} placeholder="View details" hint="Leave blank to hide the button." onChange={(e) => handleFieldChange("buttonText", e.target.value)} />
-            <TextArea label="Sign-off" rows={2} value={currentTemplate.signoff} placeholder="Thanks," style={{ minHeight: 64 }} onChange={(e) => handleFieldChange("signoff", e.target.value)} />
+            <TextArea label="Sign-off" rows={2} value={currentTemplate.signoff} placeholder="Thanks," style={{ minHeight: 64 }} onSelect={remember("signoff")} onChange={(e) => handleFieldChange("signoff", e.target.value)} />
+
+            {problems.length > 0 && (
+              <div role="status" className="rp-stack" style={{ gap: 8 }}>
+                {problems.map((p) => (
+                  <p key={p.text} className="rp-hint" style={{ margin: 0, padding: 12, border: `1px solid var(--rp-${p.tone})`, color: `var(--rp-${p.tone})`, background: `var(--rp-${p.tone}-tint)` }}>
+                    {p.tone === "danger" ? "✕ " : "! "}{p.text}
+                  </p>
+                ))}
+              </div>
+            )}
 
             <div>
               <div className="rp-sect">Placeholders</div>
               <div style={{ display: "flex", flexWrap: "wrap", gap: 8 }}>
-                {(placeholders[activeTab] || []).map((ph) => (
-                  <button key={ph} type="button" className="rp-btn rp-btn-secondary rp-btn-sm rp-mono" style={{ textTransform: "none", letterSpacing: 0, fontWeight: 500 }}
-                    onClick={() => { handleFieldChange("body", currentTemplate.body + " " + ph); toast.success(`Added ${ph}`); }}>{ph}</button>
+                {PLACEHOLDERS[activeTab].map((name) => (
+                  <button key={name} type="button" className="rp-btn rp-btn-secondary rp-btn-sm rp-mono" style={{ textTransform: "none", letterSpacing: 0, fontWeight: 500 }}
+                    onMouseDown={(e) => e.preventDefault()} onClick={() => addPlaceholder(name)}>{`{{${name}}}`}</button>
                 ))}
               </div>
-              <p className="rp-hint" style={{ margin: "8px 0 0" }}>Select a placeholder to add it to the end of the body copy.</p>
+              <p className="rp-hint" style={{ margin: "8px 0 0" }}>Select a placeholder to add it where your cursor was in the subject, body or sign-off.</p>
             </div>
 
             <div className="rp-card" style={{ padding: 16, boxShadow: "none", background: "var(--rp-surface-sunken)" }}>
@@ -499,7 +566,7 @@ export function NotificationEditor() {
                   {testResult.ok ? "✓ " : "✕ "}{testResult.message}
                 </p>
               )}
-              <p className="rp-hint" style={{ margin: "8px 0 0" }}>Sends the last saved version of this template with sample order details. Save first to test your edits.</p>
+              <p className="rp-hint" style={{ margin: "8px 0 0" }}>Sends what you see here, including unsaved edits, with sample order details.</p>
             </div>
           </div>
         </SectionCard>
@@ -512,11 +579,37 @@ export function NotificationEditor() {
 
       <GmailSendingCard />
 
-      <SectionCard title="Recent deliveries" description="Every email the shop tried to send, newest first. A failed row says what to fix."
-        actions={<GhostButton onClick={loadDeliveries}>Refresh</GhostButton>} flush>
-        <DataTable<EmailLogEntry> caption="Recent email deliveries" rows={deliveries || []} rowKey={(r) => r.id}
+      {queue.length > 0 && (
+        <SectionCard title="Waiting to send" description={`Every sender refused these emails, so they are kept and tried again automatically (up to ${MAX_TRIES} tries over about a day). Fix the sending setup above, then choose Retry now.`}
+          actions={<SecondaryButton size="sm" onClick={loadQueue}>Refresh</SecondaryButton>} flush>
+          <DataTable<QueuedEmail> caption="Emails waiting to be sent again" rows={queue} rowKey={(r) => r.id}
+            rowState={(r) => (r.status === "failed" ? "failed" : undefined)}
+            columns={[
+              { key: "status", header: "Status", render: (r) => <StatusBadge tone={r.status === "failed" ? "danger" : "warning"}>{r.status === "failed" ? "Gave up" : "Will retry"}</StatusBadge> },
+              { key: "to", header: "To", lead: true, render: (r) => r.to || "—" },
+              { key: "subject", header: "Subject", render: (r) => r.subject || "—" },
+              { key: "tries", header: "Tries", render: (r) => `${r.attempts} of ${MAX_TRIES}` },
+              { key: "next", header: "Next try", render: (r) => (r.status === "pending" && r.nextAttemptAt ? new Date(r.nextAttemptAt).toLocaleString() : "—") },
+              { key: "error", header: "Last problem", render: (r) => <span style={{ whiteSpace: "normal" }}>{r.lastError || "—"}</span> },
+              { key: "actions", header: "Actions", render: (r) => (
+                <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
+                  <SecondaryButton size="sm" disabled={!!queueBusy} onClick={() => retryQueued(r)}>{queueBusy === r.id ? "Sending…" : "Retry now"}</SecondaryButton>
+                  <SecondaryButton size="sm" disabled={!!queueBusy} onClick={() => stopQueued(r)}>Stop</SecondaryButton>
+                </div>
+              ) },
+            ]} />
+        </SectionCard>
+      )}
+
+      <SectionCard title="Recent deliveries" description="Every email the shop tried to send in the last 90 days, newest first. A failed row says what to fix."
+        actions={<GhostButton onClick={() => { loadDeliveries(); loadQueue(); }}>Refresh</GhostButton>} flush>
+        <div style={{ padding: "12px 16px 0" }}>
+          <Tabs label="Show deliveries" value={deliveryFilter} onChange={(id) => setDeliveryFilter(id === "attention" ? "attention" : "all")}
+            tabs={[{ id: "all", label: "All", count: (deliveries || []).length }, { id: "attention", label: "Needs attention", count: attentionCount }]} />
+        </div>
+        <DataTable<EmailLogEntry> caption="Recent email deliveries" rows={shownDeliveries} rowKey={(r) => r.id}
           rowState={(r) => (r.status === "failed" ? "failed" : undefined)}
-          empty={<p className="rp-hint" style={{ margin: 0, padding: 16 }}>{deliveriesError || (deliveries === null ? "Loading…" : "No emails recorded yet. Send a test to check the setup.")}</p>}
+          empty={<p className="rp-hint" style={{ margin: 0, padding: 16 }}>{deliveriesError || (deliveries === null ? "Loading…" : deliveryFilter === "attention" ? "Nothing needs attention — every recent email was accepted." : "No emails recorded yet. Send a test to check the setup.")}</p>}
           columns={[
             { key: "status", header: "Status", render: (r) => { const badge = emailLogBadge(r); return <StatusBadge tone={badge.tone}>{badge.label}</StatusBadge>; } },
             { key: "when", header: "When", render: (r) => (r.at ? new Date(r.at).toLocaleString() : "—") },
@@ -528,6 +621,7 @@ export function NotificationEditor() {
 
       <SaveBar dirty={dirty} saving={saving} onSave={handleSave}
         onDiscard={() => { setData(JSON.parse(original)); setResendDraft(""); }} message="You have unsaved template changes." />
+      {confirmNode}
     </div>
   );
 }

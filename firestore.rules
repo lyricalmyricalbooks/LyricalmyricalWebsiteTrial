@@ -134,6 +134,11 @@ service cloud.firestore {
     match /email-claims/{claimId} {
       allow read, write: if false;
     }
+    // Server-only email retry queue: whole messages (gift-card codes, download links) waiting to
+    // be sent again. The admin sees a summary through sendTestEmail's emailQueue action only.
+    match /emailOutbox/{entryId} {
+      allow read, write: if false;
+    }
     // Server-only per-shopper hold counts (email hash / address hash) for the hold caps.
     match /stock-hold-owners/{holderId} {
       allow read, write: if false;

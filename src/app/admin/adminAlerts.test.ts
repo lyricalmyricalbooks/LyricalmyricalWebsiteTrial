@@ -72,6 +72,13 @@ describe("operational alerts", () => {
     expect(rows.find(a => a.id === "label-purchase-uncertain")?.orderIds).toEqual(["label"]);
     expect(rows.find(a => a.id === "email-failed")?.action).toBe("notifications");
   });
+  it("warns about emails waiting to retry, and stops once the queue delivered one", () => {
+    const waiting = buildAdminAlerts([], null, now, [{ id: "q", status: "queued", outboxId: "o1", at: ago(10) }]);
+    expect(waiting.find(a => a.id === "email-queued")?.action).toBe("notifications");
+    const delivered = buildAdminAlerts([], null, now, [{ id: "s", status: "sent", outboxId: "o1", at: ago(1) }, { id: "f", status: "failed", outboxId: "o1", at: ago(5) }, { id: "q", status: "queued", outboxId: "o1", at: ago(10) }]);
+    expect(delivered.find(a => a.id === "email-queued")).toBeUndefined();
+    expect(delivered.find(a => a.id === "email-failed")).toBeUndefined();
+  });
   it("does not alarm when Gmail missed but the backup sender delivered", () => {
     const rows = buildAdminAlerts([], null, now, [{ id: "g", status: "fallback", at: ago(10) }, { id: "r", status: "sent", at: ago(10) }]);
     expect(rows.find(a => a.id === "email-failed")).toBeUndefined();

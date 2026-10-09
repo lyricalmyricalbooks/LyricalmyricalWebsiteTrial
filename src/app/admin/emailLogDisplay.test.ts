@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { emailLogBadge, emailLogDetail } from "./emailLogDisplay";
+import { emailLogBadge, emailLogDetail, needsAttention } from "./emailLogDisplay";
 
 describe("Recent deliveries rows", () => {
   it("shows a Gmail→backup switch as a warning, not a failure or a plain success", () => {
@@ -12,5 +12,18 @@ describe("Recent deliveries rows", () => {
     expect(emailLogDetail({ keySource: "gmail" })).toBe("Accepted by Gmail");
     expect(emailLogDetail({ keySource: "settings" })).toBe("Accepted by Resend");
     expect(emailLogDetail({ error: "Gmail SMTP rejected" })).toBe("Gmail SMTP rejected");
+  });
+});
+
+describe("retry queue rows", () => {
+  it("shows a queued email as a warning with its next try, and a retried send as sent", () => {
+    expect(emailLogBadge({ status: "queued" })).toEqual({ tone: "warning", label: "Will retry" });
+    expect(emailLogBadge({ status: "cancelled" }).label).toBe("Stopped");
+    expect(emailLogBadge({ status: "sent", attempt: 3 })).toEqual({ tone: "success", label: "Sent on retry" });
+    expect(emailLogDetail({ status: "sent", keySource: "gmail", attempt: 3 })).toBe("Accepted by Gmail (try 3)");
+    expect(emailLogDetail({ status: "queued", error: "Down.", retryAt: "2026-10-09T12:00:00.000Z" })).toMatch(/^Down\. Next try /);
+  });
+  it("counts failures and waiting emails as needing attention", () => {
+    expect(["failed", "queued", "sent", "fallback", "cancelled"].map(status => needsAttention({ status }))).toEqual([true, true, false, false, false]);
   });
 });

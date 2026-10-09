@@ -111,7 +111,13 @@ export function buildAdminAlerts(allOrders: any[], webhook: WebhookStatus = null
 
   const uncertain = orders.filter(o => o.operations?.labelPurchasePending === true);
   if (uncertain.length) out.push(alert("label-purchase-uncertain", "danger", `${plural(uncertain.length, "label purchase needs", "label purchases need")} reconciliation`, `Check the existing transaction in Shippo before retrying: ${list(uncertain)}. An uncertain purchase may already have charged for a label.`, uncertain));
-  const failedEmails = emailLog.filter(e => ["failed", "bounced", "complained"].includes(e.status) && now - Date.parse(e.at || "") <= 7 * DAY);
+  // A queued email's newest row is its outcome: one later sent (or stopped) by the retry queue no longer alarms.
+  const newestForOutbox = new Map<string, any>();
+  for (const e of emailLog) if (e?.outboxId && !newestForOutbox.has(e.outboxId)) newestForOutbox.set(e.outboxId, e);
+  const current = emailLog.filter(e => !e?.outboxId || newestForOutbox.get(e.outboxId) === e);
+  const queuedEmails = current.filter(e => e.status === "queued");
+  if (queuedEmails.length) out.push({ id: "email-queued", tone: "warning", title: `${plural(queuedEmails.length, "email is", "emails are")} waiting to be sent again`, detail: "Every sender refused them, so the shop is retrying automatically. Fix the sending setup in Notifications, then use Retry now.", orderIds: queuedEmails.map(e => String(e.outboxId)), action: "notifications" });
+  const failedEmails = current.filter(e => ["failed", "bounced", "complained"].includes(e.status) && now - Date.parse(e.at || "") <= 7 * DAY);
   if (failedEmails.length) out.push({ id: "email-failed", tone: "warning", title: `${plural(failedEmails.length, "recent email needs", "recent emails need")} attention`, detail: "Review Notifications delivery attempts and provider events. Resolve the cause before resending; sent status only proves provider acceptance.", orderIds: failedEmails.map(e => String(e.id || e.at)), action: "notifications" });
   return out;
 }
