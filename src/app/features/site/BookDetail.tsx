@@ -1,7 +1,7 @@
 import { catName, categoryNames } from "./navItems";
 import { recommendedBooks, editionFacts } from "./merchandising";
 import { m, AnimatePresence } from "motion/react";
-import { Fragment, useEffect, useState } from "react";
+import { Fragment, useEffect, useMemo, useState } from "react";
 import toast from "react-hot-toast";
 import { useParams, Link, useNavigate, useLocation } from "react-router";
 import {
@@ -16,6 +16,7 @@ import { StoreHeader } from "./StoreHeader";
 import { contentMaxWidth } from "./headerNav";
 import { StoreFooter } from "./StoreFooter";
 import { TemplateSections, GlobalSections } from "../../components/sectionRender";
+import { SectionPageContext } from "../../components/sectionCopy";
 import { getCopy } from "./storeCopy";
 import { preorderActive, releaseDateOf, formatReleaseDate } from "./preorder";
 import { designNumber } from "./designNumber";
@@ -91,6 +92,7 @@ export default function BookDetail() {
   const [giftError, setGiftError]     = useState("");
 
   const book: Book | undefined = findProduct(books, slug, new URLSearchParams(window.location.search).get("preview") === "true");
+  const sectionPage = useMemo(() => ({ book }), [book]);
 
   // Keyed on the book's id: a background catalog refresh hands us a new book
   // object, and that must not snap the shopper's chosen edition back to the first.
@@ -1189,9 +1191,11 @@ export default function BookDetail() {
         {/* ── Recently viewed ── */}
         <RecentlyViewedRow excludeId={book?.id} />
 
-        <TemplateSections design={settings?.design} templateId="productPage" books={books} />
+        <SectionPageContext.Provider value={sectionPage}>
+          <TemplateSections design={settings?.design} templateId="productPage" books={books} />
 
-        <GlobalSections design={settings?.design} books={books} />
+          <GlobalSections design={settings?.design} books={books} />
+        </SectionPageContext.Provider>
 
       </main>
       <StoreFooter settings={settings} pages={pages} />

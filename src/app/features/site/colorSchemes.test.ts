@@ -193,7 +193,7 @@ describe("parts of the shop that can follow a scheme carry its class", () => {
       const cards = (text.match(/fm-card-title/g) || []).length;
       const roots = (text.match(/["`]fm-card\s/g) || []).length;
       expect(roots, f).toBeGreaterThanOrEqual(Math.min(cards, 1));
-      expect(roots, f).toBe(f.endsWith("SectionComponents.tsx") ? 2 : 1);
+      expect(roots, f).toBe(f.endsWith("SectionComponents.tsx") ? 4 : 1); // Showcase grid, Product grid, Featured collection, Book spotlight
     }
   });
   it("keeps the buy card and bag classes the scheme rules target", () => {

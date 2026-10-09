@@ -29,6 +29,8 @@ const NOT_STYLE_CONTROLS = new Set([
   "colorSchemes", "hero", "headerLinks", "sectionPresets", "heroPage", "storefront", "productPage",
   "collectionPage", "cartPage", "page", "page404", "typeScale", "mobileOverrides", "themeLibraryPreset",
   "fontSize", "data", "id", "trim", "logoUrl", "footerBadges", "sharedBlocks",
+  // Section groups (Page layout › shared sections) and Announcement messages (their own Studio editor).
+  "headerSections", "overlaySections", "announcements",
 ]);
 
 function publicSources(dir: string, out: string[] = []): string[] {

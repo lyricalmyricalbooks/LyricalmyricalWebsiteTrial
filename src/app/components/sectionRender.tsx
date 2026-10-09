@@ -354,23 +354,25 @@ export function TemplateSections({
 }
 
 /**
- * Global sections render on every page (above the footer). Reads the flat
- * `design.globalSections` array. `onCtaClick`/`onProductClick` are optional —
- * standalone pages can omit them to get sensible router-based defaults.
+ * A section group (Studio › Page layout › section groups): `globalSections` above the footer,
+ * `headerSections` under the header. Group stacks live at the design root, so every page shows the
+ * same ones. `onCtaClick`/`onProductClick` are optional — standalone pages get router defaults.
  */
-export function GlobalSections({
+export function GroupSections({
   design,
+  group,
   books = [],
   onCtaClick,
   onProductClick,
 }: {
   design: any;
+  group: "globalSections" | "headerSections" | "overlaySections";
   books?: any[];
   onCtaClick?: () => void;
   onProductClick?: (book: any) => void;
 }) {
   const handlers = useDefaultSectionHandlers();
-  const sections: any[] = design?.globalSections || [];
+  const sections: any[] = Array.isArray(design?.[group]) ? design[group] : [];
   if (sections.length === 0) return null;
   return (
     <SectionList
@@ -380,9 +382,14 @@ export function GlobalSections({
       onCtaClick={onCtaClick || handlers.onCtaClick}
       onProductClick={onProductClick || handlers.onProductClick}
       enableAnimations={false}
-      dataSection="globalSections"
+      dataSection={group}
       sharedBlocks={design?.sharedBlocks || []}
       design={design}
     />
   );
+}
+
+/** The sections shown on every page above the footer (`design.globalSections`). */
+export function GlobalSections(props: { design: any; books?: any[]; onCtaClick?: () => void; onProductClick?: (book: any) => void }) {
+  return <GroupSections {...props} group="globalSections" />;
 }

@@ -4,13 +4,15 @@
 
 import { compactDesign } from "../../features/site/designModel";
 import { MAX_BLOCK_DEPTH, normalizeBlocks, resolveSharedBlocks, type SharedBlock, type StudioBlock } from "../../features/site/sharedBlocks";
+import { SECTION_GROUP_KEYS, type SectionGroupKey } from "../../features/site/sectionGroups";
 export { MAX_BLOCK_DEPTH, normalizeBlocks, resolveSharedBlocks, type SharedBlock, type StudioBlock };
 
 /** `label` is the owner's own name for a section in Studio; shoppers never see it. */
 export type Section = { id: string; type: string; label?: string; visible?: boolean; settings: Record<string, any> };
 
 /** Where a list of sections lives inside `design`. */
-export type SectionTarget = { kind: "template"; id: string } | { kind: "global" };
+/** A page's own sections, or a section group shown on every page (`group` defaults to the footer group). */
+export type SectionTarget = { kind: "template"; id: string } | { kind: "global"; group?: SectionGroupKey };
 
 export const newId = () =>
   typeof crypto !== "undefined" && "randomUUID" in crypto
@@ -106,7 +108,7 @@ export function normalizeDesign(incoming: any, defaults: any = {}) {
     }
     return { ...section, id, settings };
   });
-  if (Array.isArray(normalized.globalSections)) normalized.globalSections = identify(normalized.globalSections);
+  for (const key of SECTION_GROUP_KEYS) if (Array.isArray(normalized[key])) normalized[key] = identify(normalized[key]);
   for (const key of Object.keys(normalized)) {
     if (Array.isArray(normalized[key]?.sections)) normalized[key] = { ...normalized[key], sections: identify(normalized[key].sections) };
   }
@@ -116,7 +118,7 @@ export function normalizeDesign(incoming: any, defaults: any = {}) {
 }
 
 export function targetKey(t: SectionTarget) {
-  return t.kind === "global" ? "globalSections" : `${t.id}.sections`;
+  return t.kind === "global" ? (t.group || "globalSections") : `${t.id}.sections`;
 }
 
 export function getSections(design: any, t: SectionTarget): Section[] {

@@ -25,8 +25,7 @@ import { StorefrontOverrides } from "../features/site/StorefrontOverrides";
 import { schemeButtonColors } from "../features/site/colorSchemes";
 import { googleFontHref } from "../features/site/fonts";
 import { useCurrency } from "../CurrencyContext";
-import { doc, setDoc } from "firebase/firestore/lite";
-import { liteDb } from "../../lib/firestoreLite";
+import { isEmailAddress, subscribeNewsletter } from "../features/site/newsletterSignup";
 import { SectionList, GlobalSections, TemplateSections } from "./sectionRender";
 import { useWishlist, liveWishlistCount } from "../lib/wishlist";
 import { isLiveBook } from "../features/site/liveBook";
@@ -119,16 +118,10 @@ function Newsletter({ design }: { design?: any }) {
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!/^[^\s@/]+@[^\s@/]+\.[^\s@/]+$/.test(email.trim())) { setStatus("error"); return; }
+    if (!isEmailAddress(email)) { setStatus("error"); return; }
     setStatus("loading");
     try {
-      const clean = email.trim().toLowerCase();
-      // One row per address (the id is the email); signing up twice is already done.
-      await setDoc(doc(liteDb, "newsletter", clean), {
-        email: clean,
-        subscribedAt: new Date().toISOString(),
-        source: "website-footer",
-      }).catch((err: any) => { if (err?.code !== "permission-denied") throw err; });
+      await subscribeNewsletter(email, "website-footer");
       setStatus("success");
       setEmail("");
     } catch {

@@ -11,7 +11,9 @@ import { resolveSharedBlocks } from "../features/site/sharedBlocks";
 import { UP_TO } from "../features/site/breakpoints";
 import { fb } from "./sectionFallbacks";
 import { submitContactMessage } from "../features/site/contactMessages";
-import { useSectionCopy, useSectionDesign } from "./sectionCopy";
+import { useSectionCopy, useSectionDesign, useSectionPage } from "./sectionCopy";
+import { isEmailAddress, subscribeNewsletter } from "../features/site/newsletterSignup";
+import { slugify } from "../features/site/storeMenu";
 import { pickBook, sectionBookQuery, selectBooks } from "../features/site/merchandising";
 import { aspectRatioValue } from "../features/site/imageAspect";
 import { ResponsiveImage } from "./ResponsiveImage";
@@ -573,24 +575,7 @@ export function NewsletterSection({ settings, enableAnimations }: any) {
                 </span>
               </p>
             </div>
-            <form className="flex gap-2" onSubmit={(e) => e.preventDefault()}>
-              <input
-                type="email"
-                placeholder={settings.placeholder ?? fb("NewsletterSection.placeholder")}
-                className="flex-1 bg-white/5 border border-white/10 rounded-full px-5 py-3 text-xs text-white focus:border-white/30 transition-all outline-none"
-              />
-              <MagneticButton
-                magnetic={!!settings.btnMagnetic}
-                type="button"
-                className={`fm-active rounded-full px-8 py-3 text-[10px] font-bold tracking-widest flex items-center gap-2 ${
-                  hoverEffectClassName(settings.hoverEffect) || "transition-all"
-                }`}
-                style={{ backgroundColor: settings.accentColor || "var(--btn-bg, #fff)", color: "var(--btn-text, #000)", ...btnS(settings) }}
-              >
-                <Send size={12} />
-                <span data-theme-field="buttonLabel">{settings.buttonLabel ?? fb("NewsletterSection.buttonLabel")}</span>
-              </MagneticButton>
-            </form>
+            <NewsletterForm settings={settings} type="NewsletterSection" source="website-section" />
           </div>
         </AnimationContainer>
       </div>
@@ -2517,6 +2502,356 @@ export function PageContentSection({ settings: own, enableAnimations }: any) {
             />
           )}
         </AnimationContainer>
+      </div>
+    </section>
+  );
+}
+
+// ──────────────────────────────
+// STUDIO 2.6 SECTION LIBRARY
+// ──────────────────────────────
+
+/** The email box shared by Newsletter and Newsletter sign-up (pop-up): it really signs people up. */
+function NewsletterForm({ settings, type, source, buttonClassName = "" }: { settings: any; type: string; source: string; buttonClassName?: string }) {
+  const [email, setEmail] = useState("");
+  const [status, setStatus] = useState<"idle" | "sending" | "done" | "error">("idle");
+  const word = (key: string) => settings[key] ?? fb(`${type}.${key}`);
+  const inputId = useId();
+  const submit = async (e: any) => {
+    e.preventDefault();
+    if (status === "sending") return;
+    if (!isEmailAddress(email)) { setStatus("error"); return; }
+    // The Studio preview shows the thank-you message without adding the address to the list.
+    if (inStudioPreview()) { setStatus("done"); return; }
+    setStatus("sending");
+    try { await subscribeNewsletter(email, source); setStatus("done"); setEmail(""); }
+    catch { setStatus("error"); }
+  };
+  if (status === "done") {
+    return <p role="status" className="text-sm" style={bStyle(settings)} data-theme-field="successMessage">{word("successMessage")}</p>;
+  }
+  return (
+    <>
+      <form className="flex gap-2" onSubmit={submit} noValidate>
+        <label htmlFor={inputId} className="sr-only">{word("placeholder")}</label>
+        <input
+          id={inputId}
+          type="email"
+          autoComplete="email"
+          value={email}
+          onChange={(e) => { setEmail(e.target.value); if (status === "error") setStatus("idle"); }}
+          aria-invalid={status === "error" || undefined}
+          placeholder={word("placeholder")}
+          className="flex-1 min-w-0 bg-white/5 border border-white/10 rounded-full px-5 py-3 text-xs text-white focus:border-white/30 transition-all outline-none"
+        />
+        <MagneticButton
+          magnetic={!!settings.btnMagnetic}
+          type="submit"
+          disabled={status === "sending"}
+          className={`fm-active rounded-full px-8 py-3 text-[10px] font-bold tracking-widest flex items-center gap-2 ${hoverEffectClassName(settings.hoverEffect) || "transition-all"} ${buttonClassName}`}
+          style={{ backgroundColor: settings.accentColor || "var(--btn-bg, #fff)", color: "var(--btn-text, #000)", ...btnS(settings) }}
+        >
+          <Send size={12} aria-hidden="true" />
+          <span data-theme-field="buttonLabel">{word("buttonLabel")}</span>
+        </MagneticButton>
+      </form>
+      {status === "error" && <p role="alert" className="text-xs" style={{ color: "var(--danger, #e8402a)" }} data-theme-field="errorMessage">{word("errorMessage")}</p>}
+    </>
+  );
+}
+
+// FEATURED COLLECTION — books from one shop category, with a "View all" link to that collection.
+export function FeaturedCollectionSection({ settings, books, onProductClick, enableAnimations }: any) {
+  const sc = useSectionCopy();
+  const design = useSectionDesign();
+  const { formatBookPrice } = useCurrency();
+  const category = String(settings.productCategory || "").trim();
+  const limit = Math.max(1, Math.min(12, settings.productLimit ?? 4));
+  const items = selectBooks(books, { source: "category", category, sort: settings.productSort, categories: design?.categories }).slice(0, limit);
+  const cols = Math.max(2, Math.min(6, settings.columnsDesktop ?? 4));
+  const mobileCols = Math.max(1, Math.min(3, settings.columnsMobile ?? 2));
+  const gridId = `featured-collection-${settings.__sectionId || "section"}`;
+  const title = settings.title ?? fb("FeaturedCollectionSection.title");
+  const viewAll = settings.viewAllText ?? fb("FeaturedCollectionSection.viewAllText");
+  const href = siteHref(category ? `/collections/${slugify(category)}` : "/?catalog=true");
+  if (!items.length) return null;
+  return (
+    <section style={bgStyle(settings)}>
+      <style>{`
+        .${gridId} { grid-template-columns: repeat(${mobileCols}, minmax(0, 1fr)); }
+        @media (min-width: 768px) { .${gridId} { grid-template-columns: repeat(${cols}, minmax(0, 1fr)); } }
+      `}</style>
+      <div className={`py-16 px-6 mx-auto ${mw(settings)}`} data-studio-spacing="" style={spacingStyle(settings)}>
+        <AnimationContainer enabled={enableAnimations}>
+          <div className={`mb-8 flex flex-wrap items-end gap-4 ${settings.align === "center" ? "justify-center text-center" : settings.align === "right" ? "justify-end text-right" : "justify-between"}`}>
+            <div>
+              {settings.eyebrow && <p className="text-[10px] tracking-[0.3em] font-bold uppercase mb-2" style={{ color: "var(--accent, #e8402a)" }} data-theme-field="eyebrow">{settings.eyebrow}</p>}
+              {title && <h2 className="text-3xl md:text-4xl tracking-tight uppercase" style={hStyle(settings)} data-theme-field="title">{title}</h2>}
+            </div>
+            {viewAll && <a href={href} className="text-[11px] font-bold tracking-[0.2em] uppercase underline underline-offset-4" style={bStyle(settings)} data-theme-field="viewAllText">{viewAll}</a>}
+          </div>
+        </AnimationContainer>
+        <div className={`${gridId} grid gap-6`}>
+          {items.map((book: any, idx: number) => (
+            <AnimationContainer key={book.id || idx} enabled={enableAnimations} delay={idx * 0.05}>
+              <div
+                className="fm-card group cursor-pointer"
+                role="link"
+                tabIndex={0}
+                aria-label={sc("sectionViewBook", { title: book.title })}
+                onClick={() => onProductClick?.(book)}
+                onKeyDown={(e: any) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); onProductClick?.(book); } }}
+              >
+                <div className="fm-photo-frame relative overflow-hidden bg-white/5" style={{ aspectRatio: "3 / 4" }}>
+                  {book.photos?.[0]?.url && <img src={book.photos[0].url} alt={book.title} loading="lazy" decoding="async" className="w-full h-full object-cover transition-transform duration-700 group-hover:scale-105" />}
+                </div>
+                <h3 className="fm-card-title mt-3 text-[15px] leading-snug" style={hStyle(settings)}>{book.title}</h3>
+                {settings.showPrices !== false && (
+                  <p className="fm-card-price-wrap text-sm fm-muted">
+                    {showsSale(book) && <span className="fm-card-price-old line-through opacity-60 mr-1.5">{formatBookPrice({ ...book, isOnSale: false })}</span>}
+                    <span className="fm-card-price">{formatBookPrice(book)}</span>
+                  </p>
+                )}
+              </div>
+            </AnimationContainer>
+          ))}
+        </div>
+      </div>
+    </section>
+  );
+}
+
+// BOOK SPOTLIGHT — one book, large. Blank book = the book on a book page, else the first book.
+export function BookSpotlightSection({ settings, books, onProductClick, enableAnimations }: any) {
+  const { book: pageBook } = useSectionPage();
+  const { formatBookPrice } = useCurrency();
+  const target: any = settings.productSlug ? pickBook(books, settings) : (pageBook || pickBook(books, settings));
+  if (!target) return null;
+  const photo = target.photos?.[0]?.url;
+  const coverRight = settings.imagePosition === "right";
+  const eyebrow = settings.eyebrow ?? fb("BookSpotlightSection.eyebrow");
+  const cta = settings.ctaText ?? fb("BookSpotlightSection.ctaText");
+  return (
+    <section style={bgStyle(settings)}>
+      <div className={`py-20 px-6 mx-auto ${mw(settings, "max-w-6xl")}`} data-studio-spacing="" style={spacingStyle(settings)}>
+        <AnimationContainer enabled={enableAnimations}>
+          <div className="fm-card grid md:grid-cols-2 gap-10 items-center">
+            <div className={`fm-photo-frame aspect-[3/4] overflow-hidden bg-white/5 ${coverRight ? "md:order-2" : ""}`}>
+              {photo ? <img src={photo} loading="lazy" decoding="async" className="w-full h-full object-cover" alt={target.title} /> : null}
+            </div>
+            <div className="space-y-5">
+              {eyebrow && <p className="text-[10px] font-bold tracking-[0.3em] uppercase" style={{ color: settings.accentColor || "var(--accent, #e8402a)" }} data-theme-field="eyebrow">{eyebrow}</p>}
+              <h2 className="fm-card-title text-3xl md:text-5xl font-bold uppercase leading-none" style={hStyle(settings)}>{target.title}</h2>
+              {target.authorName && <p className="text-sm fm-muted" style={bStyle(settings)}>{target.authorName}</p>}
+              {settings.quote && (
+                <blockquote className="border-l-2 pl-4 space-y-2" style={{ borderColor: settings.accentColor || "var(--accent, #e8402a)" }}>
+                  <p className="text-lg leading-relaxed" style={bStyle(settings)} data-theme-field="quote">“{settings.quote}”</p>
+                  {settings.quoteSource && <footer className="text-[11px] tracking-[0.2em] uppercase fm-muted" data-theme-field="quoteSource">{settings.quoteSource}</footer>}
+                </blockquote>
+              )}
+              {settings.showDescription !== false && target.description && (
+                <p className="text-sm leading-relaxed line-clamp-4 fm-muted" style={bStyle(settings)}>{String(target.description).replace(/<[^>]+>/g, " ")}</p>
+              )}
+              {settings.showPrice !== false && <p className="fm-card-price-wrap text-2xl font-bold" style={bStyle(settings)}><span className="fm-card-price">{formatBookPrice(target)}</span></p>}
+              {cta && (
+                <MagneticButton
+                  magnetic={!!settings.btnMagnetic}
+                  onClick={() => onProductClick?.(target)}
+                  className="px-8 py-3.5 rounded-full text-[10px] tracking-[0.3em] font-bold uppercase"
+                  style={{ backgroundColor: settings.accentColor || "var(--btn-bg, #e8402a)", color: "var(--btn-text, #100f0d)", ...btnS(settings) }}
+                >
+                  <span data-theme-field="ctaText">{cta}</span>
+                </MagneticButton>
+              )}
+            </div>
+          </div>
+        </AnimationContainer>
+      </div>
+    </section>
+  );
+}
+
+// PRAISE & PRESS QUOTES
+const QUOTE_SIZES: Record<string, string> = { sm: "text-base", md: "text-xl", lg: "text-2xl md:text-3xl" };
+export function PraiseQuotesSection({ settings, enableAnimations }: any) {
+  const items = sampleInPreview(visibleBlocks(settings.items || settings.blocks || []), [{ quote: "Add quotes from reviews or other writers as blocks.", source: "Studio" }]);
+  const title = settings.title ?? fb("PraiseQuotesSection.title");
+  const textAlign = aClass(settings);
+  const grid = settings.layout === "grid";
+  if (!items.length) return null;
+  return (
+    <section style={bgStyle(settings)}>
+      <div className={`py-20 px-6 mx-auto ${mw(settings, "max-w-5xl")}`} data-studio-spacing="" style={spacingStyle(settings)}>
+        <AnimationContainer enabled={enableAnimations}>
+          {(settings.eyebrow || title) && (
+            <div className={`mb-10 ${textAlign}`}>
+              {settings.eyebrow && <p className="text-[10px] tracking-[0.3em] font-bold uppercase mb-2" style={{ color: "var(--accent, #e8402a)" }} data-theme-field="eyebrow">{settings.eyebrow}</p>}
+              {title && <h2 className="text-3xl tracking-tight uppercase" style={hStyle(settings)} data-theme-field="title">{title}</h2>}
+            </div>
+          )}
+          <div className={grid ? "grid md:grid-cols-2 gap-6" : "space-y-12"}>
+            {items.map((item: any, idx: number) => (
+              <figure key={item.id || idx} {...blockEditAttrs(item, idx)} className={`${textAlign} ${grid ? "p-6 border border-white/10" : ""}`}>
+                <span aria-hidden="true" className="block text-5xl leading-none font-bold" style={{ color: settings.accentColor || "var(--accent, #e8402a)" }}>“</span>
+                <blockquote className={`${QUOTE_SIZES[settings.quoteSize] || QUOTE_SIZES.lg} leading-snug`} style={bStyle(settings)}>
+                  <span data-theme-field="quote">{item.quote}</span>
+                </blockquote>
+                {(item.source || item.publication) && (
+                  <figcaption className="mt-4 text-[11px] tracking-[0.2em] uppercase fm-muted">
+                    <span data-theme-field="source">{item.source}</span>
+                    {item.publication && <>{item.source ? " · " : ""}{item.linkUrl ? <a href={siteHref(item.linkUrl)} className="underline underline-offset-4"><cite data-theme-field="publication">{item.publication}</cite></a> : <cite data-theme-field="publication">{item.publication}</cite>}</>}
+                  </figcaption>
+                )}
+              </figure>
+            ))}
+          </div>
+        </AnimationContainer>
+      </div>
+    </section>
+  );
+}
+
+// IMAGE COLLAGE — mosaic (first picture large), staggered row or even strip.
+export function ImageCollageSection({ settings, enableAnimations }: any) {
+  const sc = useSectionCopy();
+  const items = sampleInPreview(visibleBlocks(settings.items || settings.blocks || []), [{ imageUrl: "", caption: "Add pictures as blocks" }, { imageUrl: "" }, { imageUrl: "" }]).slice(0, 6);
+  const layout = settings.layout || "mosaic";
+  const gap = Math.max(0, Math.min(48, settings.gap ?? 12));
+  const id = `collage-${settings.__sectionId || "section"}`;
+  if (!items.length) return null;
+  const cell = (idx: number) => layout === "mosaic" && idx === 0 ? "md:col-span-2 md:row-span-2" : "";
+  return (
+    <section style={bgStyle(settings)}>
+      <style>{`
+        .${id} { display: grid; gap: ${gap}px; grid-template-columns: repeat(2, minmax(0, 1fr)); }
+        @media (min-width: 768px) { .${id} { grid-template-columns: repeat(${layout === "mosaic" ? 4 : Math.min(items.length, 5)}, minmax(0, 1fr)); } }
+        ${layout === "stagger" ? `@media (min-width: 768px) { .${id} > :nth-child(even) { margin-top: ${gap * 4}px; } }` : ""}
+      `}</style>
+      <div className={`py-16 px-6 mx-auto ${mw(settings)}`} data-studio-spacing="" style={spacingStyle(settings)}>
+        <AnimationContainer enabled={enableAnimations}>
+          {settings.title && <h2 className="mb-8 text-3xl tracking-tight uppercase" style={hStyle(settings)} data-theme-field="title">{settings.title}</h2>}
+          <div className={id}>
+            {items.map((item: any, idx: number) => {
+              const picture = (
+                <div className={`overflow-hidden bg-white/5 ${layout === "mosaic" && idx === 0 ? "aspect-square" : layout === "strip" ? "aspect-[3/4]" : "aspect-[4/5]"}`}>
+                  {item.imageUrl
+                    ? <StyledImage src={item.imageUrl} alt={item.alt || ""} settings={item} fieldKey="imageUrl" sizes="(min-width: 768px) 33vw, 50vw" loading="lazy" decoding="async" />
+                    : <div className="w-full h-full grid place-items-center text-xs fm-muted">{inStudioPreview() ? sc("sectionNoImage") : null}</div>}
+                </div>
+              );
+              return (
+                <figure key={item.id || idx} {...blockEditAttrs(item, idx)} className={cell(idx)}>
+                  {item.linkUrl ? <a href={siteHref(item.linkUrl)} className="block">{picture}</a> : picture}
+                  {settings.showCaptions !== false && item.caption && <figcaption className="mt-2 text-xs fm-muted" data-theme-field="caption">{item.caption}</figcaption>}
+                </figure>
+              );
+            })}
+          </div>
+        </AnimationContainer>
+      </div>
+    </section>
+  );
+}
+
+// PROMO STRIP — slim line of text with a link, made for the "Under the header" group.
+const PROMO_SIZES: Record<string, string> = { xs: "text-[10px]", sm: "text-xs", md: "text-sm" };
+export function PromoStripSection({ settings }: any) {
+  const text = settings.text ?? fb("PromoStripSection.text");
+  if (!text && !settings.linkText) return null;
+  const justify = settings.align === "left" ? "justify-start text-left" : settings.align === "right" ? "justify-end text-right" : "justify-center text-center";
+  return (
+    <section style={bgStyle(settings)}>
+      <div className={`px-6 py-2.5 flex flex-wrap items-center gap-x-3 gap-y-1 font-bold uppercase tracking-[0.2em] ${PROMO_SIZES[settings.size] || PROMO_SIZES.sm} ${justify}`} data-studio-spacing="" style={{ ...bStyle(settings), ...spacingStyle(settings) }}>
+        {text && <span data-theme-field="text">{text}</span>}
+        {settings.linkText && <a href={siteHref(settings.linkUrl || "/?catalog=true")} className="underline underline-offset-4" data-theme-field="linkText">{settings.linkText}</a>}
+      </div>
+    </section>
+  );
+}
+
+// NEWSLETTER SIGN-UP (POP-UP) — picture + invitation + a real email sign-up, made for the Pop-up group.
+export function NewsletterPopupSection({ settings, enableAnimations }: any) {
+  const word = (key: string) => settings[key] ?? fb(`NewsletterPopupSection.${key}`);
+  return (
+    <section style={bgStyle(settings)}>
+      <div className={`grid ${settings.imageUrl ? "md:grid-cols-2" : ""}`}>
+        {settings.imageUrl && (
+          <div className="min-h-[200px] overflow-hidden">
+            <StyledImage src={settings.imageUrl} alt={settings.imageAlt || ""} settings={settings} fieldKey="imageUrl" sizes="(min-width: 768px) 280px, 100vw" loading="lazy" decoding="async" />
+          </div>
+        )}
+        <div className="p-8 md:p-10 space-y-5" data-studio-spacing="" style={spacingStyle(settings)}>
+          <AnimationContainer enabled={enableAnimations}>
+            <div className="space-y-3">
+              {settings.eyebrow && <p className="text-[10px] tracking-[0.3em] font-bold uppercase" style={{ color: "var(--accent, #e8402a)" }} data-theme-field="eyebrow">{settings.eyebrow}</p>}
+              <h2 className="text-3xl font-bold uppercase leading-none" style={hStyle(settings)} data-theme-field="title">{word("title")}</h2>
+              <p className="text-sm leading-relaxed fm-muted" style={bStyle(settings)} data-theme-field="description">{word("description")}</p>
+            </div>
+            <div className="mt-5 space-y-3">
+              <NewsletterForm settings={settings} type="NewsletterPopupSection" source="website-popup" />
+              {settings.smallPrint && <p className="text-[10px] tracking-widest fm-muted" data-theme-field="smallPrint">{settings.smallPrint}</p>}
+            </div>
+          </AnimationContainer>
+        </div>
+      </div>
+    </section>
+  );
+}
+
+// STICKY ADD-TO-BAG — on a book page, a bar fixed to the bottom once the buy box (.fm-pdp-card) scrolls out of view.
+export function StickyAddToBagSection({ settings }: any) {
+  const { book } = useSectionPage();
+  const { addToCart } = useCart();
+  const { formatBookPrice } = useCurrency();
+  const preview = inStudioPreview();
+  const [show, setShow] = useState(preview);
+  const [added, setAdded] = useState(false);
+  useEffect(() => {
+    if (preview || typeof window === "undefined" || typeof IntersectionObserver === "undefined") return;
+    const card = document.querySelector(".fm-pdp-card");
+    if (!card) return;
+    const io = new IntersectionObserver(([entry]) => setShow(!entry.isIntersecting && entry.boundingClientRect.top < 0));
+    io.observe(card);
+    return () => io.disconnect();
+  }, [preview, book?.id]);
+  if (!book) return null;
+  const word = (key: string) => settings[key] ?? fb(`StickyAddToBagSection.${key}`);
+  // Only a plain book (one way to buy it, no add-ons, not a pre-order) is added straight from the bar;
+  // anything with choices sends the shopper back to the buy box, which handles them.
+  const variants = Array.isArray(book.variants) ? book.variants : [];
+  const quick = quickAddChoice(book);
+  const needsChoice = variants.length > 1 || (Array.isArray(book.addOns) && book.addOns.length > 0) || book.preorder === true || book.productType === "giftCard";
+  const soldOut = !needsChoice && !quick.inStock;
+  const photo = book.photos?.[0]?.url;
+  const act = () => {
+    if (needsChoice) { document.querySelector(".fm-pdp-card")?.scrollIntoView({ behavior: "smooth", block: "center" }); return; }
+    if (addToCart(book, quick.variant)) { setAdded(true); window.setTimeout(() => setAdded(false), 2500); }
+  };
+  return (
+    <section aria-label={book.title} className={settings.showOnPhonesOnly ? "lg:hidden" : ""}>
+      <div
+        className={`fixed inset-x-0 bottom-0 z-40 border-t border-white/10 transition-transform duration-300 ${show ? "translate-y-0" : "translate-y-full"}`}
+        style={{ background: "var(--bg-color, Canvas)", ...bgStyle(settings) }}
+        aria-hidden={!show || undefined}
+      >
+        <div className="mx-auto max-w-6xl px-4 py-3 flex items-center gap-3" data-studio-spacing="" style={spacingStyle(settings)}>
+          {photo && <img src={photo} alt="" className="h-12 w-9 object-cover" loading="lazy" decoding="async" />}
+          <div className="min-w-0 flex-1">
+            <p className="fm-card-title truncate text-sm font-bold" style={hStyle(settings)}>{book.title}</p>
+            {settings.showPrice !== false && <p className="fm-card-price-wrap text-xs fm-muted"><span className="fm-card-price">{formatBookPrice(book)}</span></p>}
+          </div>
+          <button
+            type="button"
+            tabIndex={show ? 0 : -1}
+            disabled={soldOut}
+            onClick={act}
+            className="px-6 py-3 text-[10px] font-bold tracking-[0.2em] uppercase disabled:opacity-50"
+            style={{ backgroundColor: settings.accentColor || "var(--btn-bg, #e8402a)", color: "var(--btn-text, #100f0d)", ...btnS(settings) }}
+          >
+            {soldOut ? <span data-theme-field="soldOutText">{word("soldOutText")}</span> : needsChoice ? <span data-theme-field="optionsText">{word("optionsText")}</span> : <span data-theme-field="ctaText">{word("ctaText")}</span>}
+          </button>
+          <span role="status" className="sr-only">{added ? word("addedText") : ""}</span>
+        </div>
       </div>
     </section>
   );

@@ -15,3 +15,12 @@ export function useSectionCopy() {
   const design = useContext(SectionDesignContext);
   return (key: string, vars?: Record<string, string | number>) => getCopy(design, key, vars);
 }
+
+/**
+ * What page the sections are on (Studio 2.6): on a product page, the book being shown. Book spotlight uses it when no
+ * book is picked; the sticky add-to-bag bar needs it. Elsewhere it is empty.
+ */
+export const SectionPageContext = createContext<{ book?: any }>({});
+export function useSectionPage() {
+  return useContext(SectionPageContext);
+}

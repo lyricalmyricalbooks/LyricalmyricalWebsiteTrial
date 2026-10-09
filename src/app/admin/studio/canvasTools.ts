@@ -1,9 +1,8 @@
 import { duplicateSection, freshBlockIds, MAX_BLOCK_DEPTH, patchSectionSettings, type Section } from "./studioModel";
-import { findSectionOwner } from "./studioWorkflow";
+import { findSectionOwner, writeSections } from "./studioWorkflow";
 import { GAP_KEYS, PADDING_KEYS, spacingKey, type Device } from "../../features/site/breakpoints";
 export { GAP_KEYS, PADDING_KEYS, spacingKey, type Device };
-const store = (design: any, owner: any, sections: Section[]) => owner.surface === "globalSections"
-  ? {...design,globalSections:sections} : {...design,[owner.surface]:{...design[owner.surface],sections}};
+const store = (design: any, owner: any, sections: Section[]) => writeSections(design, owner.surface, sections);
 function siblings(list: any[], id: string, depth = 0): any[] | undefined {
  if (depth >= MAX_BLOCK_DEPTH) return;
  if (list.some(b => b.id === id)) return list;

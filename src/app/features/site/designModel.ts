@@ -14,7 +14,7 @@ export const STATIC_SURFACES = ["heroPage", "storefront", "productPage", "collec
 export const isSurfaceKey = (key: string) => STATIC_SURFACES.includes(key) || key.startsWith("page:");
 
 /** Shop structure that is the same on every page — a page surface can never override it. */
-export const ROOT_ONLY_KEYS = new Set(["menus", "categories", "navOrder", "secondaryNavKeys", "footerBadges", "sectionPresets", "sharedBlocks", "globalSections"]);
+export const ROOT_ONLY_KEYS = new Set(["menus", "categories", "navOrder", "secondaryNavKeys", "footerBadges", "sectionPresets", "sharedBlocks", "globalSections", "headerSections", "overlaySections"]);
 /** Maps whose entries merge one by one (page entry wins), instead of replacing the whole map. */
 export const MERGED_MAPS = new Set(["copy", "regions"]);
 

@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
-import { applyCanvasAction, moveBlockTo, moveSectionTo, updateSectionsById } from "./studioWorkflow";
+import { applyCanvasAction, moveBlockTo, moveSectionTo, updateSectionsById, writeSections } from "./studioWorkflow";
+import { targetKey } from "./studioModel";
 
 const key = () => "blocks";
 const design = () => ({
@@ -71,5 +72,34 @@ describe("moving blocks between sections", () => {
   it("reorders within the same section like before", () => {
     const r = moveBlockTo(design(), { fromSectionId: "a", blockId: "b2", toSectionId: "a", beforeId: "b1" }, key);
     expect(r.design.heroPage.sections[0].settings.blocks.map((b: any) => b.id)).toEqual(["b2", "b1"]);
+  });
+});
+
+describe("section groups (2.2)", () => {
+  it("moves sections between the header, footer and pop-up groups and pages", () => {
+    const d = { ...design(), headerSections: [{ id: "h1", type: "PromoStrip", settings: {} }] };
+    const toPopup = moveSectionTo(d, "g1", "overlaySections");
+    expect(ids(toPopup.overlaySections)).toEqual(["g1"]);
+    expect(ids(toPopup.globalSections)).toEqual([]);
+    const toHeader = moveSectionTo(toPopup, "b", "headerSections", 0);
+    expect(ids(toHeader.headerSections)).toEqual(["b", "h1"]);
+    expect(ids(toHeader.heroPage.sections)).toEqual(["a", "c"]);
+    const back = moveSectionTo(toHeader, "h1", "heroPage", 0);
+    expect(ids(back.heroPage.sections)).toEqual(["h1", "a", "c"]);
+    expect(ids(back.headerSections)).toEqual(["b"]);
+  });
+  it("writes group lists as plain arrays and page lists inside their surface", () => {
+    expect(writeSections({}, "overlaySections", [{ id: "x" } as any])).toEqual({ overlaySections: [{ id: "x" }] });
+    expect(writeSections({ heroPage: { title: "t" } }, "heroPage", [])).toEqual({ heroPage: { title: "t", sections: [] } });
+  });
+  it("bulk-edits sections in any group", () => {
+    const d = { ...design(), overlaySections: [{ id: "p1", type: "Newsletter", settings: {} }] };
+    const next = updateSectionsById(d, ["p1", "g1"], s => ({ ...s, visible: false }));
+    expect(next.overlaySections[0].visible).toBe(false);
+    expect(next.globalSections[0].visible).toBe(false);
+  });
+  it("targets the right list for each group", () => {
+    expect(targetKey({ kind: "global" })).toBe("globalSections");
+    expect(targetKey({ kind: "global", group: "overlaySections" })).toBe("overlaySections");
   });
 });

@@ -3,7 +3,7 @@
 
 export type Zoom = "fit" | 100 | 75 | 50;
 export type StudioUiState = {
-  leftTab?: string; templateId?: string; showGlobal?: boolean;
+  leftTab?: string; templateId?: string; showGlobal?: boolean; globalGroup?: string;
   device?: "desktop" | "tablet" | "mobile"; zoom?: Zoom; productSlug?: string; collectionSlug?: string;
 };
 
@@ -19,6 +19,7 @@ export function parseUiState(raw: string | null): StudioUiState {
       leftTab: TABS.has(v.leftTab) ? v.leftTab : v.leftTab === "shared" ? "sections" : undefined,
       templateId: text(v.templateId),
       showGlobal: v.showGlobal === true ? true : undefined,
+      globalGroup: ["headerSections", "globalSections", "overlaySections"].includes(v.globalGroup) ? v.globalGroup : undefined,
       device: DEVICES.has(v.device) ? v.device : undefined,
       zoom: ZOOMS.has(v.zoom) ? v.zoom : undefined,
       productSlug: text(v.productSlug),

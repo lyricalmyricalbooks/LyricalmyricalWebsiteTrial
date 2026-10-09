@@ -1,6 +1,6 @@
 import { sanitizeRichText } from "./richText";
 import { mapBlock, patchSectionSettings, MAX_BLOCK_DEPTH, type Section } from "./studioModel";
-import { findSectionOwner } from "./studioWorkflow";
+import { findSectionOwner, writeSections } from "./studioWorkflow";
 
 export const INLINE_STYLE_KEYS = ["announcementText", "catalogMastheadText", "logoText", "wordmarkPrimary", "wordmarkSecondary"];
 
@@ -51,6 +51,5 @@ export function applyInlineText(design: any, action: InlineTextAction, schema: I
         : { ...s.block, children: mapBlock(s.block.children || [], target.blockId, b => ({ ...b, [action.key]: value })) } } : s) };
     sections = patchSectionSettings(owner.sections, action.sectionId, { [key]: mapBlock(blocks, action.blockId, b => ({ ...b, [action.key]: value })) });
   } else sections = patchSectionSettings(owner.sections, action.sectionId, { [action.key]: value });
-  return owner.surface === "globalSections" ? { ...design, globalSections: sections }
-    : { ...design, [owner.surface]: { ...design[owner.surface], sections } };
+  return writeSections(design, owner.surface, sections);
 }

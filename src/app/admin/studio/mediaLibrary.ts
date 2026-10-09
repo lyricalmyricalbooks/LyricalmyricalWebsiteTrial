@@ -1,3 +1,4 @@
+import { isGroupSurface } from "../../features/site/sectionGroups";
 // Studio media library (2.4) — pure helpers (tested in mediaLibrary.test.ts). The records live in the
 // admin-only Firestore `media/{id}` collection (admin/mediaApi.ts); the files under the public
 // Storage folder `assets/media/<id>/` (studio/mediaUpload.ts). A picture placed in a section keeps its
@@ -115,9 +116,9 @@ export function snapshotUses(item: MediaItem, savedThemes: { name?: string; desi
 export function describeUsage(design: any, path: Path, names: { surface: (id: string) => string; section: (section: any) => string }): UsagePlace {
   const [top, second, third] = path;
   const field = String(path[path.length - 1] ?? "");
-  if (top === "globalSections" && typeof second === "number") {
-    const section = design?.globalSections?.[second];
-    return { label: `${names.surface("globalSections")} › ${section ? names.section(section) : "section"}`, templateId: "__global", sectionId: section?.id };
+  if (typeof top === "string" && isGroupSurface(top) && typeof second === "number") {
+    const section = design?.[top]?.[second];
+    return { label: `${names.surface(top)} › ${section ? names.section(section) : "section"}`, templateId: top === "globalSections" ? "__global" : top, sectionId: section?.id };
   }
   if (typeof top === "string" && second === "sections" && typeof third === "number") {
     const section = design?.[top]?.sections?.[third];
