@@ -86,6 +86,9 @@ describe("new catalog sources", () => {
     expect(ids({ sort: "priceHigh" })).toEqual(["e", "a", "c", "d", "b"]);
     expect(ids({ source: "manual", manual: "delta, gamma-ray, alpha", sort: "picked" })).toEqual(["d", "c", "a"]);
     expect(ids({ source: "manual", manual: "delta, gamma-ray, alpha" })).toEqual(["a", "c", "d"]);
+    // A picker saves the immutable id for a book whose slug collides; slugs and ids mix freely.
+    expect(ids({ source: "manual", manual: "e, c, alpha", sort: "picked" })).toEqual(["e", "c", "a"]);
+    expect(pickBook(BOOKS, { productSlug: "c" })?.id).toBe("c");
   });
   it("applies a limit after sorting", () => {
     expect(ids({ sort: "priceHigh", limit: 2 })).toEqual(["e", "a"]);

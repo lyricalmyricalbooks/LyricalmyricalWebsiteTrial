@@ -85,6 +85,15 @@ function inCategory(book: any, name: string, categories: any[] = []): boolean {
   return bookInCategory(book, cat || name, all);
 }
 
+/**
+ * Where a book sits in a picked list: by its storefront slug (what older designs and the pickers save)
+ * or by its immutable id (what the picker saves when two books share a slug).
+ */
+export function pickedIndex(picked: string[], book: any): number {
+  const bySlug = picked.indexOf(bookSlug(book) || "");
+  return bySlug !== -1 ? bySlug : book?.id ? picked.indexOf(String(book.id)) : -1;
+}
+
 function sortBooks(list: any[], sort: string, manual: string[]): any[] {
   const indexed = list.map((book, index) => ({ book, index }));
   const by = (score: (b: any) => number | string, direction = 1) => (a: any, b: any) => {
@@ -92,7 +101,7 @@ function sortBooks(list: any[], sort: string, manual: string[]): any[] {
     return (x < y ? -1 : x > y ? 1 : 0) * direction || a.index - b.index;
   };
   if (sort === "picked") {
-    const rank = (b: any) => { const at = manual.indexOf(bookSlug(b) || ""); return at === -1 ? Number.MAX_SAFE_INTEGER : at; };
+    const rank = (b: any) => { const at = pickedIndex(manual, b); return at === -1 ? Number.MAX_SAFE_INTEGER : at; };
     indexed.sort(by(rank));
   } else if (sort === "newest") indexed.sort(by(bookDateMs, -1));
   else if (sort === "title") indexed.sort(by((b) => String(b?.title || "").toLocaleLowerCase()));
@@ -113,7 +122,7 @@ export function selectBooks<T = any>(books: T[] | null | undefined, query: BookQ
   const category = String(query.category || "").trim();
   const chosen = list.filter((book) => {
     if (source === "featured") return isFeatured(book);
-    if (source === "manual") return manual.includes(bookSlug(book) || "");
+    if (source === "manual") return pickedIndex(manual, book) !== -1;
     // No category chosen yet: show the whole shop rather than an empty section.
     if (source === "category") return !category || inCategory(book, category, query.categories);
     if (source === "onSale") return showsSale(book);
@@ -137,8 +146,9 @@ export function sectionBookQuery(settings: any, categories?: any[]): BookQuery {
   };
 }
 
-/** Featured product: the saved book id, else its slug, else the first book (as before). */
+/** Featured product: the saved book id, else its slug (or an id the picker saved there), else the first book. */
 export function pickBook<T = any>(books: T[] | null | undefined, settings: { productId?: string; productSlug?: string } = {}): T | undefined {
   const list = (books || []) as any[];
-  return list.find((b) => b.id === settings.productId) || list.find((b) => b.slug === settings.productSlug) || list[0];
+  return list.find((b) => b.id === settings.productId) || list.find((b) => b.slug === settings.productSlug)
+    || (settings.productSlug ? list.find((b) => b.id === settings.productSlug) : undefined) || list[0];
 }

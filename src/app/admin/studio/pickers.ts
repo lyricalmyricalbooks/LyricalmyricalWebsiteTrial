@@ -29,19 +29,19 @@ export const FIXED_LINKS: { value: string; label: string; hint?: string }[] = [
 ];
 
 /**
- * Each book's storefront slug. Shoppers see live books only, and a slug two live books share
- * becomes each book's id (resolveProductRoutes), so resolve among live books first; books that
- * are not on sale yet resolve among everything Studio loaded.
+ * The value a book picker saves: resolveProductRoutes over the whole catalog Studio loaded, so a
+ * slug any two books share (even one not on sale yet) is saved as the book's immutable id from the
+ * start. The Studio preview resolves the same complete snapshot, and a scheduled twin going live
+ * later can't make a saved pick switch books. selectBooks/pickBook match a saved value by slug or id.
  */
-export function bookSlugs(books: any[], now = new Date().toISOString()): Map<string, string> {
+export function bookSlugs(books: any[]): Map<string, string> {
   const list = (books || []).filter((b) => b && b.id);
-  const live = new Map(resolveProductRoutes(list.filter((b) => isLiveBook(b, now))).map((b: any) => [b.id, b.slug]));
   const all = new Map(resolveProductRoutes(list).map((b: any) => [b.id, b.slug]));
-  return new Map(list.map((b) => [b.id, live.get(b.id) || all.get(b.id) || b.id]));
+  return new Map(list.map((b) => [b.id, all.get(b.id) || b.id]));
 }
 
 export function bookOptions(books: any[], now = new Date().toISOString()): PickOption[] {
-  const slugs = bookSlugs(books, now);
+  const slugs = bookSlugs(books);
   return (books || []).filter((b) => b && b.id).map((b) => {
     const live = isLiveBook(b, now);
     const author = typeof b.author === "string" ? b.author : "";

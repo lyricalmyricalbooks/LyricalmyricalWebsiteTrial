@@ -6,7 +6,8 @@ import { findProduct, resolveProductRoutes } from "../../features/site/productRo
 import { isLiveBook } from "../../features/site/liveBook";
 import { resolveHref } from "../../features/site/storeMenu";
 import { bookSlug } from "../../features/site/staffNotes";
-import { selectBooks } from "../../features/site/merchandising";
+import { pickBook, selectBooks } from "../../features/site/merchandising";
+import { resolveStaffNoteRows } from "../../features/site/staffNotes";
 
 const NOW = "2026-10-09T12:00:00.000Z";
 const BOOKS = [
@@ -22,21 +23,36 @@ const PAGES = [
 const CATEGORIES = ["PUBLICATIONS", { id: "z", name: "Zines & Things", parentId: "cat-0" }, { id: "h", name: "Hidden", showInNav: false }];
 
 describe("book picker values are the storefront's own slugs", () => {
-  it("resolves among live books first, so a slug a scheduled twin shares stays readable", () => {
-    const slugs = bookSlugs(BOOKS, NOW);
+  it("resolves against the whole catalog, so a slug a scheduled twin shares is saved as the immutable id", () => {
+    const slugs = bookSlugs(BOOKS);
     expect(slugs.get("b1")).toBe("night-pages");
-    expect(slugs.get("b2")).toBe("twin");
+    expect(slugs.get("b2")).toBe("b2");
     expect(slugs.get("b3")).toBe("b3");
     expect(slugs.get("b4")).toBe("paper-weather");
   });
-  it("every live book's picked value finds that book on the storefront and in catalog sections", () => {
-    const shopperBooks = resolveProductRoutes(BOOKS.filter(b => isLiveBook(b, NOW)));
-    for (const option of bookOptions(BOOKS, NOW).filter(o => !o.hint?.includes("Not on sale"))) {
+  it("a picked book stays the same book in the Studio preview, for shoppers now, and after its twin goes live", () => {
+    const later = "2099-06-01T00:00:00.000Z";
+    const views = {
+      // Studio preview resolves the complete snapshot; shoppers resolve live books only.
+      preview: resolveProductRoutes(BOOKS),
+      shopNow: resolveProductRoutes(BOOKS.filter(b => isLiveBook(b, NOW))),
+      shopLater: resolveProductRoutes(BOOKS.filter(b => isLiveBook(b, later))),
+    };
+    for (const option of bookOptions(BOOKS, NOW)) {
       const book = BOOKS.find(b => `book:${b.id}` === option.id)!;
-      expect(findProduct(shopperBooks, option.value)?.id).toBe(book.id);
-      expect(shopperBooks.find(b => bookSlug(b) === option.value)?.id).toBe(book.id);
-      expect(selectBooks(shopperBooks, { source: "manual", manual: option.value }).map(b => b.id)).toEqual([book.id]);
+      for (const [name, list] of Object.entries(views)) {
+        if (!list.some(b => b.id === book.id)) continue;
+        expect(selectBooks(list, { source: "manual", manual: option.value }).map(b => b.id), `${name} ${option.value}`).toEqual([book.id]);
+        expect(pickBook(list, { productSlug: option.value })?.id, `${name} ${option.value}`).toBe(book.id);
+        expect(resolveStaffNoteRows([{ slug: option.value, note: "n" }], list).map(r => r.book.id), name).toEqual([book.id]);
+      }
     }
+  });
+  it("a slug saved before (readable, live-first) keeps working for shoppers", () => {
+    const shopNow = resolveProductRoutes(BOOKS.filter(b => isLiveBook(b, NOW)));
+    expect(selectBooks(shopNow, { source: "manual", manual: "twin" }).map(b => b.id)).toEqual(["b2"]);
+    expect(findProduct(shopNow, "b2")?.id).toBe("b2");
+    expect(shopNow.find(b => bookSlug(b) === "night-pages")?.id).toBe("b1");
   });
   it("labels books that shoppers can't buy yet", () => {
     expect(bookOptions(BOOKS, NOW).find(o => o.id === "book:b3")?.hint).toBe("Not on sale yet");
