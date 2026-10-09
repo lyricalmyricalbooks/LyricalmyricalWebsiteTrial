@@ -2,11 +2,11 @@ import { createElement } from "react";
 import { renderToStaticMarkup } from "react-dom/server";
 import { MemoryRouter } from "react-router";
 import { describe, expect, it } from "vitest";
-import { SiteFooter } from "./MainSite";
+import { StoreFooter } from "./StoreFooter";
 
 const policies = { shipping: "Ships worldwide", returns: "Return details", privacy: "Privacy details", terms: "Terms details" };
 const render = (design: any = {}) => renderToStaticMarkup(createElement(MemoryRouter, null,
-  createElement(SiteFooter, { settings: { design, policies }, pages: [] })));
+  createElement(StoreFooter, { settings: { design, policies }, pages: [] })));
 
 describe("editable footer layouts", () => {
   it("defaults to grouped navigation with every policy and inline edit hooks", () => {

@@ -36,6 +36,7 @@ import { useSEO } from "../../lib/seo";
 import { useWishlist, liveWishlistCount } from "../../lib/wishlist";
 import { isLiveBook } from "./liveBook";
 import { useSiteData } from "./useSiteData";
+import { StoreChrome, useInStoreChrome } from "./StoreChrome";
 import { getCopy } from "./storeCopy";
 import { useCurrency } from "../../CurrencyContext";
 import { StorefrontThemeStyle } from "./StorefrontThemeStyle";
@@ -63,7 +64,14 @@ const isAbandonedCheckout = (o: any) => o.paymentStatus === "unpaid" && o.status
 
 const EMPTY_ADDRESS = { street: "", city: "", state: "", zip: "", country: "Canada", phone: "", name: "" };
 
+/** The customer account, inside the one shop header and footer (Studio 2.0 · 2.1). */
 export default function AccountPage() {
+  return <StoreChrome surface="accountPage"><AccountContent /></StoreChrome>;
+}
+
+function AccountContent() {
+  // Under the shop header this title bar is a plain row, not a second <header>.
+  const TitleBar = useInStoreChrome() ? "div" : "header";
   const [user, setUser] = useState<User | null>(null);
   const [authLoading, setAuthLoading] = useState(true);
   const [orders, setOrders] = useState<any[]>([]);
@@ -522,7 +530,7 @@ export default function AccountPage() {
       <div {...regionProps("accountGlow")} className="fixed top-0 right-0 w-[600px] h-[600px] blur-[120px] rounded-full pointer-events-none -mr-64 -mt-64" style={{ backgroundColor: "rgba(var(--accent-rgb), 0.05)" }} />
       <div className="fixed bottom-0 left-0 w-[400px] h-[400px] bg-cyan-600/5 blur-[100px] rounded-full pointer-events-none" />
 
-      <header {...regionProps("accountHeader")} className="border-b border-white/5 px-8 py-6 flex items-center justify-between backdrop-blur-xl relative z-20" style={{ backgroundColor: "rgba(var(--overlay-rgb), 0.2)" }}>
+      <TitleBar {...regionProps("accountHeader")} className="border-b border-white/5 px-8 py-6 flex items-center justify-between backdrop-blur-xl relative z-20" style={{ backgroundColor: "rgba(var(--overlay-rgb), 0.2)" }}>
         <Link to="/" className="flex items-center gap-3 text-[10px] font-black tracking-[0.3em] text-white/40 hover:text-white transition-colors group uppercase">
           <ArrowLeft size={16} className="group-hover:-translate-x-1 transition-transform" /> {getCopy(settings?.design, "accountStorefront")}
         </Link>
@@ -533,7 +541,7 @@ export default function AccountPage() {
         >
           <LogOut size={14} /> {getCopy(settings?.design, "accountSignOut")}
         </button>
-      </header>
+      </TitleBar>
 
       <main className="max-w-4xl mx-auto px-6 pt-16 relative z-10 space-y-12">
         

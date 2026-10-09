@@ -29,7 +29,7 @@ const REGION_IDS = REGION_GROUPS.map((g) => g.id);
  */
 export const THEME_HEADINGS: SettingsHeading[] = [
   { id: "system", band: "Site-wide design", title: "", blurb: "Presets, brand, colours, fonts, buttons and spacing used on every page. One change restyles the whole shop.",
-    groups: ["themeLook", "logo", "colors", "type", "smallPrint", "buttons", "layout", "effects", "riso"] },
+    groups: ["themeLook", "logo", "colors", "schemes", "type", "smallPrint", "buttons", "layout", "effects", "riso"] },
   { id: "chrome", band: "Parts of your shop", title: "Header, menu & footer", blurb: "The parts that repeat at the top and bottom of every page. Tip: click one in the preview to edit it there.",
     groups: ["header", "navlinks", "footer", "paymentIcons"] },
   { id: "shop", title: "Shop & book pages", blurb: "The book grid, book cards and each book's own page.",
@@ -60,6 +60,7 @@ export const CATEGORY_PAGES: Record<string, { template?: string; overlay?: "cart
 /** One plain-English line under each category name (falls back to the group's own hint). */
 export const GROUP_BLURBS: Record<string, string> = {
   colors: "Page background, text, accent and status colours.",
+  schemes: "Named colour sets for sections, book cards, the buy card and the bag, with contrast checks.",
   type: "Heading, body and menu fonts, sizes and weights.",
   buttons: "Button style, colours and corners.",
   logo: "Logo image or text wordmark, and the picture shown when your shop is shared.",
@@ -92,6 +93,9 @@ export const blurbFor = (group: StyleGroup | undefined, id: string): string =>
  * Keys not listed land in a final "More settings" sub-section — nothing can disappear.
  */
 export const STYLE_SUBSECTIONS: Record<string, { title: string; keys: string[] }[]> = {
+  schemes: [
+    { title: "Parts of the shop that follow a scheme", keys: ["elementSchemes.cards", "elementSchemes.buyCard", "elementSchemes.cartDrawer"] },
+  ],
   colors: [
     { title: "Main colours", keys: ["backgroundColor", "textColor", "primaryColor", "secondaryColor", "borderColor", "mutedTextColor"] },
     { title: "Panels, links & overlays", keys: ["surfaceColor", "surfaceRaisedColor", "overlayColor", "activeControlBg", "activeControlText", "linkColorHover"] },
@@ -106,7 +110,7 @@ export const STYLE_SUBSECTIONS: Record<string, { title: string; keys: string[] }
     { title: "Text wordmark", keys: ["logoText", "wordmarkStyle", "wordmarkPrimary", "wordmarkSecondary", "wordmarkSecondaryMuted", "wordmarkSecondaryColor", "wordmarkSize", "wordmarkWeight"] },
   ],
   header: [
-    { title: "Header layout", keys: ["headerStyle", "logoPosition", "logoHeight", "stickyHeader", "transparentHeader", "navStyle", "showMobileNavigation", "showSecondaryNavigation"] },
+    { title: "Header layout", keys: ["headerStyle", "logoPosition", "logoHeight", "stickyHeader", "transparentHeader", "navStyle", "showMobileNavigation", "showSecondaryNavigation", "showStoreChromeOnUtilityPages"] },
     { title: "Header colours", keys: ["headerBg", "headerColor"] },
     { title: "Announcement bar", keys: ["showAnnouncement", "announcementText", "announcementBg", "announcementColor", "announcementScrolling", "announcementFontSize", "announcementWeight", "announcementTracking", "announcementSpeed"] },
     { title: "Icons & buttons in the header", keys: ["hideHeaderSearch", "hideHeaderWishlist", "hideHeaderAccount", "hideCurrencySelector", "hideThemeToggle", "hideAdminLink", "hideCartButton"] },

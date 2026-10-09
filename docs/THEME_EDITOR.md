@@ -65,7 +65,7 @@ The editor is **not** a blank slate. It already supports:
 | `src/app/admin/studio/StudioOutline.tsx` / `StudioInspector.tsx` | Section/block outline and the section/block inspector (Content, Layout & style). |
 | `src/app/admin/studio/styleSchema.ts` / `settingsMap.ts` | Every Theme settings control (`STYLE_GROUPS`, region groups) and where each one lives. |
 | `src/app/admin/studio/previewBridge.ts` / `canvasBridge.ts` | Script injected into the preview: click-to-edit, inline text, canvas toolbar, spacing handles. |
-| `src/app/admin/ThemeEditorExtensions.tsx` | The real **`SECTION_REGISTRY`** (34 section types), `getSectionFields`, `getBlockFields`, `getSectionMeta`, the shared field editors and the per-section **Layout & style** panel (`SectionSettingsPanel`). Field types: `text`, `textarea`, `html`, `richtext`, `color`, `number`, `range`, `select`, `toggle`, `date`, `image`. |
+| `src/app/admin/ThemeEditorExtensions.tsx` | The real **`SECTION_REGISTRY`** (34 section types), `getSectionFields`, `getBlockFields`, `getSectionMeta`, the shared field editors (`SectionFieldEditor` / `BlockFieldEditor`). Field types: `text`, `textarea`, `html`, `richtext`, `color`, `number`, `range`, `select`, `toggle`, `date`, `image`, plus the picker kinds `link`, `book`, `books`, `category`, `page`, `video`, `font` (`studio/StudioPickers.tsx`). |
 | `src/app/components/SectionComponents.tsx` | **One storefront renderer per registry section type** (the components that actually draw each section) + shared style helpers (spacing, background, button styles, animation wrappers). Registry and renderers are at parity — every `SECTION_REGISTRY` type has a matching renderer. |
 | `src/app/components/sectionRender.tsx` | **Shared section renderer** (single source of truth for section→renderer mapping). `SectionList` (pure: maps a `sections` array → renderers via `(Sections as any)[type]` and emits stable `data-fm-section` / `data-section-id` edit hooks); `TemplateSections` (renders `design[templateId].sections` for a page-type template); `GlobalSections` (renders the flat `design.globalSections`). Used by MainSite **and** every standalone page. |
 | `src/app/components/MainSite.tsx` | Renders the homepage/storefront. Uses `SectionList` for `heroPage.sections` and the shared `GlobalSections` from `sectionRender`. |
@@ -112,6 +112,11 @@ To add (or fix) a section end-to-end, all of these must line up:
 
 Blocks follow the same idea: schema via `getBlockFields` + `BlocksEditor`,
 rendered by the section's renderer (e.g. `RowSection`/`RowBlock`).
+
+Field kinds: a link field is `kind: "link"` (never a bare `text` box), a video URL `video`, a book
+`book`, several books `books`, a category `category`, a custom page `page`, a font name `font`
+(`sectionFieldKinds.test.ts` enforces the url/slug ones). A section that lists books takes them from
+`selectBooks` (`features/site/merchandising.ts`) — add `...bookSourceFields(…)` to its fields.
 
 ## Persistence model
 
@@ -246,8 +251,8 @@ assistant, personalization/A-B tests, author/series/event pages, multi-language 
       and whether it shows at the previewed size — and sends `STRUCTURE` (re-scanned after DOM changes, route changes
       and resizes). New bridge messages: `SCAN_STRUCTURE`, `HOVER_NODE` / `HIGHLIGHT_NODE` (outline + scroll a part),
       `NODE_HOVER` (pointer → Studio), `OPEN_OVERLAY` (`cart` / `search` / `close`, handled in the preview by
-      `features/site/studioOverlay.ts` `useStudioOverlay`, used by `CartContext`, `MainSite` and
-      `StorefrontPageHeader`) and `SET_TARGET_LABELS`: the "what do you want to edit?" pop-up now shows distinct names
+      `features/site/studioOverlay.ts` `useStudioOverlay`, used by `CartContext` and `StoreHeader`
+      — at 1.4 `MainSite` and `StorefrontPageHeader`) and `SET_TARGET_LABELS`: the "what do you want to edit?" pop-up now shows distinct names
       ("Style: Header & announcement bar", "Words: Header") from `studio/targetLabels.ts`, whose test fails on any
       storefront target without a name. Tests: `previewBridge.dom.test.ts` runs the real bridge string in jsdom.
 - [x] 1.4 Page structure tree. `studio/pageStructure.ts` (pure, tested) turns the scan into Header · Page · Footer ·
@@ -305,9 +310,66 @@ assistant, personalization/A-B tests, author/series/event pages, multi-language 
       screens with `style:accounts`, and opens the category's settings when its part isn't on the page.
 
 **Phase 2 — Shopify OS 2.0 features**
-- [ ] 2.1 One header and footer on every page. - [ ] 2.2 Header/footer/popup section groups.
-- [ ] 2.3 Pickers (link, book, category, page, video, font) + catalog sources. - [ ] 2.4 Media library + responsive images.
-- [ ] 2.5 Colour schemes 2.0. - [ ] 2.6 Section library 2.0 + new sections.
+- [x] 2.1 One header and footer on every page. `features/site/StoreHeader.tsx` is the only storefront header:
+      MainSite renders it in **shop** mode (`shop` prop: active canvas, in-page category selection, logo → Home,
+      masthead layout, logo alignment, sticker pills, transparent header, scrolling announcement, wishlist count,
+      light/dark toggle, Ctrl/⌘+K) and every standalone page in **page** mode (routed `/collections/<slug>` links).
+      Both share one category bar (`CategoryBar` + `NavDropdown`), icon cluster (`HeaderActions`), announcement bar,
+      phone menu, publisher row and search pop-over (`useStudioOverlay("search")`). `features/site/StoreFooter.tsx`
+      (was MainSite's `SiteFooter`) is the only footer. `StorefrontPageHeader.tsx` is gone. Wishlist, account,
+      order tracking and 404 (including a custom-page 404) render inside `StoreChrome` (`StoreChrome.tsx`), which adds
+      the same header and footer; their own title bars stay underneath as plain rows (`useInStoreChrome`), so the
+      structure scan lists them under Page. Style › Header & announcement bar › **Show the shop header & footer on
+      wishlist, account, order tracking and missing pages** (`showStoreChromeOnUtilityPages`, default on) turns that
+      off. Checkout keeps its minimal `checkoutHeader`. Parity: `storeChrome.parity.test.tsx` compares every Studio
+      hook, link and aria label against `__fixtures__/storeChromeHooks.json`, recorded from the replaced
+      implementations (identical except one added `aria-label` on the shop's desktop category bar), and fails if any
+      other file renders the navigation header or footer panel. Also fixed `useNavFit`: it measured the full-row
+      bar box instead of the links, shrinking them ~1% per font load/resize even with room (`naturalNavWidth`).
+- [ ] 2.2 Header/footer/popup section groups.
+- [x] 2.3 Pickers + catalog sources. New section/block field kinds `link`, `book`, `books`, `category`, `page`,
+      `video`, `font` (`studio/StudioPickers.tsx`, choices in the pure `studio/pickers.ts`) save exactly the string the
+      old text field held, so there is no migration: `link` an href (`/`, `/?catalog=true`, `/wishlist`, `/account`,
+      `/track`, `/page/<slug>`, `/collections/<slugify(name)>`, `/books/<storefront slug>` or any typed address —
+      `siteHref` still adds the sub-path), `book` the storefront slug (resolved like `resolveProductRoutes` over live
+      books), `books` comma-separated slugs, `category` the category name, `page` the slug, `video` the URL (with a
+      "will it play?" note mirroring the renderers' YouTube/Vimeo/MP4 matching), `font` the Google Fonts family
+      (typed names are kept). Studio passes its loaded books, pages and `design.categories` through
+      `StudioPickerProvider`. List rows can be links too (`itemFields[].kind: "link"`). Catalog sections (Product grid,
+      Showcase grid, Cover carousel, Featured product) choose books with `features/site/merchandising.ts`
+      `selectBooks({ source: all|featured|manual|category|newest|onSale|preorder, sort, limit })` via
+      `sectionBookQuery(settings, design.categories)` and `pickBook`; new keys `productCategory` and `productSort`;
+      no `productSource`/`productSort` = exactly the old result. Tests: `sectionFieldKinds.test.ts` (url-like fields
+      must use `link`, videos `video`, slugs `book`/`books`), `catalogSources.test.ts` + `catalogSources.render.test.tsx`
+      (old selection frozen and compared, including the published design), `pickers.test.ts`, `StudioPickers.test.tsx`,
+      and an e2e check (pick a page link and a book, assert the saved draft and the preview). Not done here: no page
+      field uses `page` yet (available for 2.7/2.8); Theme settings' own URL fields (social links, mega-menu links)
+      are unchanged. - [ ] 2.4 Media library + responsive images.
+- [x] 2.5 Colour schemes 2.0. A scheme (`design.colorSchemes[]`, `features/site/colorSchemes.ts`) has ten roles:
+      background, surface, text, muted, accent, onAccent, border, buttonBg, buttonText, link. `schemeCss(design)`, emitted
+      first by `StorefrontOverrides` on every surface, turns each into `[data-scheme="<id>"]` variables with the
+      storefront's existing token names (`--bg-color`, `--text-color`, `--fg-rgb`, `--surface(-rgb)`, `--muted(-rgb)`,
+      `--accent(-rgb)`, `--on-accent`, `--border-rgb`/`--border-color`, `--btn-bg`, `--btn-text`, `--link-color`,
+      `--rp-outline`; triplets comma-separated), so descendants follow without per-element edits. `SectionList` sets
+      `data-scheme` from the section's existing `colorSchemeId` and keeps the inline background/text it always painted.
+      `design.elementSchemes` (`cards` → `.fm-card`, now on every book-card root; `buyCard` → `.fm-pdp-card`;
+      `cartDrawer` → `.fm-bag[data-fm-store]`) puts a scheme's variables on those elements; while a part follows a
+      scheme its own colour controls give way (`elementScheme()` — `cartDrawerStyle` / `productPageStyle` skip their
+      palette keys, the bag's checkout background is outranked, and a card scheme outranks the card title/price
+      colour), so picking a scheme always shows. Header and footer are not
+      scheme targets yet (they are being rebuilt in 2.1). **Compatibility:** schemes saved before 2.0 (no `v: 2`) keep
+      exactly their old look — inline background/text only, no variables (`colorSchemes.test.ts` renders every saved
+      scheme in `__fixtures__/liveDesign.json` and the old purple defaults and compares the wrapper style, and checks
+      the published design gets no scheme CSS); the first colour edit upgrades a scheme to every role
+      (`upgradeScheme`). The starter schemes keep their ids and light/dark polarity but use Riso Noir colours (Paper,
+      Noir, Flare), all WCAG AA. Studio: Theme settings › Site-wide design › **Colour schemes** (`schemes` group:
+      `elementSchemes.*` selects whose options are the current schemes via `schemeFieldOptions`) with
+      `StudioColorSchemes.tsx` above them — add, rename, duplicate, reorder, delete, ten role pickers, live swatch and
+      contrast badges (text/background, button text/button, text on accent). Pure edits live in
+      `studio/colorSchemeOps.ts` (`colorSchemeOps.test.ts`); saving writes the list for all pages (clearing stale page
+      copies). Deleting a scheme in use asks first, then removes its `colorSchemeId` / `elementSchemes` references so
+      those parts fall back to theme colours (undoable). The buy card, bag and card-title click targets also show their
+      scheme choice in the element inspector. - [ ] 2.6 Section library 2.0 + new sections.
 - [ ] 2.7 Custom book fields + dynamic sources. - [ ] 2.8 Alternate templates. - [ ] 2.9 Product information as blocks.
 
 **Phase 3 — Theme management & quality**

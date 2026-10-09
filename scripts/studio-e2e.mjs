@@ -246,6 +246,34 @@ await check("a section's Style, Layout and Visibility tabs save its look", deskt
   if (await page.getByRole("button", { name: "Reset Solid colour" }).count()) throw new Error("Reset did not clear the colour");
 });
 
+await check("link and book pickers save the same strings as typed links", desktop, async page => {
+  await page.getByRole("button", { name: "Add section" }).first().click();
+  await page.getByRole("button", { name: /^Image with Text/ }).first().click();
+  await page.getByRole("button", { name: "Choose link: CTA link" }).click();
+  await page.getByRole("combobox", { name: "Find a page, category or book" }).fill("about");
+  await page.keyboard.press("Enter");
+  await page.getByLabel("CTA link (address)").waitFor({ timeout: 5000 });
+  if ((await page.getByLabel("CTA link (address)").inputValue()) !== "/page/about") throw new Error("the picked page did not fill the link");
+  await page.getByRole("button", { name: "Add section" }).first().click();
+  await page.getByRole("button", { name: /^Showcase Product Grid/ }).first().click();
+  await page.getByLabel("Which books").selectOption("manual");
+  await page.getByRole("button", { name: /^Add a book: / }).click();
+  await page.getByRole("combobox", { name: "Find a book to add" }).fill("paper");
+  await page.keyboard.press("Enter");
+  await page.getByRole("button", { name: "Save draft" }).click();
+  await page.waitForFunction(() => window.__studioFixture.calls.some(c => c.method === "saveDesign"));
+  const saved = (await calls(page)).filter(c => c.method === "saveDesign").pop();
+  const sections = saved.args[0].design.heroPage.sections;
+  const banner = sections.find(s => s.type === "ImageWithTextSection");
+  if (banner?.settings?.ctaUrl !== "/page/about") throw new Error(`saved ctaUrl is ${banner?.settings?.ctaUrl}`);
+  const grid = sections.find(s => s.type === "ProductShowcaseGridSection");
+  if (grid?.settings?.productSource !== "manual" || grid?.settings?.manualSlugs !== "paper-weather") throw new Error(`saved grid source ${grid?.settings?.productSource} / ${grid?.settings?.manualSlugs}`);
+  // The preview shows only the picked book.
+  const frame = page.frameLocator("iframe").first();
+  await frame.locator("[data-fm-section] .fm-card-title", { hasText: "Paper Weather" }).first().waitFor({ timeout: 15000 });
+  if (await frame.locator("[data-fm-section] .fm-card-title", { hasText: "Night Pages" }).count()) throw new Error("the grid still shows a book that was not picked");
+});
+
 await check("right-click a section to move it to another page, and Undo brings it back", desktop, async page => {
   await page.getByRole("button", { name: "Add section" }).first().click();
   await page.getByRole("button", { name: /^Newsletter/ }).first().click();
@@ -372,6 +400,62 @@ await check("a Studio link opens the right page and tool", desktop, async page =
   const pressed = await page.getByRole("button", { name: "Theme settings" }).getAttribute("aria-pressed");
   if (pressed !== "true") throw new Error("the link did not open Theme settings");
 }, "#designer?b=paper-weather&tab=style");
+
+await check("a new colour scheme reaches a section in the preview, and deleting it warns", desktop, async page => {
+  await expectText(page, "Preview connected", 30000);
+  await page.getByRole("button", { name: "Theme settings", exact: true }).first().click();
+  await page.getByRole("button", { name: /^Colour schemes/ }).first().click();
+  const editor = page.locator("[data-studio-schemes]");
+  await editor.getByRole("button", { name: "Add colour scheme" }).click();
+  const scheme = editor.locator(".studio-scheme").last();
+  const id = await scheme.getAttribute("data-scheme-id");
+  await scheme.getByLabel("Scheme name").fill("Zine pink");
+  await scheme.locator("[data-scheme-role=background] input:not([type=color])").fill("#ffdde1");
+  await scheme.getByText(/Text on background \d/).waitFor({ timeout: 5000 });
+  // Give a new section that scheme from its Style tab.
+  await page.getByRole("button", { name: "Page layout", exact: true }).first().click();
+  await page.getByRole("button", { name: "Add section" }).first().click();
+  // (Page layout also lists the built-in "Newsletter …" parts, so pick from the Add section dialog.)
+  await page.getByRole("dialog").getByRole("button", { name: /^Newsletter/ }).first().click();
+  await page.getByRole("tablist", { name: "Section settings" }).getByRole("tab", { name: "Style" }).click();
+  await page.locator("[data-section-style-key=colorSchemeId] select").selectOption({ label: "Zine pink" });
+  const preview = () => page.frames().find(f => /preview=true/.test(f.url()));
+  const frame = preview();
+  if (!frame) throw new Error("no preview frame");
+  await frame.waitForFunction(schemeId => {
+    const el = document.querySelector(`[data-fm-section][data-scheme="${schemeId}"]`);
+    return el && getComputedStyle(el).getPropertyValue("--bg-color").trim() === "#ffdde1";
+  }, id, { timeout: 10000 });
+  await page.getByRole("button", { name: "Save draft" }).click();
+  await page.waitForFunction(() => window.__studioFixture.calls.some(c => c.method === "saveDesign"));
+  const saved = (await calls(page)).filter(c => c.method === "saveDesign").pop().args[0].design;
+  if (!saved.colorSchemes?.some(s => s.id === id && s.name === "Zine pink" && s.v === 2)) throw new Error("saved draft is missing the new scheme");
+  if (saved.heroPage.sections.find(s => s.type === "NewsletterSection")?.settings?.colorSchemeId !== id) throw new Error("the section did not save its scheme");
+  // Deleting a scheme in use asks first; the section then falls back to the theme colours.
+  await page.getByRole("button", { name: "Theme settings", exact: true }).first().click();
+  // Theme settings reopens on the category it was showing.
+  await page.locator("[data-studio-schemes]").waitFor({ timeout: 5000 });
+  const again = page.locator(`[data-studio-schemes] .studio-scheme[data-scheme-id="${id}"]`);
+  await again.getByText("Used by 1 section").waitFor({ timeout: 5000 });
+  await again.locator(".studio-scheme-head").click();
+  await again.getByRole("button", { name: "Delete" }).click();
+  const dialog = page.getByRole("dialog", { name: "Delete colour scheme?" });
+  await dialog.waitFor({ timeout: 5000 });
+  await dialog.getByRole("button", { name: "Delete scheme" }).click();
+  await frame.waitForFunction(() => document.querySelector("[data-fm-section]") && !document.querySelector("[data-fm-section][data-scheme]"), null, { timeout: 10000 });
+});
+
+await check("the wishlist page shows the one shop header and footer, listed in Page layout", desktop, async page => {
+  await expectText(page, "Preview connected", 30000);
+  const frame = page.frameLocator("iframe").first();
+  await frame.locator("header[data-section=navigation] [data-studio-label='Category bar']").first().waitFor({ state: "attached", timeout: 15000 });
+  await frame.locator("footer[data-studio-label='Footer']").waitFor({ state: "attached", timeout: 5000 });
+  // The wishlist's own title bar sits under the shop header as a plain row, not a second <header>.
+  if (await frame.locator("header [data-store-region=wishlistHeader], header[data-store-region=wishlistHeader]").count()) throw new Error("the wishlist bar is still a header");
+  const panel = page.locator(".studio-structure");
+  await panel.locator("summary", { hasText: "Header" }).click();
+  await panel.getByRole("button", { name: /^Logo/ }).first().waitFor({ timeout: 15000 });
+}, "#designer?t=wishlistPage");
 
 await check("phone-sized editor loads without errors", { width: 390, height: 844 }, async page => {
   await page.waitForTimeout(1500);

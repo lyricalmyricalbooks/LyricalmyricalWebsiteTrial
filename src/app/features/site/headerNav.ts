@@ -1,8 +1,8 @@
 import { useLayoutEffect, useState, type CSSProperties, type RefObject } from "react";
 
 /**
- * Shared nav-link look for every storefront header (home/catalog in MainSite and
- * custom pages in StorefrontPageHeader) so both stay identical. Every value is a
+ * Shared nav-link look for the one storefront header (StoreHeader: shop mode in MainSite and
+ * page mode on every standalone page) so both stay identical. Every value is a
  * Studio › Style › Navigation links control; the fallbacks are the defaults.
  */
 export function navLinkStyle(design: any, active: boolean, color?: string): CSSProperties {
@@ -50,6 +50,23 @@ export function fitScale(naturalWidth: number, available: number, min = 0.7): nu
   return Math.max(min, Math.floor((available / naturalWidth) * 100) / 100);
 }
 
+/** Width from the first link's left edge to the last link's right edge (overflow included). */
+function linksExtent(nav: HTMLElement): number {
+  const first = nav.firstElementChild, last = nav.lastElementChild;
+  if (!first || !last) return 0;
+  return Math.max(0, last.getBoundingClientRect().right - first.getBoundingClientRect().left);
+}
+
+/**
+ * The bar's unshrunk width. On its own row the bar is a block-level flex box that always fills the
+ * row, so its box width (scrollWidth when nothing overflows) says nothing about the links: measure the
+ * links' extent instead (it includes any overflow). Dividing the box width by the current shrink used
+ * to shrink the links ~1% more on every font load or resize, even with room to spare.
+ */
+export function naturalNavWidth(scrollWidth: number, extent: number, current: number): number {
+  return (extent > 0 ? extent : scrollWidth) / (current || 1);
+}
+
 /** Classes + style for the nav element for the chosen line mode. */
 export function navLineProps(design: any, below: boolean, fit: number) {
   const mode = navLineMode(design);
@@ -72,7 +89,8 @@ export function useNavFit(design: any, navRef: RefObject<HTMLElement | null>, be
       if (!parent) return;
       const ps = getComputedStyle(parent);
       const avail = parent.clientWidth - parseFloat(ps.paddingLeft) - parseFloat(ps.paddingRight);
-      const natural = nav.scrollWidth / current; // text + gaps scale linearly with --nav-fit
+      // text + gaps scale linearly with --nav-fit
+      const natural = naturalNavWidth(nav.scrollWidth, linksExtent(nav), current);
       const next = fitScale(natural, avail - 2, min);
       if (Math.abs(next - current) >= 0.01) { current = next; setFit(next); }
     };

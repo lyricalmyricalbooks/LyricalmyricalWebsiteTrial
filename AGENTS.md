@@ -129,7 +129,10 @@ The default Settings → Design experience is `studio/StudioEditor.tsx`: its
 section/block outline, inspector, Edit/Browse preview and draft workflow are
 the primary editing surfaces. Custom pages created
 in Studio join the storefront header by default, and their public routes render
-the themed storefront header. The iframe preview receives the unsaved design,
+the themed storefront header. There is one header (`features/site/StoreHeader.tsx`: shop mode in MainSite, page
+mode everywhere else) and one footer (`features/site/StoreFooter.tsx`); wishlist, account, tracking and 404 get them
+through `StoreChrome` (Style › Header › `showStoreChromeOnUtilityPages`). Build header/footer features there only —
+`storeChrome.parity.test.tsx` guards every Studio hook. Checkout keeps its own minimal header. The iframe preview receives the unsaved design,
 settings, catalog and published-page collection as one live snapshot; preserve
 that full-state contract when adding Studio-editable storefront data. Snapshot
 delivery uses `postMessage` plus a same-origin message-event fallback so iframe
@@ -147,6 +150,10 @@ plain-English label so shop owners can find it. Selection commands come from `co
 `runContext` in `StudioEditor.tsx`); `>` searches commands only. Studio drafts are only ever saved through `admin/themeStore.ts`
 (private `themes/workspace`; no public `draftDesign` fallback since 1.7 — never reintroduce one). **Auto-fit for phones** (`autoMobile.ts`) writes phone/tablet overrides; keep it in sync
 with the phone keys the renderers read (`mobilePadding*`, `mobileColumns`, `mobileHeadingSize`, block `grid.tablet/mobile`).
+Links, books, categories, pages, videos and fonts in section/block fields are **picked, not typed** (Studio 2.3): use the
+field kinds `link` / `book` / `books` / `category` / `page` / `video` / `font` (`studio/StudioPickers.tsx`), which store the
+same strings as before, and choose catalog books only through `selectBooks` in `features/site/merchandising.ts`. Saved
+designs must keep rendering identically (`catalogSources*.test`), and `sectionFieldKinds.test.ts` rejects url-like `text` fields.
 
 1. **Read `docs/THEME_EDITOR.md` first**, plus the whole section/block system —
    `studio/StudioEditor.tsx`, `ThemeEditorExtensions.tsx` (the `SECTION_REGISTRY`),
@@ -246,6 +253,13 @@ The public site defaults to Riso Press on black/white with a flare accent. Keep 
 no literal colours in `RISO_STOREFRONT_CSS`, RGB triplet variables stay comma-separated, and any new
 shopper-facing string needs a `COPY_SCHEMA` entry + `getCopy` call so it is editable in the theme
 editor (see `docs/THEME_EDITOR.md` › Riso Noir). Payment UI stays conventional and legible.
+
+Colour schemes (Studio › Theme settings › Colour schemes) are the way to give one part of the shop
+its own palette: a scheme's roles become `[data-scheme]` token variables (`schemeCss` in
+`features/site/colorSchemes.ts`, emitted by `StorefrontOverrides`). New storefront parts should read
+the shared tokens (`--bg-color`, `rgb(var(--fg-rgb))`, `var(--surface)`, `var(--accent)` …) rather
+than fixed design keys alone, so a scheme reaches them; new book cards carry `fm-card`. Never change
+how a saved scheme without `v: 2` renders — `colorSchemes.test.ts` guards that.
 
 ## Product page
 

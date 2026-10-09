@@ -24,7 +24,8 @@ import {
   patchSectionSettings, redo, removeSection, sameDesign, setSections, toggleSection, undo, undoLabel, redoLabel, moveSection,
   resolveSharedBlocks, type Section, type SectionTarget, type SharedBlock,
 } from "./studioModel";
-import { STATIC_SURFACES, STYLE_GROUPS, STYLE_TARGET_FIELDS, applyGlobalStyle, readStyle, regionStyleFields, type StyleField, type StyleGroup } from "./styleSchema";
+import { STATIC_SURFACES, STYLE_GROUPS, STYLE_TARGET_FIELDS, applyGlobalStyle, readStyle, regionStyleFields, schemeFieldOptions, type StyleField, type StyleGroup } from "./styleSchema";
+import { StudioColorSchemes } from "./StudioColorSchemes";
 import { StudioPages } from "./StudioPages";
 import { StudioCategories } from "./StudioCategories";
 import { categoryNavOrder } from "./categoryManager";
@@ -68,6 +69,7 @@ import { currentOption, pickerOptions, type PickerOption } from "./templatePicke
 import { loadUiState, saveUiState, uiStateKey, type Zoom } from "./studioUiState";
 import { auth } from "../../../lib/firebase";
 import type { StudioLocation } from "../../lib/studioLocation";
+import { StudioPickerProvider } from "./StudioPickers";
 import "./studio.css";
 
 type LeftTab = "sections" | "style" | "text" | "menus" | "pages";
@@ -349,6 +351,8 @@ export function StudioEditor({ settings, onExit, onPersisted, appearance = "ligh
   const [pageLoadError, setPageLoadError] = useState(false);
   const [pageBusy, setPageBusy] = useState(false);
   const [books, setBooks] = useState<any[]>([]);
+  // Link / book / category / page pickers search what Studio already loaded (StudioPickers.tsx).
+  const pickerData = useMemo(() => ({ books, pages, categories: design?.categories || [] }), [books, pages, design?.categories]);
   // The page open in Studio › Pages with unsaved edits — shown in the preview only, never saved from here.
   const [draftPage, setDraftPage] = useState<any | null>(null);
   // Where you were last time (this browser): page, workspace, device, zoom.
@@ -552,7 +556,8 @@ export function StudioEditor({ settings, onExit, onPersisted, appearance = "ligh
     else setStyle(path, value);
   };
 
-  const renderStyleField = (g: StyleGroup, f: StyleField) => {
+  const renderStyleField = (g: StyleGroup, field: StyleField) => {
+    const f = schemeFieldOptions(field, colorSchemes);
     const local = styleScope === "page" && PAGE_STYLE_GROUPS.has(g.id);
     const region = REGION_GROUPS.find(group => group.id === g.id)?.regions.find(r => f.key.startsWith('regions.' + r.id));
     const values = { ...design.regions, ...(local ? design[template.id]?.regions : {}) };
@@ -1365,6 +1370,10 @@ export function StudioEditor({ settings, onExit, onPersisted, appearance = "ligh
                   ))}
                 </div>
                   </div>}
+                  {styleCategory === "schemes" && <div className="px-4 pb-4">
+                    <StudioColorSchemes design={design} change={change} confirm={askConfirm}
+                      onNotice={(text, canUndo) => say("ok", text, canUndo ? { label: "Undo", run: () => setHist(undo) } : undefined)} />
+                  </div>}
                   {styleCategory === "paymentIcons" && <div className="px-4 pb-4 space-y-4">
                     <p className="studio-hint">Checkout itself always offers the methods enabled in Settings › Payments.</p>
 
@@ -1555,6 +1564,7 @@ export function StudioEditor({ settings, onExit, onPersisted, appearance = "ligh
   );
 
   return (
+    <StudioPickerProvider value={pickerData}>
     <div className="rp studio-editor" data-rp-appearance={appearance} data-studio-editor data-mobile-panel={mobilePanel}>
       {/* top bar */}
       <header className="studio-topbar">
@@ -1689,5 +1699,6 @@ export function StudioEditor({ settings, onExit, onPersisted, appearance = "ligh
         <div className="space-y-2">{[...designChecks(design), designSize(design)].map((r, i) => <p key={i} className={`p-3 rounded-lg text-sm ${r.tone === "warn" ? "bg-amber-50 text-amber-900" : "bg-emerald-50 text-emerald-900"}`}>{r.tone === "warn" ? "⚠" : "✓"} {r.text}</p>)}</div>
       </Dialog>
     </div>
+    </StudioPickerProvider>
   );
 }

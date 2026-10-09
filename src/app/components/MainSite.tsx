@@ -1,13 +1,7 @@
-import { SecondaryStorefrontNav } from "../features/site/SecondaryStorefrontNav";
-import { MobileStorefrontNav } from "../features/site/MobileStorefrontNav";
-import { accountsEnabled } from "../features/site/customerAccounts";
 import { m, AnimatePresence } from "motion/react";
-import { useStudioOverlay } from "../features/site/studioOverlay";
 import { type CSSProperties, useEffect, useMemo, useRef, useState } from "react";
-import { ChevronLeft, ChevronRight, X, Instagram, Mail, Send, Heart, User as UserIcon, Zap, Search as SearchIcon, ShoppingCart } from "lucide-react";
+import { ChevronLeft, ChevronRight, X, Send, Heart, Zap } from "lucide-react";
 import { Link, useNavigate, useLocation, useParams } from "react-router";
-import { POLICY_KEYS, policySlug, policyTitle } from "../features/site/policyPages";
-import { useCart } from "../CartContext";
 import { CATEGORIES, placeholderImage, DEFAULT_SOCIAL } from "../features/site/constants";
 import { aspectRatioValue } from "../features/site/imageAspect";
 import {
@@ -24,18 +18,13 @@ import { BootSplash } from "./BootSplash";
 import { buildStorefrontTokenVars, RISO_STOREFRONT_CSS, risoGrainCss, STOREFRONT_TOKEN_CSS } from "../features/site/themeTokens";
 import { getCopy } from "../features/site/storeCopy";
 import { preorderActive } from "../features/site/preorder";
-import { splitNavigation, buildNavItems, categoryNames, childCategories, parentOf } from "../features/site/navItems";
-import { NavDropdown } from "../features/site/NavDropdown";
-import { contentMaxWidth, navLineProps, navLinkStyle, useNavBelow, useNavFit } from "../features/site/headerNav";
+import { buildNavItems, categoryNames } from "../features/site/navItems";
+import { contentMaxWidth } from "../features/site/headerNav";
 import { StorefrontThemeStyle } from "../features/site/StorefrontThemeStyle";
 import { StorefrontOverrides } from "../features/site/StorefrontOverrides";
-import { resolveFooterBadges } from "../features/site/paymentBadges";
-import { GroupedFooterNavigation } from "./GroupedFooterNavigation";
-import { StoreMenu, FooterMenu } from "./StoreMenu";
-import { LogoMark, wordmarkSecondaryStyle } from "./LogoMark";
+import { schemeButtonColors } from "../features/site/colorSchemes";
 import { googleFontHref } from "../features/site/fonts";
-import { ThemeToggle } from "./theme/ThemeToggle";
-import { CurrencySelector, useCurrency } from "../CurrencyContext";
+import { useCurrency } from "../CurrencyContext";
 import { doc, setDoc } from "firebase/firestore/lite";
 import { liteDb } from "../../lib/firestoreLite";
 import { SectionList, GlobalSections, TemplateSections } from "./sectionRender";
@@ -46,26 +35,11 @@ import { useSEO } from "../lib/seo";
 import { breadcrumbData, collectionStructuredData, siteStructuredData } from "../lib/bookSeo";
 import { CatalogControls, applyCatalogControls, appliedFilters, filterView, EMPTY_FILTERS, type CatalogFilterState, type SortKey } from "../features/site/CatalogControls";
 import RecentlyViewedRow from "../features/site/RecentlyViewedRow";
-import { SearchOverlay } from "../features/site/SearchOverlay";
+import { StoreHeader } from "../features/site/StoreHeader";
+import { StoreFooter } from "../features/site/StoreFooter";
 import { designNumber } from "../features/site/designNumber";
 import { resolveMainDesign } from "../features/site/surfaceDesign";
 import { regionProps } from "../features/site/storefrontRegions";
-
-// ──────────────────────────────
-// Sticker-pill navigation (navStyle: "stickers") — asymmetric border radius,
-// slight per-pill rotation, hover straighten + scale, and a cycling active
-// palette. All knobs come from design keys; navStyle "default" renders the
-// classic nav untouched.
-// ──────────────────────────────
-const STICKER_ROTATIONS = [-2, 1.5, 2, -1, 1, -1.5];
-const STICKER_ACTIVE_COLORS = [
-  { bg: "var(--accent, #e8402a)", text: "var(--on-accent, #ffffff)" },
-  { bg: "var(--success, #34d399)", text: "var(--on-success, #04150f)" },
-  { bg: "var(--warning, #f5b942)", text: "var(--on-accent, #2b1a05)" },
-  { bg: "var(--danger, #fb7185)", text: "var(--on-accent, #2b0810)" },
-];
-const STICKER_PILL_CSS =
-  ".fm-sticker-pill{transition:all .2s ease}.fm-sticker-pill:hover{transform:rotate(0deg) scale(1.08)!important;opacity:1!important}";
 
 const catNameForSEO = (category: any) => typeof category === "string" ? category : category?.name;
 
@@ -73,20 +47,6 @@ export function storefrontCategories(value: unknown) {
   return (Array.isArray(value) ? value : CATEGORIES).filter(
     (category: any) => typeof category === "string" || (category && typeof category === "object"),
   );
-}
-
-function stickerPillStyle(design: any, index: number, active = false): CSSProperties {
-  const rotate = design?.navPillRotate === false ? 0 : STICKER_ROTATIONS[index % STICKER_ROTATIONS.length];
-  const activeColors = design?.navPillActivePalette === false
-    ? STICKER_ACTIVE_COLORS[0]
-    : STICKER_ACTIVE_COLORS[index % STICKER_ACTIVE_COLORS.length];
-  return {
-    borderRadius: design?.navPillRadius || "14px 4px 14px 4px",
-    transform: `rotate(${rotate}deg)`,
-    padding: "0.5rem 1.05rem",
-    fontWeight: 700,
-    ...(active ? { backgroundColor: activeColors.bg, color: activeColors.text, opacity: 1 } : {}),
-  };
 }
 
 // ──────────────────────────────
@@ -224,201 +184,6 @@ function Newsletter({ design }: { design?: any }) {
         <p {...regionProps("newsletterStatus")} className="text-red-400 text-[10px] tracking-widest">{getCopy(design, "newsletterError")}</p>
       )}
     </div>
-  );
-}
-
-// ──────────────────────────────
-// Payment gateway icons for footer
-// ──────────────────────────────
-const PAYMENT_ICONS: Record<string, React.ReactNode> = {
-  visa: (
-    <svg className="h-3 w-auto" viewBox="0 0 24 15" fill="currentColor" xmlns="http://www.w3.org/2000/svg">
-      <path d="M10.166 14.281l2.42-13.562h3.873l-2.42 13.562h-3.873zm11.393-13.064c-.754-.298-1.922-.619-3.376-.619-3.702 0-6.31 1.944-6.329 4.743-.03 2.062 1.868 3.208 3.292 3.896 1.458.706 1.95 1.155 1.942 1.785-.015.965-1.171 1.408-2.253 1.408-1.503 0-2.31-.225-3.535-.76l-.497-.238-.529 3.256c.883.402 2.512.75 4.205.766 3.935 0 6.5-1.922 6.539-4.896.02-1.618-.975-2.853-3.116-3.87-.225-.112-.45-.224-.652-.328-1.178-.568-1.579-.955-1.571-1.53.015-.515.586-1.042 1.86-1.042 1.053-.016 1.815.223 2.408.47l.285.126.547-3.336zM7.568 1.22H3.771c-.883 0-1.545.26-1.936 1.183l-5.416 11.878h4.067l.808-2.215h4.975l.471 2.215h3.585L7.568 1.22zm-2.463 7.82l1.545-4.237.887 4.237H5.105zm18.802-8.32H20.73c-.63 0-1.109.356-1.343.916l-6.427 12.665h4.067l.812-2.25h4.975l.471 2.25h3.582L23.907.72z" />
-    </svg>
-  ),
-  mastercard: (
-    <svg className="h-4 w-auto" viewBox="0 0 24 15" fill="currentColor" xmlns="http://www.w3.org/2000/svg">
-      <circle cx="7.5" cy="7.5" r="7.5" opacity="0.8" />
-      <circle cx="16.5" cy="7.5" r="7.5" opacity="0.6" />
-    </svg>
-  ),
-  amex: (
-    <svg className="h-4 w-auto" viewBox="0 0 24 15" fill="currentColor" xmlns="http://www.w3.org/2000/svg">
-      <rect width="24" height="15" rx="2" fill="none" stroke="currentColor" strokeWidth="2" />
-      <text x="4" y="11" fontSize="7" fontWeight="bold" fontFamily="sans-serif">AX</text>
-    </svg>
-  ),
-  paypal: (
-    <svg className="h-3 w-auto" viewBox="0 0 24 15" fill="currentColor" xmlns="http://www.w3.org/2000/svg">
-      <path d="M18.825 3.328a2.535 2.535 0 00-.518-.088 6.002 6.002 0 00-1.157-.1c-1.464 0-2.88.225-4.148.653-.518.175-.852.483-1.037.954l-1.87 8.358h-3.41l2.584-11.53c.18-.8 1.054-1.282 1.867-1.282h4.5c.95 0 1.764.218 2.378.647.614.43 1.002.99 1.134 1.637.133.648-.052 1.306-.554 1.936a4.52 4.52 0 01-1.769 1.418z" />
-      <path d="M12.922 7.078c.185-.47.52-.779 1.037-.954 1.268-.428 2.684-.653 4.148-.653a6.002 6.002 0 011.157.1c.175.022.35.05.518.088.75.163 1.258.625 1.488 1.32.228.694.137 1.467-.282 2.215-.49 1.026-1.4 1.844-2.585 2.32a5.556 5.556 0 01-2.115.42H13.67l-.946 4.168h-3.41L11.055 7.15l1.867-.072z" />
-    </svg>
-  ),
-  applepay: (
-    <svg className="h-3 w-auto" viewBox="0 0 24 15" fill="currentColor" xmlns="http://www.w3.org/2000/svg">
-      <path d="M16.59 7.07c0-1.74 1.41-2.73 1.48-2.78-.81-1.18-2.07-1.34-2.52-1.38-1.07-.11-2.09.63-2.63.63-.54 0-1.38-.62-2.27-.6-1.17.02-2.26.68-2.86 1.73-1.22 2.11-.31 5.23.87 6.93.58.83 1.26 1.76 2.16 1.73.87-.03 1.2-.56 2.26-.56 1.05 0 1.35.56 2.26.54.93-.02 1.52-.84 2.1-1.68.67-.97.94-1.92.96-1.97-.02-.01-1.85-.71-1.87-2.82zM14.73 1.77c.48-.58.8-1.38.71-2.18-.69.03-1.53.46-2.02 1.03-.42.48-.79 1.3-.7 2.08.77.06 1.53-.35 2.01-.93z" />
-    </svg>
-  ),
-  googlepay: (
-    <svg className="h-3 w-auto" viewBox="0 0 24 15" fill="currentColor" xmlns="http://www.w3.org/2000/svg">
-      <rect width="24" height="15" rx="2" fill="none" stroke="currentColor" strokeWidth="2" />
-      <text x="3" y="11" fontSize="7" fontWeight="bold" fontFamily="sans-serif">GPay</text>
-    </svg>
-  ),
-  afterpay: (
-    <svg className="h-3 w-auto" viewBox="0 0 24 15" fill="currentColor" xmlns="http://www.w3.org/2000/svg">
-      <rect width="24" height="15" rx="2" fill="none" stroke="currentColor" strokeWidth="2" />
-      <text x="2" y="10" fontSize="5" fontWeight="bold" fontFamily="sans-serif">afterpay</text>
-    </svg>
-  ),
-  klarna: (
-    <svg className="h-3 w-auto" viewBox="0 0 24 15" fill="currentColor" xmlns="http://www.w3.org/2000/svg">
-      <rect width="24" height="15" rx="2" fill="none" stroke="currentColor" strokeWidth="2" />
-      <text x="2" y="10" fontSize="6" fontWeight="bold" fontFamily="sans-serif">Kl.</text>
-    </svg>
-  ),
-};
-
-// ──────────────────────────────
-// Full footer
-// ──────────────────────────────
-export function SiteFooter({ settings, pages }: { settings: any; pages: any[] }) {
-  const navPages = (pages || []).filter(p => p.showInNav && p.status === "published");
-  const rawDesign = settings?.design || {};
-  // Never configured → the house default; cleared on purpose in Studio → hidden.
-  const instagramUrl: string = (settings?.design?.social ?? DEFAULT_SOCIAL).instagram || "";
-  const d = rawDesign;
-  const grouped = d.footerNavigationLayout !== "columns";
-  const policyKeys = POLICY_KEYS.filter(k => (settings?.policies as any)?.[k]?.trim());
-  const fourCol = d?.footerLayout === "4col";
-  // "Multi-column footer" off → the columns stack into one.
-  const multiColumn = d?.footerColumns !== false;
-  const headingFontFamily = d?.headingFont ? `'${d.headingFont}', serif` : undefined;
-  return (
-    <footer {...regionProps("footerPanel")}
-      data-studio-target="style:footer|style:catalogElements|copy:Footer" data-studio-label="Footer"
-      className="border-t-2 border-white/30 bg-black/40"
-      style={d?.footerBg ? { backgroundColor: d.footerBg } : undefined}
-    >
-      <div style={{ maxWidth: contentMaxWidth(d) }} className={`mx-auto px-6 py-12 grid grid-cols-1 ${!multiColumn ? "" : grouped ? "md:grid-cols-[minmax(0,1.5fr)_minmax(0,1fr)_minmax(0,1fr)]" : fourCol ? "md:grid-cols-4" : "md:grid-cols-3"} gap-10 text-[11px] text-white/70`}>
-        {/* Col 1: Brand */}
-        <div className="space-y-4" data-studio-target="copy:Footer|style:logo" data-studio-label="Footer brand">
-          {d?.wordmarkStyle === "two-part" ? (
-            <p className="text-white text-xl" style={{ fontFamily: headingFontFamily, fontWeight: d?.wordmarkWeight ?? 600, letterSpacing: "-0.01em" }}>
-              <span data-studio-style-text="wordmarkPrimary">{d.wordmarkPrimary ?? "Lyricalmyrical"}</span> <span data-studio-style-text="wordmarkSecondary" style={wordmarkSecondaryStyle(d)}>{d.wordmarkSecondary ?? "Books"}</span>
-            </p>
-          ) : (
-            <p className="text-white font-bold tracking-widest text-xs"><span data-studio-copy="footerWordmark">{getCopy(settings?.design, "footerWordmark")}</span></p>
-          )}
-          <p className="leading-relaxed max-w-xs">
-            <span data-studio-copy="footerAbout">{settings?.design?.copy?.footerAbout != null ? getCopy(settings?.design, "footerAbout") : settings?.info?.description || getCopy(settings?.design, "footerAbout")}</span>
-          </p>
-          {grouped && d.showFooterLocation !== false && <p data-studio-target="copy:Footer|style:footer" data-studio-label="Footer location"><span data-studio-copy="footerLocation">{getCopy(d, "footerLocation")}</span></p>}
-        </div>
-
-        {grouped ? <GroupedFooterNavigation settings={settings} pages={pages} /> : <>
-        {/* Col 2: Navigation */}
-        <div className="space-y-3" data-studio-target="menus:footer|copy:Footer|pages" data-studio-label="Footer links">
-          <p className="text-white/55 text-[9px] uppercase tracking-[0.4em] mb-4"><span data-studio-copy="footerNavHeading">{getCopy(settings?.design, "footerNavHeading")}</span></p>
-          {settings?.design?.menus?.footer?.length > 0 ? (
-            <FooterMenu items={settings.design.menus.footer} />
-          ) : (
-            <>
-              <Link to="/" className="block hover:text-white transition-colors"><span data-studio-copy="footerLinkShop">{getCopy(settings?.design, "footerLinkShop")}</span></Link>
-              <Link to="/track" className="block hover:text-white transition-colors"><span data-studio-copy="footerLinkTrack">{getCopy(settings?.design, "footerLinkTrack")}</span></Link>
-              {navPages.map(page => (
-                <Link
-                  key={page.id}
-                  to={`/page/${page.slug}`}
-                  className="block hover:text-white transition-colors"
-                >
-                  {page.title}
-                </Link>
-              ))}
-              {d?.showSocialInFooter !== false && instagramUrl && <a href={instagramUrl} target="_blank" rel="noopener noreferrer" className="block hover:text-white transition-colors"><span data-studio-copy="footerLinkInstagram">{getCopy(settings?.design, "footerLinkInstagram")}</span></a>}
-              <a
-                href={`mailto:${settings?.info?.email || "lyricalmyricalbooks@gmail.com"}`}
-                className="block hover:text-white transition-colors"
-              >
-                <span data-studio-copy="footerLinkContact">{getCopy(settings?.design, "footerLinkContact")}</span>
-              </a>
-            </>
-          )}
-        </div>
-
-        {/* Col 3: Policies / Info */}
-        <div className="space-y-3" data-studio-target="copy:Footer|style:footer" data-studio-label="Footer legal & location">
-          {d.showFooterLegalHeading !== false && <p className="text-white/55 text-[9px] uppercase tracking-[0.4em] mb-4"><span data-studio-copy="footerLegalHeading">{getCopy(settings?.design, "footerLegalHeading")}</span></p>}
-          {POLICY_KEYS.filter((k) => (settings?.policies as any)?.[k]?.trim()).map((k) => (
-            <p key={k}><Link to={`/page/${policySlug(k)}`} className="hover:text-white transition-colors">{policyTitle(settings?.design, k)}</Link></p>
-          ))}
-          {!fourCol && d.showFooterLocation !== false && <p className="mt-6"><span data-studio-copy="footerLocation">{getCopy(settings?.design, "footerLocation")}</span></p>}
-        </div>
-
-        {/* Col 4: Location (4-column layout only) */}
-        {fourCol && d.showFooterLocation !== false && (
-          <div className="space-y-3" data-studio-target="copy:Footer|style:footer" data-studio-label="Footer location">
-            <p className="text-white/55 text-[9px] uppercase tracking-[0.4em] mb-4"><span data-studio-copy="footerLocationHeading">{getCopy(settings?.design, "footerLocationHeading")}</span></p>
-            <p><span data-studio-copy="footerLocation">{getCopy(settings?.design, "footerLocation")}</span></p>
-            <a
-              href={`mailto:${settings?.info?.email || "lyricalmyricalbooks@gmail.com"}`}
-              className="block hover:text-white transition-colors"
-            >
-              {settings?.info?.email || "lyricalmyricalbooks@gmail.com"}
-            </a>
-          </div>
-        )}
-        </>}
-      </div>
-
-      {/* No policies written yet → no lone "Legal" heading or empty ruled strip. */}
-      {grouped && policyKeys.length > 0 && <div style={{ maxWidth: contentMaxWidth(d) }} className="mx-auto px-6 py-4 border-t border-white/20 flex flex-wrap items-center gap-x-6 gap-y-3 text-[11px] text-white/70" data-studio-target="copy:Footer|style:footer" data-studio-label="Footer legal links">
-        {d.showFooterLegalHeading !== false && <span className="text-[9px] uppercase tracking-[0.3em] text-white/55" data-studio-copy="footerLegalHeading">{getCopy(d, "footerLegalHeading")}</span>}
-        {policyKeys.map(k => <Link key={k} to={"/page/" + policySlug(k)} className="hover:text-white transition-colors">{policyTitle(d, k)}</Link>)}
-      </div>}
-
-      {/* Bottom bar */}
-      <div style={{ maxWidth: contentMaxWidth(d) }} className="border-t border-white/20 mx-auto px-6 py-4 flex flex-col md:flex-row justify-between items-center gap-4">
-        <p className="text-[9px] tracking-widest text-white/55 uppercase">
-          <span data-studio-copy="footerCopyright">{getCopy(settings?.design, "footerCopyright")}</span>
-        </p>
-
-        {resolveFooterBadges(d, settings).length > 0 && d?.showPaymentBadges !== false && (
-          <div className="flex items-center gap-4 text-white/55 select-none" data-studio-target="style:paymentIcons|style:footer" data-studio-label="Payment icons">
-            {resolveFooterBadges(d, settings).map((badgeId: string) => {
-              const icon = PAYMENT_ICONS[badgeId];
-              if (!icon) return null;
-              return (
-                <div key={badgeId} className="opacity-30 hover:opacity-100 transition-opacity duration-300">
-                  {icon}
-                </div>
-              );
-            })}
-          </div>
-        )}
-
-        <div className="flex gap-4">
-          {d.showSocialInFooter !== false && instagramUrl && (
-          <a
-            href={instagramUrl}
-            target="_blank"
-            rel="noopener noreferrer"
-            aria-label={getCopy(d, "footerInstagramAria")}
-            className="text-white/55 hover:text-white transition-colors"
-          >
-            <Instagram size={14} aria-hidden="true" />
-          </a>
-          )}
-          <a
-            href={`mailto:${settings?.info?.email || "lyricalmyricalbooks@gmail.com"}`}
-            aria-label={getCopy(d, "footerEmailAria")}
-            className="text-white/55 hover:text-white transition-colors"
-          >
-            <Mail size={14} aria-hidden="true" />
-          </a>
-        </div>
-      </div>
-    </footer>
   );
 }
 
@@ -599,8 +364,7 @@ ${design?.themeStyle === "riso" ? RISO_STOREFRONT_CSS + risoGrainCss(design) : "
 export default function MainSite({ setShowCatalog, showCatalog, setCurrentPage, currentPage, nextPage, prevPage }: any) {
   const navigate = useNavigate();
   const location = useLocation();
-  const { cartCount, cartTotal, setIsCartOpen } = useCart();
-  const { formatBookPrice, formatPrice, convertPrice } = useCurrency();
+  const { formatBookPrice, convertPrice } = useCurrency();
   const { books, settings, pages, loading } = useSiteData();
 
   // Auto-open catalog view when the editor previews the shop tab
@@ -638,11 +402,6 @@ export default function MainSite({ setShowCatalog, showCatalog, setCurrentPage, 
   // Categories and in-menu pages share one header bar; Studio › Menus › Header bar order sets the sequence.
   const navOrder = activeDesign?.navOrder || storefrontDesign?.navOrder || legacyDesign?.navOrder;
   const navItems = useMemo(() => buildNavItems(categories, pages || [], navOrder), [categories, pages, navOrder]);
-  const headerRowRef = useRef<HTMLDivElement>(null);
-  const navRef = useRef<HTMLElement>(null);
-  const navBelow = useNavBelow(storefrontDesign, headerRowRef, navRef);
-  const navFit = useNavFit(storefrontDesign, navRef, navBelow);
-  const navLine = navLineProps(storefrontDesign, navBelow, navFit);
 
   // "Skip straight to the shop": the homepage shows the catalog. Remember when we forced
   // it, so switching the setting back (e.g. live in the Studio preview) returns to Home.
@@ -690,15 +449,6 @@ export default function MainSite({ setShowCatalog, showCatalog, setCurrentPage, 
       }
     }
   }, [categories, collectionSlug]);
-  const [scrolled, setScrolled] = useState(false);
-
-  useEffect(() => {
-    const handleScroll = () => {
-      setScrolled(window.scrollY > 20);
-    };
-    window.addEventListener("scroll", handleScroll, { passive: true });
-    return () => window.removeEventListener("scroll", handleScroll);
-  }, []);
 
   // The category synchronization above compares stable names/IDs. Do not also
   // reset by object identity: a fresh catalog snapshot recreates category objects
@@ -726,19 +476,6 @@ export default function MainSite({ setShowCatalog, showCatalog, setCurrentPage, 
 
   // Catalog controls: search + sort + in-stock filter
   const [searchQuery, setSearchQuery] = useState("");
-  const [searchOpen, setSearchOpen] = useState(false);
-  useStudioOverlay("search", setSearchOpen);
-
-  useEffect(() => {
-    const onKey = (e: KeyboardEvent) => {
-      if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === "k") {
-        e.preventDefault();
-        setSearchOpen(true);
-      }
-    };
-    window.addEventListener("keydown", onKey);
-    return () => window.removeEventListener("keydown", onKey);
-  }, []);
   const [sort, setSort] = useState<SortKey>("newest");
   const [inStockOnly, setInStockOnly] = useState(false);
   // Format and price filters (Shopify-style); price boxes are typed in the shopper's currency.
@@ -792,21 +529,14 @@ export default function MainSite({ setShowCatalog, showCatalog, setCurrentPage, 
     })(),
   });
 
-  const isHeaderTransparent = storefrontDesign?.transparentHeader && !scrolled;
 
-  const heroHeaderLinks = heroDesign?.headerLinks || {};
-  const storefrontHeaderLinks = storefrontDesign?.headerLinks || {};
-  const showBag = !activeDesign?.hideCartButton && (showCatalog
-    ? (storefrontHeaderLinks.showBag ?? true)
-    : (heroHeaderLinks.showBag ?? true));
-  const showSys = !activeDesign?.hideAdminLink && (showCatalog
-    ? (storefrontHeaderLinks.showSys ?? true)
-    : (heroHeaderLinks.showSys ?? true));
   const storefrontBg = storefrontDesign?.backgroundColor || "#000000";
   const storefrontText = storefrontDesign?.textColor || "#ffffff";
   const storefrontAccent = storefrontDesign?.primaryColor || "#e8402a";
   const storefrontButtonBg = storefrontDesign?.buttonColor || storefrontAccent;
   const storefrontButtonText = storefrontDesign?.buttonTextColor || "#100f0d";
+  // Book cards following a colour scheme use its button roles (Theme settings › Colour schemes).
+  const cardButton = schemeButtonColors(storefrontDesign, "cards", { bg: storefrontButtonBg, text: storefrontButtonText });
   const storefrontMaxWidth = contentMaxWidth(storefrontDesign);
   // Default legacy storefronts into the requested photo-reference design. The
   // previous implementation only changed sites after a merchant manually applied
@@ -817,16 +547,9 @@ export default function MainSite({ setShowCatalog, showCatalog, setCurrentPage, 
   const storefrontDesktopColumns = Math.max(2, Math.min(6, storefrontDesign?.productColumnsDesktop ?? (isReferenceCatalog ? 3 : 4)));
   const storefrontCardRadius = Math.max(0, Math.min(30, storefrontDesign?.cardRadius ?? 8));
   const storefrontGridGap = Math.max(8, Math.min(72, storefrontDesign?.catalogGridGap ?? 20));
-  const storefrontHeaderRuleWidth = Math.max(0, Math.min(8, storefrontDesign?.catalogHeaderRuleWidth ?? (isReferenceCatalog ? 4 : 1)));
   const storefrontHeaderMaxWidth = Math.max(900, Math.min(1800, storefrontDesign?.catalogHeaderWidth ?? storefrontMaxWidth));
   const storefrontImageFit = storefrontDesign?.catalogImageFit === "contain" ? "object-contain" : "object-cover";
   const storefrontTitleTransform = (storefrontDesign?.catalogTitleTransform || (isReferenceCatalog ? "none" : "uppercase")) as any;
-  const catalogMastheadDesktop = Math.max(28, Math.min(96, storefrontDesign?.catalogMastheadDesktop ?? 58));
-  const catalogMastheadMobile = Math.max(24, Math.min(72, storefrontDesign?.catalogMastheadMobile ?? 38));
-  const catalogNavGapDesktop = Math.max(12, Math.min(80, storefrontDesign?.catalogNavGapDesktop ?? 40));
-  const catalogNavGapMobile = Math.max(8, Math.min(48, storefrontDesign?.catalogNavGapMobile ?? 18));
-  const catalogCartPlacement = storefrontDesign?.catalogCartPlacement || "top-right";
-  const catalogMastheadText = storefrontDesign?.catalogMastheadText ?? settings?.info?.name ?? "Lyricalmyrical Books";
   const catalogImageFocalX = Math.max(0, Math.min(100, storefrontDesign?.catalogImageFocalX ?? 50));
   const catalogImageFocalY = Math.max(0, Math.min(100, storefrontDesign?.catalogImageFocalY ?? 50));
   const storefrontButtonRadius = Math.max(0, Math.min(999, storefrontDesign?.buttonRadius ?? 999));
@@ -849,14 +572,8 @@ export default function MainSite({ setShowCatalog, showCatalog, setCurrentPage, 
   const showNewBadge = storefrontDesign?.showNewBadge ?? false;
   const newBadgeLabel = storefrontDesign?.newBadgeLabel || "NEW";
   const newBadgeDays = Math.max(1, Math.min(365, storefrontDesign?.newBadgeDays ?? 30));
-  const bagLabel = storefrontDesign?.cartLabel || "BAG";
-  const showAnnouncement = storefrontDesign?.showAnnouncement ?? !isReferenceCatalog;
   const showCatalogControls = storefrontDesign?.showCatalogControls ?? !isReferenceCatalog;
-  const announcementMsg = storefrontDesign?.announcementText ?? settings?.announcements?.[0]?.message;
   
-  const headerTextColor = isHeaderTransparent ? storefrontText : (storefrontDesign?.headerColor || storefrontText);
-  const headerBgColor = isHeaderTransparent ? "transparent" : (storefrontDesign?.headerBg || `${storefrontBg}${(storefrontDesign?.headerStyle || "minimal") === "full" ? "f5" : "b3"}`);
-  const headerBorderColor = isHeaderTransparent ? "transparent" : (storefrontDesign?.headerColor ? `${storefrontDesign.headerColor}1a` : `${storefrontText}1a`);
 
   const shopSectionSpacing = Math.max(24, Math.min(120, storefrontDesign?.sectionSpacing ?? 64));
   const imageAspect = storefrontDesign?.imageAspectRatio || (isReferenceCatalog ? "1:1" : "3:4");
@@ -910,76 +627,6 @@ export default function MainSite({ setShowCatalog, showCatalog, setCurrentPage, 
   // grid for the Home template's sections; with no Home sections it shows the catalog.
   const homeSections: any[] = heroDesign.sections || heroDesign.homepageSections || activeDesign.homepageSections || [];
   const onHome = !showCatalog && homeSections.length > 0;
-  const navBar = (
-              <nav ref={navRef} data-studio-target="menus:header-order|menus:categories|style:navlinks" data-studio-label="Category bar" className={`hidden md:flex shrink-0 items-center ${navLine.className} ${storefrontDesign?.navStyle === "stickers" ? "gap-2" : ""}`} style={storefrontDesign?.navStyle === "stickers" ? { ["--nav-fit" as any]: navLine.style["--nav-fit" as any] } : navLine.style}>
-                {splitNavigation(navItems, storefrontDesign).primary.map((item, itemIdx) => {
-                  const stickers = storefrontDesign?.navStyle === "stickers";
-                  if (item.kind === "page") {
-                    return (
-                      <Link
-                        key={item.key}
-                        to={`/page/${item.page.slug}`}
-                        aria-current={location.pathname.endsWith(`/page/${item.page.slug}`) ? "page" : undefined}
-                        style={{
-                          ...navLinkStyle(storefrontDesign, location.pathname.endsWith(`/page/${item.page.slug}`), headerTextColor),
-                          ...(stickers ? stickerPillStyle(storefrontDesign, itemIdx) : {}),
-                        }}
-                        className={`transition-all hover:!opacity-100 hover-text-accent ${stickers ? "fm-sticker-pill" : ""}`}
-                      >
-                        {item.label}
-                      </Link>
-                    );
-                  }
-                  const cat = item.category;
-                  const activeName = typeof activeCategory === "string" ? activeCategory : activeCategory?.name;
-                  const isActive = activeName === item.label;
-                  const subs = item.children || [];
-                  // Sub-categories (Studio › Menus › Shop categories › "Sits under") → drop-down,
-                  // or their own links when Style › Navigation links › "no drop-down" is on.
-                  if (subs.length > 0 && storefrontDesign?.navFlatSubcategories) {
-                    return [item, ...subs.map((k: any) => ({ key: `cat:${k.id}`, label: k.name, category: k }))].map((c: any) => {
-                      const on = activeName === c.label;
-                      return (
-                        <button key={c.key} onClick={() => pickCategory(c.category)} aria-current={on ? "true" : undefined}
-                          style={{ ...navLinkStyle(storefrontDesign, on, headerTextColor), ...(stickers ? stickerPillStyle(storefrontDesign, itemIdx, on) : {}) }}
-                          className={`transition-all hover:!opacity-100 hover-text-accent ${stickers ? "fm-sticker-pill" : ""}`}>
-                          {c.label}
-                        </button>
-                      );
-                    });
-                  }
-                  if (subs.length > 0) {
-                    const branchActive = isActive || subs.some((k: any) => k.name === activeName);
-                    return (
-                      <NavDropdown
-                        key={item.key}
-                        design={storefrontDesign}
-                        copyDesign={activeDesign}
-                        label={item.label}
-                        linkStyle={{ ...navLinkStyle(storefrontDesign, branchActive, headerTextColor), ...(stickers ? stickerPillStyle(storefrontDesign, itemIdx, branchActive) : {}) }}
-                        className={`transition-all hover:!opacity-100 hover-text-accent ${stickers ? "fm-sticker-pill" : ""}`}
-                        all={{ key: `${item.key}:all`, label: item.label, active: isActive, onSelect: () => pickCategory(cat) }}
-                        entries={subs.map((k: any) => ({ key: `cat:${k.id}`, label: k.name, active: activeName === k.name, onSelect: () => pickCategory(categories.find((c: any) => c.id === k.id) || k) }))}
-                      />
-                    );
-                  }
-                  return (
-                    <button
-                      key={item.key}
-                      onClick={() => pickCategory(cat)}
-                      style={{
-                        ...navLinkStyle(storefrontDesign, isActive, headerTextColor),
-                        ...(stickers ? stickerPillStyle(storefrontDesign, itemIdx, isActive) : {}),
-                      }}
-                      className={`transition-all hover:!opacity-100 hover-text-accent ${stickers ? "fm-sticker-pill" : ""}`}
-                      aria-current={isActive ? "true" : undefined}
-                    >
-                      {item.label}
-                    </button>
-                  );
-                })}
-              </nav>
-  );
   {
     return (
       <div
@@ -989,260 +636,25 @@ export default function MainSite({ setShowCatalog, showCatalog, setCurrentPage, 
       >
         <TypographyTokens design={storefrontDesign} />
         {storefrontDesign?.customCss && <style>{storefrontDesign.customCss}</style>}
-        {storefrontDesign?.navStyle === "stickers" && <style>{STICKER_PILL_CSS}</style>}
-        {/* Promo / announcement banner */}
-        {showAnnouncement && announcementMsg && (
-          storefrontDesign?.announcementScrolling ? (
-            <div
-              data-section="announcements"
-              data-studio-target="style:header" data-studio-label="Announcement bar"
-              className="overflow-hidden py-2.5 sticky top-0 z-[60]"
-              style={{
-                backgroundColor: storefrontDesign?.announcementBg || "#e8402a",
-                color: storefrontDesign?.announcementColor || "#100f0d",
-              }}
-            >
-              <div
-                className="flex w-max animate-marquee font-bold uppercase"
-                style={{
-                  ["--marquee-duration" as any]: `${Math.max(5, Math.min(120, storefrontDesign?.announcementSpeed ?? 24))}s`,
-                  fontSize: storefrontDesign?.announcementFontSize ?? 10,
-                  fontWeight: storefrontDesign?.announcementWeight ?? 700,
-                  letterSpacing: `${storefrontDesign?.announcementTracking ?? 0.3}em`,
-                }}
-              >
-                {[0, 1].map((copy) => (
-                  <span key={copy} aria-hidden={copy === 1} data-studio-style-text={copy === 0 ? "announcementText" : undefined} data-studio-edit-value={announcementMsg} className="px-8 whitespace-nowrap">
-                    {Array.from({ length: 4 }).map(() => announcementMsg).join("        ")}
-                  </span>
-                ))}
-              </div>
-            </div>
-          ) : (
-            <div
-              data-section="announcements"
-              data-studio-target="style:header" data-studio-label="Announcement bar"
-              className="text-center py-2.5 px-6 text-[10px] tracking-[0.3em] font-bold uppercase sticky top-0 z-[60]"
-              style={{
-                backgroundColor: storefrontDesign?.announcementBg || "#e8402a",
-                color: storefrontDesign?.announcementColor || "#100f0d",
-              }}
-            >
-              <span data-studio-style-text="announcementText" data-studio-edit-value={announcementMsg}>{announcementMsg}</span>
-            </div>
-          )
-        )}
-
-        <header
-          data-section="navigation"
-          data-studio-target="style:header|menus:header-order|copy:Header" data-studio-label="Header"
-          className={`${storefrontDesign?.stickyHeader ?? true ? "sticky" : "relative"} ${showAnnouncement && announcementMsg ? "top-10" : "top-0"} z-50 transition-all duration-500 ${isHeaderTransparent ? "border-transparent" : isReferenceCatalog ? "" : "backdrop-blur-xl border-b"}`}
-          style={{
-            backgroundColor: headerBgColor,
-            borderColor: headerBorderColor,
+        {/* The one storefront header (announcement bar, logo, category bar, icons, phone menu, search). */}
+        <StoreHeader
+          design={activeDesign}
+          pages={pages || []}
+          books={books}
+          shop={{
+            surface: storefrontDesign,
+            hero: heroDesign,
+            logoDesign: storefrontLogoDesign,
+            logoPosition: storefrontLogoPosition,
+            categories,
+            activeCategory,
+            onPickCategory: pickCategory,
+            onHome: () => setShowCatalog(false),
+            showCatalog,
+            announcement: settings?.announcements?.[0]?.message,
+            siteName: settings?.info?.name,
           }}
-        >
-          {isReferenceCatalog ? (
-            <div className="mx-auto px-6 py-6" style={{ maxWidth: storefrontHeaderMaxWidth, color: headerTextColor }}>
-              <div className="flex items-start justify-between gap-6">
-                <button
-                  onClick={() => setShowCatalog(false)}
-                  className="text-left font-black tracking-tight leading-none hover:opacity-80 transition-opacity"
-                  style={{ color: headerTextColor, textTransform: storefrontDesign?.brandTransform || "none", fontSize: `clamp(${catalogMastheadMobile}px, 5vw, ${catalogMastheadDesktop}px)` }}
-                >
-                  <span data-studio-target="style:catalogLayout|style:logo" data-studio-label="Masthead" data-studio-style-text="catalogMastheadText">{catalogMastheadText}</span>
-                </button>
-                {showBag && catalogCartPlacement === "top-right" && (
-                  <button
-                    onClick={() => setIsCartOpen(true)}
-                    aria-label={getCopy(activeDesign, "ariaCart")}
-                    className="flex items-center gap-2 pt-1 text-lg md:text-2xl font-black leading-none hover:opacity-70 transition-opacity"
-                    style={{ color: headerTextColor }}
-                  >
-                    <ShoppingCart size={28} strokeWidth={2.4} />
-                    <span>{cartCount}</span>
-                    <span aria-hidden="true" className="font-light">|</span>
-                    <span>
-                      {cartTotal > 0 ? formatPrice(cartTotal) : formatPrice(Number(storefrontDesign?.catalogCartTotalPlaceholder ?? 0))}
-                    </span>
-                  </button>
-                )}
-              </div>
-              <div className="mt-6" style={{ borderTop: `${storefrontHeaderRuleWidth}px solid ${storefrontDesign?.borderColor || headerBorderColor || "#B1B1AA"}` }} />
-              <div data-studio-target="menus:header-order|menus:categories|style:navlinks" data-studio-label="Category bar" className="py-5 flex flex-wrap items-center text-base font-black" style={{ columnGap: catalogNavGapDesktop, rowGap: catalogNavGapMobile }}>
-                {categories.filter((c: any) => c.showInNav !== false && !parentOf(c, categories)).slice(0, storefrontDesign?.referenceCategoryLimit ?? 1).map((cat: any) => {
-                  const catName = typeof cat === "string" ? cat : cat.name;
-                  const activeName = typeof activeCategory === "string" ? activeCategory : activeCategory?.name;
-                  const isActive = activeName === catName;
-                  const subs = childCategories(cat, categories).filter((k: any) => k.showInNav !== false);
-                  if (subs.length > 0) {
-                    const branchActive = isActive || subs.some((k: any) => k.name === activeName);
-                    return (
-                      <NavDropdown
-                        key={catName}
-                        design={storefrontDesign}
-                        copyDesign={activeDesign}
-                        studioTarget={false}
-                        label={catName}
-                        linkStyle={{ color: headerTextColor, fontSize: "inherit", fontWeight: "inherit", opacity: branchActive ? 1 : 0.7 }}
-                        className="hover:!opacity-100"
-                        all={{ key: `${catName}:all`, label: catName, active: isActive, onSelect: () => pickCategory(cat) }}
-                        entries={subs.map((k: any) => ({ key: `cat:${k.id}`, label: k.name, active: activeName === k.name, onSelect: () => pickCategory(categories.find((c: any) => c.id === k.id) || k) }))}
-                      />
-                    );
-                  }
-                  return (
-                    <button key={catName} onClick={() => pickCategory(cat)} className={isActive ? "opacity-100" : "opacity-70 hover:opacity-100"}>
-                      {catName}⌄
-                    </button>
-                  );
-                })}
-                {splitNavigation(navItems, storefrontDesign).primary.filter(item => item.kind === "page").map((item: any) => item.page).map((page: any) => (
-                  <Link key={page.id} to={`/page/${page.slug}`} className="hover:opacity-70 transition-opacity">{page.title}</Link>
-                ))}
-                {!activeDesign?.hideHeaderSearch && <button onClick={() => setSearchOpen(true)} className="hover:opacity-70 transition-opacity"><span data-studio-copy="navSearch">{getCopy(activeDesign, "navSearch")}</span></button>}
-                {showSys && (
-                  <Link to="/admin" className="hover:opacity-70 transition-opacity opacity-40"><span data-studio-copy="navAdmin">{getCopy(activeDesign, "navAdmin")}</span></Link>
-                )}
-                {showBag && catalogCartPlacement === "nav-end" && (
-                  <button onClick={() => setIsCartOpen(true)} className="hover:opacity-70 transition-opacity">
-                    {cartCount} | {cartTotal > 0 ? formatPrice(cartTotal) : formatPrice(Number(storefrontDesign?.catalogCartTotalPlaceholder ?? 0))}
-                  </button>
-                )}
-              </div>
-              <div style={{ borderTop: `${storefrontHeaderRuleWidth}px solid ${storefrontDesign?.borderColor || headerBorderColor || "#B1B1AA"}` }} />
-            </div>
-          ) : (
-          <div ref={headerRowRef} className="mx-auto px-6 py-4 flex flex-nowrap items-center justify-between gap-4" style={{ maxWidth: storefrontMaxWidth }}>
-            {/* Left Section */}
-            <div className={`flex min-w-0 items-center gap-8 md:gap-12 flex-1 ${storefrontLogoPosition === "center" ? "" : "flex-initial"}`}>
-              {storefrontLogoPosition === "left" && (
-                <button 
-                  onClick={() => setShowCatalog(false)} 
-                  style={{ color: headerTextColor }}
-                  data-hdr-fixed className="shrink-0 text-xs tracking-[0.3em] font-semibold hover:opacity-80 transition-opacity flex items-center"
-                >
-                  <span data-studio-target="style:logo" data-studio-label="Logo"><LogoMark design={storefrontLogoDesign} /></span>
-                </button>
-              )}
-              
-              {!navBelow && navBar}
-            </div>
-
-            {/* Center Section (Logo) */}
-            {storefrontLogoPosition === "center" && (
-              <div className="flex-1 flex justify-center">
-                <button 
-                  onClick={() => setShowCatalog(false)} 
-                  style={{ color: headerTextColor }}
-                  data-hdr-fixed className="shrink-0 text-xs tracking-[0.3em] font-semibold hover:opacity-80 transition-opacity flex items-center"
-                >
-                  <span data-studio-target="style:logo" data-studio-label="Logo"><LogoMark design={storefrontLogoDesign} /></span>
-                </button>
-              </div>
-            )}
-
-            {/* Right Section */}
-            <div data-hdr-fixed data-studio-target="style:header|copy:Header" data-studio-label="Header icons & cart" className={`flex shrink-0 flex-nowrap gap-2 sm:gap-6 md:gap-8 items-center flex-1 justify-end ${storefrontLogoPosition === "right" ? "flex-initial" : ""}`}>
-              {storefrontLogoPosition === "right" && (
-                <button 
-                  onClick={() => setShowCatalog(false)} 
-                  style={{ color: headerTextColor }}
-                  data-hdr-fixed className="shrink-0 text-xs tracking-[0.3em] font-semibold hover:opacity-80 transition-opacity flex items-center"
-                >
-                  <span data-studio-target="style:logo" data-studio-label="Logo"><LogoMark design={storefrontLogoDesign} /></span>
-                </button>
-              )}
-
-              {storefrontDesign?.menus?.header?.length > 0 && (
-                <div className="mr-2" style={{ color: headerTextColor }}><StoreMenu items={storefrontDesign.menus.header} /></div>
-              )}
-
-              {!activeDesign?.hideHeaderSearch && <button
-                onClick={() => setSearchOpen(true)}
-                aria-label={getCopy(activeDesign, "ariaSearch")}
-                style={{ color: headerTextColor }}
-                className="flex items-center justify-center min-w-11 min-h-11 rounded-full hover:bg-white/5 transition-all opacity-80 hover:opacity-100"
-              >
-                <SearchIcon size={14} />
-              </button>}
-              {!activeDesign?.hideHeaderWishlist && <Link
-                to="/wishlist"
-                aria-label={getCopy(activeDesign, "ariaWishlist")}
-                style={{ color: headerTextColor }}
-                className="relative hidden sm:flex items-center justify-center w-9 h-9 rounded-full hover:bg-white/5 transition-all opacity-50 hover:opacity-100"
-              >
-                <Heart size={14} />
-                {wishlistCount > 0 && (
-                  <span className="absolute -top-1 -right-1 text-[8px] font-bold text-white rounded-full px-1.5 py-0.5" style={{ backgroundColor: "var(--accent)" }}>
-                    {wishlistCount}
-                  </span>
-                )}
-              </Link>}
-              {!activeDesign?.hideHeaderAccount && accountsEnabled(activeDesign) && <Link
-                to="/account"
-                aria-label={getCopy(activeDesign, "ariaAccount")}
-                style={{ color: headerTextColor }}
-                className="flex items-center justify-center min-w-11 min-h-11 rounded-full hover:bg-white/5 transition-all opacity-80 hover:opacity-100"
-              >
-                <UserIcon size={14} />
-              </Link>}
-              {(!activeDesign?.hideCurrencySelector || !activeDesign?.hideThemeToggle) && (
-                <div className="hidden sm:flex items-center justify-center gap-2">
-                  {!activeDesign?.hideCurrencySelector && <CurrencySelector label={getCopy(activeDesign, "currencyLabel")} ariaLabel={getCopy(activeDesign, "ariaCurrency")} />}
-                  {!activeDesign?.hideThemeToggle && <ThemeToggle label={getCopy(activeDesign, "ariaThemeToggle")} />}
-                </div>
-              )}
-              {showSys && <Link
-                to="/admin"
-                style={{ color: headerTextColor }}
-                className="hidden sm:flex items-center gap-1.5 whitespace-nowrap text-[9px] tracking-[0.2em] font-bold transition-all uppercase mr-2 opacity-30 hover:opacity-100"
-              >
-                <span data-studio-copy="navAdmin">{getCopy(activeDesign, "navAdmin")}</span>
-              </Link>}
-              {showBag && (
-                <button
-                  onClick={() => setIsCartOpen(true)}
-                  className={`group flex shrink-0 items-center gap-2 whitespace-nowrap px-4 py-2 transition-all hover:scale-[1.02] store-btn-primary ${
-                    storefrontButtonShadow ? "shadow-lg" : ""
-                  } ${storefrontDesign?.navStyle === "stickers" ? "fm-sticker-pill" : ""}`}
-                  style={{
-                    backgroundColor: storefrontButtonStyle === "solid" ? storefrontButtonBg : "transparent",
-                    color: storefrontButtonStyle === "solid" ? storefrontButtonText : storefrontButtonBg,
-                    border: storefrontButtonStyle !== "solid" ? `1px solid ${storefrontButtonBg}` : "none",
-                    borderRadius: storefrontButtonRadius,
-                    ...(storefrontDesign?.navStyle === "stickers"
-                      ? { borderRadius: storefrontDesign?.navPillRadius || "14px 4px 14px 4px", transform: "rotate(2deg)" }
-                      : {}),
-                  }}
-                >
-                  <span className={`text-[10px] tracking-[0.2em] font-semibold ${storefrontButtonUppercase ? "uppercase" : ""}`}>
-                    {bagLabel}
-                  </span>
-                  {cartCount > 0 && (
-                    <span
-                      style={{
-                        backgroundColor: storefrontButtonStyle === "solid" ? storefrontButtonText : storefrontButtonBg,
-                        color: storefrontButtonStyle === "solid" ? storefrontButtonBg : storefrontButtonText,
-                      }}
-                      className="text-[9px] font-bold px-1.5 py-0.5 rounded-full transition-colors"
-                    >
-                      {cartCount}
-                    </span>
-                  )}
-                </button>
-              )}
-            </div>
-          </div>
-          )}
-          {!isReferenceCatalog && navBelow && (
-            <div className="border-t" style={{ borderColor: headerBorderColor }}>
-              <div className="mx-auto px-6" style={{ maxWidth: storefrontMaxWidth }}>{navBar}</div>
-            </div>
-          )}
-        <MobileStorefrontNav design={activeDesign} pages={pages} onSearch={() => setSearchOpen(true)} />
-          <SecondaryStorefrontNav design={activeDesign} pages={pages || []} />
-        </header>
+        />
 
         {onHome ? (
           <main className="relative w-auto flex-1 overflow-hidden">
@@ -1392,7 +804,7 @@ export default function MainSite({ setShowCatalog, showCatalog, setCurrentPage, 
                     : { duration: 0 }
                   }
                   // CSS transitions skip opacity/transform, which the entrance animation drives every frame.
-                  className={`group relative transition-[translate,background-color,border-color,box-shadow] duration-500 ${storefrontDesign?.productHoverEffect === "lift" ? "hover:-translate-y-2" : ""} ${cardStyle === "card" ? "fm-surface border border-white/10 p-3" : ""}`}
+                  className={`fm-card group relative transition-[translate,background-color,border-color,box-shadow] duration-500 ${storefrontDesign?.productHoverEffect === "lift" ? "hover:-translate-y-2" : ""} ${cardStyle === "card" ? "fm-surface border border-white/10 p-3" : ""}`}
                   style={cardStyle === "card" ? { borderRadius: storefrontCardRadius } : undefined}
                 >
                   <button
@@ -1467,9 +879,9 @@ export default function MainSite({ setShowCatalog, showCatalog, setCurrentPage, 
                       <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-black/20 to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-300 flex flex-col justify-end p-6">
                         <span
                           style={{
-                            backgroundColor: storefrontButtonStyle === "solid" ? storefrontButtonBg : "transparent",
-                            color: storefrontButtonStyle === "solid" ? storefrontButtonText : storefrontButtonBg,
-                            border: storefrontButtonStyle !== "solid" ? `1px solid ${storefrontButtonBg}` : "none",
+                            backgroundColor: storefrontButtonStyle === "solid" ? cardButton.bg : "transparent",
+                            color: storefrontButtonStyle === "solid" ? cardButton.text : cardButton.bg,
+                            border: storefrontButtonStyle !== "solid" ? `1px solid ${cardButton.bg}` : "none",
                             borderRadius: storefrontButtonRadius,
                           }}
                           className={`w-full py-3 text-[10px] tracking-[0.2em] font-bold text-center transform translate-y-4 group-hover:translate-y-0 transition-all duration-300 store-btn-primary ${storefrontButtonShadow ? "shadow-xl" : ""} ${storefrontButtonUppercase ? "uppercase" : ""}`}
@@ -1532,12 +944,11 @@ export default function MainSite({ setShowCatalog, showCatalog, setCurrentPage, 
         />
         {!onHome && !activeDesign?.hideRecentlyViewed && <RecentlyViewedRow />}
         {!onHome && !activeDesign?.hideNewsletter && <Newsletter design={settings?.design} />}
-        <SiteFooter settings={{ ...settings, design: storefrontDesign }} pages={pages} />
+        <StoreFooter settings={{ ...settings, design: storefrontDesign }} pages={pages} />
         {(storefrontDesign?.showPoweredBy ?? false) && (
           <p data-studio-target="copy:Header|style:footer" data-studio-label="Powered-by line" className="text-center pb-8 text-[9px] tracking-[0.3em] uppercase opacity-50">{getCopy(activeDesign, "poweredBy")}</p>
         )}
 
-        <SearchOverlay open={searchOpen} onClose={() => setSearchOpen(false)} books={publishedBooks} design={storefrontDesign} />
       </div>
     );
   }

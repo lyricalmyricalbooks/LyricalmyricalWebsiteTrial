@@ -17,7 +17,9 @@ const { SECTION_REGISTRY, getBlockFields, getBlocksKey } = await import("../admi
 const { resolveSectionSharedBlocks } = await import("../features/site/sharedBlocks");
 
 const BOOK = { id: "b1", slug: "zqx-book", title: "Book", retailPrice: 10, stockLevel: 1, status: "published", photos: [] };
-const withBlocks = SECTION_REGISTRY.filter(meta => getBlockFields(meta.type).some(f => f.kind === "text" || f.kind === "textarea"));
+// Link fields (Studio 2.3 pickers) hold plain strings just like the text fields they replaced.
+const isStringField = (f: { kind: string }) => f.kind === "text" || f.kind === "textarea" || f.kind === "link";
+const withBlocks = SECTION_REGISTRY.filter(meta => getBlockFields(meta.type).some(isStringField));
 
 describe("linked shared blocks", () => {
   it("covers every block-based section type", () => {
@@ -27,7 +29,7 @@ describe("linked shared blocks", () => {
   for (const meta of withBlocks) {
     it(`${meta.type} shows the shared block's content`, () => {
       const block: Record<string, any> = { ...(meta as any).blockDefaults };
-      for (const f of getBlockFields(meta.type)) if (f.kind === "text" || f.kind === "textarea") block[f.key] = `Zqx shared ${f.key}`;
+      for (const f of getBlockFields(meta.type)) if (isStringField(f)) block[f.key] = `Zqx shared ${f.key}`;
       if (meta.type === "CompositionSection") block.type = "text";
       if ("slug" in block) block.slug = BOOK.slug;
       const sharedBlocks = [{ id: "shared-1", name: "Shared", sectionType: meta.type, block, updatedAt: "2026-10-08" }];
