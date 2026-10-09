@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { categoryBookPatch, directlyAssigned, deleteCategory, validateCategoryName, categoryNavOrder } from "./categoryManager";
+import { categoryBookPatch, directlyAssigned, deleteCategory, validateCategoryName, categoryNavOrder, appendCategory } from "./categoryManager";
 
 const source = { id: "a", name: "Zines", aliases: ["ZINES", "Old zines"] };
 const target = { id: "b", name: "Books" };
@@ -33,5 +33,19 @@ describe("category management", () => {
   it("reorders category slots without moving the custom page between them", () => {
     expect(categoryNavOrder([source, target], [target, source], [{ id: "p", title: "About", showInNav: true, status: "published" }], ["cat:a", "page:p", "cat:b"]))
       .toEqual(["cat:b", "page:p", "cat:a"]);
+  });
+});
+
+describe("appendCategory (book editor › create category)", () => {
+  const added = { id: "cat-new", name: "Zines", showInNav: true };
+  it("adds to the live list without publishing draft-only categories", () => {
+    const live = [{ id: "a", name: "Poetry" }];
+    const draft = [{ id: "a", name: "Poetry" }, { id: "d", name: "Unpublished" }];
+    expect(appendCategory(live, added, []).map(c => c.name)).toEqual(["Poetry", "Zines"]);
+    expect(appendCategory(draft, added, []).map(c => c.name)).toEqual(["Poetry", "Unpublished", "Zines"]);
+  });
+  it("starts from the shop defaults and never duplicates a name", () => {
+    expect(appendCategory(undefined, added, ["PUBLICATIONS"]).map(c => c.name)).toEqual(["PUBLICATIONS", "Zines"]);
+    expect(appendCategory([{ id: "z", name: "zines" }], added, [])).toHaveLength(1);
   });
 });

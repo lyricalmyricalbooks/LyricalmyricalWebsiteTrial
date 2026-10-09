@@ -99,6 +99,14 @@ service cloud.firestore {
     match /theme-versions/{versionId} {
       allow read, write: if isAdmin();
     }
+    // Studio's private working copy (themes/workspace: unpublished draft + save revision)
+    // and My themes. Never public: shoppers only ever read the published settings/website.design.
+    match /themes/{themeId} {
+      allow read, write: if isAdmin();
+    }
+    match /savedThemes/{themeId} {
+      allow read, write: if isAdmin();
+    }
     match /audit-log/{logId} {
       allow read, write: if isAdmin();
     }

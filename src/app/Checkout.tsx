@@ -327,7 +327,7 @@ export function Checkout() {
       try {
         const [profiles, siteSettings, bookList] = await Promise.all([
           adminApi.getShippingProfiles(),
-          adminApi.getSettings() as Promise<any>,
+          adminApi.getPublicSettings() as Promise<any>,
           // Same ID-ordered reader as the shop, so books saved without createdAt are not missing here.
           loadCatalog((size, cursor) => adminApi.getStorefrontBooks(size, cursor))
         ]);
@@ -336,7 +336,7 @@ export function Checkout() {
         setBooks(bookList);
         setCatalogState("ready");
         const preview = new URLSearchParams(window.location.search).get("preview") === "true";
-        const design = preview ? (window as any).__studioPreviewDesign || siteSettings?.draftDesign || siteSettings?.design : siteSettings?.design;
+        const design = preview ? (window as any).__studioPreviewDesign || siteSettings?.design : siteSettings?.design;
         setSettings({ ...siteSettings, design: resolveSurfaceDesign(design, "/checkout") });
 
         // Auto-select first available payment gateway

@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { normalizeDesign } from "./studioModel";
-import { applyPageStyle, buildPreviewState, createSnapshotWriter, deliverPreviewState, parseRecovery, previewRoute, updateBlocks, withDraftPage } from "./studioWorkflow";
+import { applyPageStyle, buildPreviewState, createSnapshotWriter, deliverPreviewState, parseRecovery, previewRoute, updateBlocks, withDraftPage, mergeDesigns, newestRecovery } from "./studioWorkflow";
 
 describe("Studio workflow", () => {
   it("normalization is idempotent and never nests page surfaces inside one another", () => {
@@ -141,5 +141,52 @@ describe("Studio workflow", () => {
     deliverPreviewState(frame, buildPreviewState({}, {}, [], []), "https://shop.example");
     expect(posts).toBe(1);
     expect(dispatches).toBe(0);
+  });
+});
+
+describe("mergeDesigns (two tabs saved the same draft)", () => {
+  const base = { primaryColor: "black", heroPage: { sections: [1], primaryColor: "black" }, copy: { cartTitle: "Bag" } };
+  it("combines changes made to different settings", () => {
+    const local = { ...base, primaryColor: "red" };
+    const server = { ...base, copy: { cartTitle: "Basket" } };
+    expect(mergeDesigns(base, local, server)).toEqual({ merged: { ...base, primaryColor: "red", copy: { cartTitle: "Basket" } }, conflicts: [] });
+  });
+  it("combines different settings inside the same page", () => {
+    const local = { ...base, heroPage: { ...base.heroPage, sections: [1, 2] } };
+    const server = { ...base, heroPage: { ...base.heroPage, primaryColor: "white" } };
+    const { merged, conflicts } = mergeDesigns(base, local, server);
+    expect(conflicts).toEqual([]);
+    expect(merged.heroPage).toEqual({ sections: [1, 2], primaryColor: "white" });
+  });
+  it("reports the same setting changed differently on both sides, keeping this tab's value", () => {
+    const { merged, conflicts } = mergeDesigns(base, { ...base, primaryColor: "red" }, { ...base, primaryColor: "blue" });
+    expect(conflicts).toEqual(["primaryColor"]);
+    expect(merged.primaryColor).toBe("red");
+  });
+  it("keeps deletions from either side", () => {
+    const { merged } = mergeDesigns(base, base, { heroPage: base.heroPage, copy: base.copy });
+    expect(merged.primaryColor).toBeUndefined();
+  });
+});
+
+describe("newestRecovery (one record per Studio tab)", () => {
+  const fakeStorage = (entries: Record<string, string>) => {
+    const map = new Map(Object.entries(entries));
+    return { get length() { return map.size; }, key: (i: number) => [...map.keys()][i] ?? null, getItem: (k: string) => map.get(k) ?? null,
+      removeItem: (k: string) => { map.delete(k); }, setItem: (k: string, v: string) => { map.set(k, v); }, clear: () => map.clear(), map } as any;
+  };
+  const record = (design: any, savedAt: number) => JSON.stringify({ version: 1, design, base: JSON.stringify({ a: 0 }), savedAt });
+  it("offers the newest unsaved work from any tab and drops very old records", () => {
+    const now = Date.UTC(2026, 9, 8);
+    const storage = fakeStorage({
+      "studio-recovery-v2:/:u:tab1": record({ a: 1 }, now - 1000),
+      "studio-recovery-v2:/:u:tab2": record({ a: 2 }, now - 10),
+      "studio-recovery-v2:/:u:old": record({ a: 3 }, now - 30 * 24 * 3600 * 1000),
+      "studio-recovery-v2:/:other:tab": record({ a: 4 }, now),
+    });
+    const found = newestRecovery(storage, "studio-recovery-v2:/:u:", { a: 0 }, now);
+    expect(found?.design).toEqual({ a: 2 });
+    expect(found?.key).toBe("studio-recovery-v2:/:u:tab2");
+    expect(storage.map.has("studio-recovery-v2:/:u:old")).toBe(false);
   });
 });

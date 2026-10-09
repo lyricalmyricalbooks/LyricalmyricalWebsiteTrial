@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { applyThemeKeysToSurfaces } from "./themeScope";
+import { layerDesign } from "../features/site/designModel";
 
 describe("applyThemeKeysToSurfaces", () => {
   it("applies visual settings to every template and the root", () => {
@@ -14,9 +15,13 @@ describe("applyThemeKeysToSurfaces", () => {
     );
 
     expect(result.backgroundColor).toBe("#fafafa");
-    expect(result.heroPage.backgroundColor).toBe("#fafafa");
-    expect(result.productPage.primaryColor).toBe("#ff00aa");
-    expect(result["page:about"].primaryColor).toBe("#ff00aa");
+    expect(result.primaryColor).toBe("#ff00aa");
+    // Page overrides of those keys are cleared, so every page shows the new values…
+    expect(layerDesign(result, result.heroPage).backgroundColor).toBe("#fafafa");
+    expect(layerDesign(result, result.productPage).primaryColor).toBe("#ff00aa");
+    expect(result.heroPage.backgroundColor).toBeUndefined();
+    // …and no empty page copies are created.
+    expect(result["page:about"]).toBeUndefined();
   });
 
   it("preserves each template's sections and unrelated settings", () => {
@@ -29,7 +34,7 @@ describe("applyThemeKeysToSurfaces", () => {
 
     expect(result.heroPage.sections).toBe(sections);
     expect(result.heroPage.showHero).toBe(false);
-    expect(result.heroPage.textColor).toBe("#222222");
+    expect(layerDesign(result, result.heroPage).textColor).toBe("#222222");
   });
 
   it("does not mutate the current draft", () => {
@@ -39,5 +44,6 @@ describe("applyThemeKeysToSurfaces", () => {
     expect(result).not.toBe(design);
     expect(result.heroPage).not.toBe(design.heroPage);
     expect(design.heroPage.textColor).toBe("#ffffff");
+    expect(result.heroPage.textColor).toBeUndefined();
   });
 });

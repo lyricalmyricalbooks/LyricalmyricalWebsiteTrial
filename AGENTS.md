@@ -63,6 +63,8 @@ collections, and deployment. Don't duplicate that here. Quick orientation:
 - **Respect Firestore security rules.** When you change the shape of any
   read/write, update `firestore.rules` and `firestore.indexes.json` to match —
   rules are enforced server-side and a mismatch breaks the app in production.
+- **Unpublished design work stays private.** The Studio draft and My themes live in admin-only
+  `themes/workspace` and `savedThemes/*` (`admin/themeStore.ts`); shoppers read `getPublicSettings()`.
 - **Secrets stay out of client-readable data too.** `settings/*` is publicly readable; never add UI that stores API secrets there (see CLAUDE.md › Security notes).
 - **Secrets stay out of the repo.** `STRIPE_SECRET_KEY`,
   `STRIPE_WEBHOOK_SECRET`, `RESEND_API_KEY`, and `SHIPPO_API_TOKEN` are Firebase
@@ -111,18 +113,17 @@ and support up to 400 books per save. For larger categories, use Edit › Assign
 here in groups of up to 400 before deleting. The picker includes the full catalog
 (drafts too), and counts exclude parent roll-ups and PUBLICATIONS' automatic view.
 
-> The **Studio editor** (`src/app/admin/studio/StudioEditor.tsx`) is the default Design editor users see; put every new design feature there first. `ThemeEditor.tsx` is legacy (`?editor=legacy`). See CLAUDE.md › Theme editor.
+> The **Studio editor** (`src/app/admin/studio/StudioEditor.tsx`) is the default Design editor users see; it is the only designer (the old `ThemeEditor.tsx` / `ThemeEditorPro.tsx` / `ThemeEditorBuilder.tsx` and `?editor=legacy` are gone). Put every design feature there. See CLAUDE.md › Theme editor and the Studio 2.0 roadmap in `docs/THEME_EDITOR.md`.
 
 The `/admin` theme editor is the most-requested area to "make as good as
-Shopify." It is **already large and capable** (~11k lines: sections/blocks,
+Shopify." It is **already large and capable** (sections/blocks,
 drag-and-drop, color schemes, fonts, draft/publish, live preview). The failure
 mode here is **stopping after one small increment**. Don't. When asked to
 enhance it:
 
 The default Settings → Design experience is `studio/StudioEditor.tsx`: its
 section/block outline, inspector, Edit/Browse preview and draft workflow are
-the primary editing surfaces. Keep the legacy `ThemeEditor.tsx` contracts in
-sync where shared registry controls or renderers change. Custom pages created
+the primary editing surfaces. Custom pages created
 in Studio join the storefront header by default, and their public routes render
 the themed storefront header. The iframe preview receives the unsaved design,
 settings, catalog and published-page collection as one live snapshot; preserve
@@ -142,9 +143,9 @@ plain-English label so shop owners can find it. **Auto-fit for phones** (`autoMo
 with the phone keys the renderers read (`mobilePadding*`, `mobileColumns`, `mobileHeadingSize`, block `grid.tablet/mobile`).
 
 1. **Read `docs/THEME_EDITOR.md` first**, plus the whole section/block system —
-   `ThemeEditor.tsx`, `ThemeEditorExtensions.tsx` (the `SECTION_REGISTRY`),
+   `studio/StudioEditor.tsx`, `ThemeEditorExtensions.tsx` (the `SECTION_REGISTRY`),
    `SectionComponents.tsx` (renderers), and the `(Sections as any)[section.type]`
-   mapping in `MainSite.tsx`. The files are big; budget for that instead of
+   mapping in `components/sectionRender.tsx`. The files are big; budget for that instead of
    guessing.
 2. **Honor the full section contract.** The storefront resolves renderers by the
    registry `type` name — a registry type with no identically named renderer
@@ -153,8 +154,8 @@ with the phone keys the renderers read (`mobilePadding*`, `mobileColumns`, `mobi
    `data-fm-section` / `data-fm-block` edit hooks for template-aware preview selection, and section settings support scoped CSS. Adding/fixing a section means:
    registry schema **+** matching renderer **+** storefront mapping **+** library
    entry **+** verify it actually shows on the live storefront, not just the
-   editor preview. The single section library is the registry-driven
-   `NewSectionLibraryModal` (the legacy `SECTION_TEMPLATES` has been removed).
+   editor preview. The single section library is Studio's registry-driven
+   **Add section** dialog.
    Parity is also enforced by a permanent test
    (`src/app/components/sectionParity.test.ts`). Custom pages can carry their
    own section stacks via dynamic `page:<slug>` templates

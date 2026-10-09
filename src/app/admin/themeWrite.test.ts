@@ -8,8 +8,9 @@ describe("theme persistence contract", () => {
     expect(write.options).toEqual({ mergeFields: ["draftDesign"] });
   });
   it("publishes identical clean snapshots without replacing unrelated settings", () => {
-    const write = themeWrite({ design: { primaryColor: "red", unused: undefined }, savedThemes: [] }, true);
-    expect(write.payload).toEqual({ design: { primaryColor: "red" }, draftDesign: { primaryColor: "red" }, savedThemes: [] });
-    expect(write.options.mergeFields.sort()).toEqual(["design", "draftDesign", "savedThemes"]);
+    const now = new Date("2026-10-08T12:00:00Z");
+    const write = themeWrite({ design: { primaryColor: "red", unused: undefined }, savedThemes: [] }, true, now);
+    expect(write.payload).toEqual({ design: { primaryColor: "red" }, draftDesign: { primaryColor: "red" }, savedThemes: [], designPublishedAt: now.toISOString() });
+    expect(write.options.mergeFields.sort()).toEqual(["design", "designPublishedAt", "draftDesign", "savedThemes"]);
   });
 });

@@ -1,3 +1,4 @@
+import { DEVICE_MEDIA, UP_TO } from "./breakpoints";
 // One public-region contract shared by Studio's controls and the live CSS layer.
 // Defaults stay in the existing layouts; unset controls emit no overrides.
 export type Region = { id: string; label: string; required?: boolean; grid?: boolean; image?: boolean; copy?: string };
@@ -151,7 +152,7 @@ export function storefrontRegionCss(design: any): string {
       const responsive = ["tablet", "mobile"].some(d => values[regionKey(region.id, "Visible", d as RegionDevice)] != null);
       if (!responsive && values[region.id + "Visible"] === false) css += selector + '{display:none !important;}';
       else if (responsive) {
-        const ranges = ["(min-width:1024px)", "(min-width:640px) and (max-width:1023px)", "(max-width:639px)"];
+        const ranges = [DEVICE_MEDIA.desktop, DEVICE_MEDIA.tablet, DEVICE_MEDIA.mobile];
         REGION_DEVICES.forEach((device, i) => {
           if (regionValue(values, region.id, "Visible", device) === false) css += '@media' + ranges[i] + '{' + selector + '{display:none !important;}}';
         });
@@ -199,7 +200,7 @@ export function storefrontRegionCss(design: any): string {
         if (imageRules.length) imageCss = '[data-fm-store] [data-store-region="' + region.id + '"] img{' + imageRules.join("") + '}';
       }
       const body = imageCss + (rules.length ? selector + '{' + rules.join("") + '}' : "") + (text.length ? textSelector + '{' + text.join("") + '}' : "");
-      if (body) css += device === "desktop" ? body : '@media(max-width:' + (device === "tablet" ? 1023 : 639) + 'px){' + body + '}';
+      if (body) css += device === "desktop" ? body : '@media' + UP_TO[device] + '{' + body + '}';
     }
     return css;
   })).join("\n").trim();

@@ -1,9 +1,7 @@
 import { duplicateSection, freshBlockIds, MAX_BLOCK_DEPTH, patchSectionSettings, type Section } from "./studioModel";
 import { findSectionOwner } from "./studioWorkflow";
-export const PADDING_KEYS = ["paddingTop", "paddingBottom", "paddingLeft", "paddingRight"];
-export const GAP_KEYS = ["gap", "gridGap", "rowGap", "navGap"];
-export type Device = "desktop" | "tablet" | "mobile";
-export const spacingKey = (key: string, device: Device) => device === "desktop" ? key : device + key[0].toUpperCase() + key.slice(1);
+import { GAP_KEYS, PADDING_KEYS, spacingKey, type Device } from "../../features/site/breakpoints";
+export { GAP_KEYS, PADDING_KEYS, spacingKey, type Device };
 const store = (design: any, owner: any, sections: Section[]) => owner.surface === "globalSections"
   ? {...design,globalSections:sections} : {...design,[owner.surface]:{...design[owner.surface],sections}};
 function siblings(list: any[], id: string, depth = 0): any[] | undefined {

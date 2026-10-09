@@ -8,6 +8,7 @@ import {
   Upload, 
   Trash2, 
   ExternalLink,
+  Palette,
   ChevronRight,
   Plus,
   Loader2,
@@ -41,6 +42,7 @@ import { Book, Variant } from "../features/site/types";
 import { useCurrency } from "../CurrencyContext";
 import { ConfirmDialog, SectionCard, TextField, TextArea, SelectField, Toggle, StatusBadge, Tabs } from "./riso/components";
 import { prepareProductImage } from "./prepareImage";
+import { studioHash } from "../lib/studioLocation";
 
 import { BookSeoPane } from "./BookSeoPane";
 import { preorderActive, releaseDateOf, formatReleaseDate } from "../features/site/preorder";
@@ -210,7 +212,6 @@ export function BookEditor({ book, onClose, onSave }: BookEditorProps) {
         trackInventory: true,
         allowBackorder: false,
         preorder: false,
-    preorder: false,
         metaTitle: "",
         metaDescription: "",
       };
@@ -359,8 +360,9 @@ export function BookEditor({ book, onClose, onSave }: BookEditorProps) {
       setShippingProfiles(sh);
       setAuthors(au);
       
-      // Draft first so categories just added in Studio › Menus › Shop categories show up before publishing.
-      const siteCats = settings?.draftDesign?.categories || settings?.design?.categories || CATEGORIES;
+      // Published categories only: a book can't be filed under a category shoppers can't see yet
+      // (publish new Studio categories first).
+      const siteCats = settings?.design?.categories || CATEGORIES;
       const all = normalizeCategories(Array.isArray(siteCats) ? siteCats : [...CATEGORIES]);
       setCategoryDefinitions(all);
       // PUBLICATIONS already shows every book, so it isn't something to file a book under.
@@ -636,7 +638,7 @@ export function BookEditor({ book, onClose, onSave }: BookEditorProps) {
     const next = [...categoryDefinitions, category];
     setSavingCategory(true);
     try {
-      await adminApi.updateShopCategories(next);
+      await adminApi.addShopCategory(category);
       setCategoryDefinitions(next);
       setCategories((current) => [...current, name]);
       setCategoryParents((current) => ({
@@ -727,6 +729,13 @@ export function BookEditor({ book, onClose, onSave }: BookEditorProps) {
             >
               <ExternalLink size={14} aria-hidden /> Preview page
             </a>
+          )}
+          {book?.slug && book.status === "published" && (
+            <button type="button" className="rp-btn rp-btn-secondary rp-btn-sm" disabled={isDirty}
+              title={isDirty ? "Save the book first, then design its page in the Design studio." : "Open the Design studio on this book's page"}
+              onClick={() => { window.location.hash = studioHash({ templateId: "productPage", productSlug: book.slug }); }}>
+              <Palette size={14} aria-hidden /> Design this page
+            </button>
           )}
           <button type="button" onClick={handleClose} className="rp-btn rp-btn-ghost rp-btn-sm">Cancel</button>
           <button type="button" onClick={() => handleSave()} disabled={loading} className="rp-btn rp-btn-primary rp-btn-sm" title="Ctrl/⌘ + S">

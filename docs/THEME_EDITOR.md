@@ -1,8 +1,9 @@
 # Theme Editor — Architecture & Shopify-Parity Roadmap
 
-This is the **north star** for the theme editor. The editor is large
-(~11k lines) and spread across several files with some overlapping/legacy
-structures, so any AI session or contributor should **read this file first**,
+This is the **north star** for the theme editor. Studio (`src/app/admin/studio/`) is
+the only designer — the legacy `ThemeEditor.tsx` / `ThemeEditorPro.tsx` /
+`ThemeEditorBuilder.tsx` files are gone, so older roadmap entries below that name
+them are history. Any AI session or contributor should **read this file first**,
 then read the relevant source, before changing the editor. The goal is to reach
 **Shopify-level theme editing**. Work the roadmap below milestone by milestone —
 complete one end-to-end and check it off, rather than making a single timid
@@ -49,7 +50,7 @@ The editor is **not** a blank slate. It already supports:
   **Preview in new tab** sends the same snapshot over
   `BroadcastChannel("studio_preview")` to a top-level `?preview=true` window
   (`features/site/previewTab.ts`), which re-dispatches it as a window message.
-- **Import/export** of a theme design as JSON (in `ThemeEditorPro`).
+- **Import/export** of a theme design as a `.theme.json` file (Studio › My themes, `studio/savedThemes.ts`).
 - A **token/CSS-variable layer** applied to every storefront surface.
 - **Shared shop categories** edited in Studio › Menus, with create-and-assign also
   available in the admin book editor. Catalog-created categories update the
@@ -60,10 +61,11 @@ The editor is **not** a blank slate. It already supports:
 
 | File | Owns |
 |------|------|
-| `src/app/admin/ThemeEditor.tsx` | Top-level editor shell and panels: Style, Colors, Navigation, Homepage. `HomepagePanel` drives the section list (drag/reorder, duplicate, visibility, delete) and the per-section/block settings forms. The section library is unified on the registry-driven `NewSectionLibraryModal`; the legacy `SECTION_TEMPLATES` + `SectionLibraryModal` dead code has been removed. |
-| `src/app/admin/ThemeEditorExtensions.tsx` | The real **`SECTION_REGISTRY`** (32 section types), `getSectionFields`, `getBlockFields`, `BlocksEditor`, `NewSectionLibraryModal`, `getSectionMeta`. Field types: `text`, `textarea`, `html`, `richtext`, `color`, `number`, `range`, `select`, `toggle`, `date`, `image`. |
-| `src/app/admin/ThemeEditorPro.tsx` | Color math/normalization, palette & color-scheme tooling, theme import/export. |
-| `src/app/admin/ThemeEditorBuilder.tsx` | Builder UI that consumes the registry helpers (`getSectionMeta`, `getSectionFields`, `getBlockFields`, `NewSectionLibraryModal`). |
+| `src/app/admin/studio/StudioEditor.tsx` | Studio shell: top bar (page picker, device, Edit/Browse, undo/redo, Save draft, Publish, Theme actions), left rail (Page layout, Shared layout, Theme settings, Text & labels, Navigation, Pages), preview iframe wiring and the single `change(fn)` edit entry point. |
+| `src/app/admin/studio/StudioOutline.tsx` / `StudioInspector.tsx` | Section/block outline and the section/block inspector (Content, Layout & style). |
+| `src/app/admin/studio/styleSchema.ts` / `settingsMap.ts` | Every Theme settings control (`STYLE_GROUPS`, region groups) and where each one lives. |
+| `src/app/admin/studio/previewBridge.ts` / `canvasBridge.ts` | Script injected into the preview: click-to-edit, inline text, canvas toolbar, spacing handles. |
+| `src/app/admin/ThemeEditorExtensions.tsx` | The real **`SECTION_REGISTRY`** (34 section types), `getSectionFields`, `getBlockFields`, `getSectionMeta`, the shared field editors and the per-section **Layout & style** panel (`SectionSettingsPanel`). Field types: `text`, `textarea`, `html`, `richtext`, `color`, `number`, `range`, `select`, `toggle`, `date`, `image`. |
 | `src/app/components/SectionComponents.tsx` | **One storefront renderer per registry section type** (the components that actually draw each section) + shared style helpers (spacing, background, button styles, animation wrappers). Registry and renderers are at parity — every `SECTION_REGISTRY` type has a matching renderer. |
 | `src/app/components/sectionRender.tsx` | **Shared section renderer** (single source of truth for section→renderer mapping). `SectionList` (pure: maps a `sections` array → renderers via `(Sections as any)[type]` and emits stable `data-fm-section` / `data-section-id` edit hooks); `TemplateSections` (renders `design[templateId].sections` for a page-type template); `GlobalSections` (renders the flat `design.globalSections`). Used by MainSite **and** every standalone page. |
 | `src/app/components/MainSite.tsx` | Renders the homepage/storefront. Uses `SectionList` for `heroPage.sections` and the shared `GlobalSections` from `sectionRender`. |
@@ -103,7 +105,7 @@ To add (or fix) a section end-to-end, all of these must line up:
    surface: the homepage (`heroPage.sections`), each page-type template via
    `TemplateSections` (product/collection/page/cart), and `globalSections`. No
    per-page wiring is needed for a new section type.
-4. **Section library** — make sure it's exposed in `NewSectionLibraryModal`
+4. **Section library** — make sure it's exposed in Studio's **Add section** dialog
    (registry-driven; this is the only section library).
 5. **Verify on the live storefront**, not just in the editor preview — render it,
    reorder it, hide/show it, and save+publish.
@@ -113,6 +115,10 @@ rendered by the section's renderer (e.g. `RowSection`/`RowBlock`).
 
 ## Persistence model
 
+- **Studio 2.0 (0.4):** the live design stays in public `settings/website.design`; the work-in-progress
+  draft moved to admin-only `themes/workspace.draft` (with a save revision) and My themes to
+  `savedThemes/{id}` — see `admin/themeStore.ts`. The notes below describe the legacy layout, which Studio
+  still uses until the Firestore rules for those collections are deployed.
 - The theme lives in site settings as **`design`** (live) and **`draftDesign`**
   (work-in-progress). Sections are in `design.sections` (homepage),
   `design.globalSections`, and `design.homepageSections` (legacy alias still
@@ -136,7 +142,7 @@ rendered by the section's renderer (e.g. `RowSection`/`RowBlock`).
   behave exactly as before. Custom pages use the themed storefront header
   (logo, header menu, published in-header pages, wishlist and account controls),
   and newly created pages opt into that header navigation by default.
-- **Full-theme presets** (`THEME_LIBRARY` in `ThemeEditor.tsx`) may carry a
+- **Full-theme presets** (`THEME_LIBRARY` in `studio/themeLibrary.ts`) may carry a
   `global` record; `applyThemePreset` bulk-writes those keys to the design
   root and **every static/dynamic page surface** in one undo step via
   `applyGlobalDesignKeys`. The same mechanism powers the editor's **All pages**
@@ -148,10 +154,8 @@ rendered by the section's renderer (e.g. `RowSection`/`RowBlock`).
 
 ## Known gaps & inconsistencies (seed for the roadmap)
 
-- **Section library unified.** The single library is the registry-driven
-  `NewSectionLibraryModal` over `SECTION_REGISTRY` (32 types) in
-  `ThemeEditorExtensions.tsx`. The legacy `SECTION_TEMPLATES` +
-  `SectionLibraryModal` dead code in `ThemeEditor.tsx` has been removed.
+- **Section library unified.** The single library is Studio's **Add section**
+  dialog over `SECTION_REGISTRY` (34 types) in `ThemeEditorExtensions.tsx`.
 - **Registry↔renderer parity.** Every `SECTION_REGISTRY` type has an identically
   named renderer in `SectionComponents.tsx` (verify before each change with the
   grep in "Verifying"). Keep them in lockstep when adding section types.
@@ -161,7 +165,116 @@ rendered by the section's renderer (e.g. `RowSection`/`RowBlock`).
   (including Wishlist/Account/OrderTracking). The remaining follow-up is
   click-to-edit routing per template (noted in roadmap A).
 
-## Shopify-parity roadmap
+## Studio 2.0 roadmap (October 2026 — active)
+
+The owner asked for a designer that is easy to navigate and Shopify-level. This program supersedes the
+older lists below. Each milestone ships end-to-end (tests, docs, appUpdates entry, walkthrough) and keeps
+the public storefront looking identical unless it says otherwise. Not in scope (owner decision): AI
+assistant, personalization/A-B tests, author/series/event pages, multi-language storefront.
+
+**Phase 0 — Foundations**
+- [x] 0.1 Infra: CI (`.github/workflows/ci.yml`: tests, type-check ratchet, bundle build), `tsconfig.json` +
+      `scripts/typecheck-ratchet.mjs`, Studio lazy-loaded in its own chunk, dead code removed
+      (`BlocksEditor`, `COPY_SELECT`/`PAGE_PREVIEW_UPDATE` handlers, unrouted `CollectionPage.tsx`), docs drift fixed.
+- [x] 0.2 Repairs. Studio uploads go through `studio/mediaUpload.ts` (compressed, saved under the
+      admin-writable `assets/studio/YYYY/MM/`, plain-English errors under the button; `admin/storagePaths.test.ts`
+      fails on any upload path storage.rules refuses) and section background / category images gained Upload
+      buttons (`studio/ImageUploadButton.tsx`). Linked shared blocks resolve in `SectionList` for every section
+      type (`features/site/sharedBlocks.ts`). `SectionBoundary` drops a crashing section for shoppers and shows a
+      placeholder + `PREVIEW_ERROR {sectionId}` in the preview. `features/site/scheduledDesign.mjs` ignores a
+      scheduled design once anything was published after it was due (`designPublishedAt`). Save draft refreshes one
+      `theme-versions/draft-latest` entry; only Publish adds versions. Book editor › create category uses
+      `adminApi.addShopCategory` (live and draft lists appended separately) and assigns from published categories.
+      Studio lists unpublished pages as "(draft)" templates and previews them; Preview collection lists the
+      shop's own categories. One breakpoint module (`features/site/breakpoints.ts`, phone ≤767px) for sections,
+      blocks and built-in elements. Featured product shows the shopper's currency.
+- [x] 0.3 Studio test harness. `studio/fixture/fakeStudioApi.ts` swaps Studio's `adminApi` calls for in-memory
+      data and records every write. `studio/StudioEditor.test.tsx` mounts the real editor in jsdom (add section,
+      undo/redo, Save draft never publishes, Publish needs confirmation, Theme settings, Find). `studio-fixture.html`
+      (served by `vite` in development only) opens the real Studio with that data, and `pnpm run test:studio`
+      (`scripts/studio-e2e.mjs`, Chromium) drives it: preview connects with the unsaved design, add/undo/redo/save,
+      device widths, Find anything, click a section in the preview, phone-sized editor. CI runs both.
+- [x] 0.4 Theme store (`admin/themeStore.ts`). The unpublished draft lives in admin-only `themes/workspace`
+      `{draft, rev, updatedAt, tabId}` and each My themes entry in `savedThemes/{id}`; the first Studio open
+      copies `settings/website.draftDesign`/`savedThemes` there, checks the copy, then deletes the public
+      fields. Until the rules deploy (permission-denied) Studio stays in "legacy" mode on the old fields.
+      Save draft / Publish / Discard are compare-and-set transactions on `rev`; a stale tab gets
+      `ThemeConflictError`, changes to different settings merge automatically (`mergeDesigns`), and the
+      **Saved in another tab or device** dialog offers Keep mine / Use the other version. Publish writes the
+      live design and the draft in one transaction. Shop categories and the under-construction wall update
+      the private draft without bumping `rev` (`draftFieldUpdate`). Shoppers read `adminApi.getPublicSettings()`
+      (no admin lookups, draft/My themes stripped). Unsaved-work recovery is one record per tab
+      (`studio-recovery-v2:…:<tabId>`, newest offered, 14-day expiry).
+- [x] 0.5 Design value model (`features/site/designModel.ts`). Every storefront route resolves its design with
+      `layerDesign` (used by `resolveSurfaceDesign` / `resolveMainDesign` / `resolveProductDesign`, the cart drawer and
+      the page header): shop structure (`ROOT_ONLY_KEYS`: menus, categories, navOrder, secondaryNavKeys, footerBadges,
+      sectionPresets, sharedBlocks, globalSections) always comes from the root, `copy`/`regions` merge per entry, and a
+      page surface never carries another surface. "All pages" writes (`writeDesignValue`, behind `applyGlobalStyle` and
+      `applyThemeKeysToSurfaces`) set the root and clear the matching page overrides instead of copying the value into
+      every page. `compactDesign` (run by `normalizeDesign`) drops page values that equal what the page inherits.
+      `designModel.property.test.ts` proves on the published design (`__fixtures__/liveDesign.json`) that tidying changes
+      no page and that the only differences from the old resolver are the intended fixes (categories, copy,
+      globalSections, navOrder). Theme settings shows **This page differs from all pages (N)** for the current page
+      with **Use all-pages value** / **Make this the all-pages value** (`StudioPageOverrides.tsx`). Check before
+      publishing reports the design size; saves over ~900 KB are refused with a plain message.
+
+**Phase 1 — Navigation overhaul ("one tree, one inspector")**
+- [x] 1.1 Editor frame. A vertical icon rail (`StudioRail.tsx`: Layout, Shared, Theme, Text, Menus, Pages) replaces
+      the button grid; on tablets/desktops the settings panel, canvas and inspector are resizable panels
+      (`react-resizable-panels`, sizes remembered as `studio-panels-v1`) and the inspector stays docked with a
+      "Nothing selected" state, so the preview never jumps. `StudioPreviewFrame.tsx` keeps the iframe at the
+      device's real width and scales it (**Zoom**: Fit to screen / 100% / 75% / 50%), so the full 1200px desktop
+      fits on a laptop. One searchable **Page to edit** picker (`TemplatePicker.tsx`, `templatePicker.ts`) lists
+      store pages, every shop category, every book, custom pages (drafts included) and the every-page sections,
+      replacing the three dropdowns; switching page keeps the open workspace. Page, workspace, device, zoom and
+      preview book/collection are remembered per browser (`studioUiState.ts`). Phones keep the
+      outline / preview / settings switcher with the rail across the top.
+- [x] 1.2 Dialogs, undo, shortcuts and Studio links. No `window.confirm/prompt` left in Studio: undoable actions
+      (delete section/block, apply a preset or saved theme, install a layout) happen at once with an **Undo**
+      button in the toast; permanent ones (leave with unsaved edits, delete a saved theme or page) use Riso
+      `useConfirm`, names use `usePrompt`. History steps are named (`change(fn, { label, coalesce })`,
+      `commit` in `studioModel.ts`) so Undo/Redo say what they will do, and typing in one field within a second
+      is one step. One keyboard listener driven by `studio/shortcuts.ts` (`SHORTCUTS` + `resolveShortcut`): Ctrl/⌘ K,
+      S, Z, Shift Z / Y, D, Delete, Alt ↑/↓, Esc, 1/2/3 devices, E edit/browse, **?** opens the cheat sheet; the
+      preview forwards Ctrl/⌘ shortcuts (`KEY_COMMAND`). Studio links (`lib/studioLocation.ts`:
+      `/admin#designer?t=…&b=…&c=…&tab=…&d=…`) open Studio at a page and tool — used by What's new (`links[].studio`),
+      Books › edit › **Design this page**, and an owner-only **Edit in Studio** button on the live site
+      (`admin/EditInStudioButton.tsx`, hidden for shoppers, in the preview and in prerendered HTML).
+- [x] 1.3 Live page structure. Instead of a hand-written element manifest that could drift, the preview bridge
+      scans what actually rendered — every `data-fm-section`, `data-store-region` and `data-studio-target`, in
+      document order, with its zone (`header` / `footer` / `role=dialog` pop-over / page body), parent, repeat count
+      and whether it shows at the previewed size — and sends `STRUCTURE` (re-scanned after DOM changes, route changes
+      and resizes). New bridge messages: `SCAN_STRUCTURE`, `HOVER_NODE` / `HIGHLIGHT_NODE` (outline + scroll a part),
+      `NODE_HOVER` (pointer → Studio), `OPEN_OVERLAY` (`cart` / `search` / `close`, handled in the preview by
+      `features/site/studioOverlay.ts` `useStudioOverlay`, used by `CartContext`, `MainSite` and
+      `StorefrontPageHeader`) and `SET_TARGET_LABELS`: the "what do you want to edit?" pop-up now shows distinct names
+      ("Style: Header & announcement bar", "Words: Header") from `studio/targetLabels.ts`, whose test fails on any
+      storefront target without a name. Tests: `previewBridge.dom.test.ts` runs the real bridge string in jsdom.
+- [x] 1.4 Page structure tree. `studio/pageStructure.ts` (pure, tested) turns the scan into Header · Page · Footer ·
+      Pop-overs: whole-page wrappers become page settings, parts drawn inside a section stay with the section,
+      repeated parts are one row with a count. `StudioStructure.tsx` shows it around the section outline in **Page
+      layout**: rows and the preview highlight each other on hover, a row opens that part's controls (regions open their
+      own element controls), built-in regions get a per-device eye toggle (required ones show a lock), Pop-overs open the
+      shopping bag or search inside the preview, and Footer links to the every-page sections. Sections can be renamed
+      (`section.label`, Studio-only, searchable). Still to do with 1.5: multi-select, a right-click menu, dragging blocks
+      between sections and "move to another page".
+- [ ] 1.5 Unified inspector (Content / Style / Layout / Visibility) for any element, section or block.
+- [ ] 1.6 Theme settings as the global design system; slimmer search.
+- [ ] 1.7 Command palette 2.0; legacy draft path cleanup.
+
+**Phase 2 — Shopify OS 2.0 features**
+- [ ] 2.1 One header and footer on every page. - [ ] 2.2 Header/footer/popup section groups.
+- [ ] 2.3 Pickers (link, book, category, page, video, font) + catalog sources. - [ ] 2.4 Media library + responsive images.
+- [ ] 2.5 Colour schemes 2.0. - [ ] 2.6 Section library 2.0 + new sections.
+- [ ] 2.7 Custom book fields + dynamic sources. - [ ] 2.8 Alternate templates. - [ ] 2.9 Product information as blocks.
+
+**Phase 3 — Theme management & quality**
+- [ ] 3.1 Version history 2.0. - [ ] 3.2 Live sync. - [ ] 3.3 Studio Health. - [ ] 3.4 Themes workspace + share previews.
+- [ ] 3.5 Scheduling & campaigns.
+
+**Phase 4 — Performance (continuous).**
+
+## Shopify-parity roadmap (history)
 
 Status legend: `[ ]` todo · `[~]` partial · `[x]` done. Update these as work
 lands. Pick a milestone, take it **end-to-end** (schema → renderer → mapping →

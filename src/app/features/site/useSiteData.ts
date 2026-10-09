@@ -2,6 +2,7 @@ import { useLocation } from "react-router";
 import { consentAllows, CONSENT_EVENT } from "../../lib/consent";
 import { isLiveBook } from "./liveBook";
 import { resolveSurfaceDesign } from "./surfaceDesign";
+import { dueScheduledDesign } from "./scheduledDesign.mjs";
 import { useEffect, useMemo, useState } from "react";
 import { adminApi } from "../../admin/api";
 import { funnelApi } from "../../lib/commerce";
@@ -36,7 +37,7 @@ function loadSiteData() {
     siteDataLoadedAt = Infinity;
     siteDataRequest = Promise.all([
       loadCatalog((size, cursor) => adminApi.getStorefrontBooks(size, cursor)).then(newestFirst),
-      adminApi.getSettings(),
+      adminApi.getPublicSettings(),
       adminApi.getPublishedPages(),
     ]).then(result => {
       siteDataLoadedAt = Date.now();
@@ -80,15 +81,13 @@ export function useSiteData() {
         
         // Never let the late Firestore load overwrite what the Studio has already sent.
         if (isPreview) {
-          safeSettings.design = (window as any).__studioPreviewDesign || safeSettings.draftDesign || safeSettings.design;
+          safeSettings.design = (window as any).__studioPreviewDesign || safeSettings.design;
         }
 
         // Scheduled publishing: once the scheduled time passes, shoppers see
         // the scheduled design (preview keeps showing the editor's draft).
-        const sched = safeSettings.scheduledPublish;
-        if (!isPreview && sched?.at && sched?.design && new Date(sched.at).getTime() <= Date.now()) {
-          safeSettings.design = sched.design;
-        }
+        const scheduled = isPreview ? null : dueScheduledDesign(safeSettings);
+        if (scheduled) safeSettings.design = scheduled;
 
         const safePages = Array.isArray(pagesResponse) ? (pagesResponse as Page[]) : [];
 
@@ -161,20 +160,6 @@ export function useSiteData() {
             return newBooks;
           } else {
             return [updatedBook, ...prev];
-          }
-        });
-      }
-
-      if (event.data.type === "PAGE_PREVIEW_UPDATE" && event.data.page) {
-        setPages((prev) => {
-          const updatedPage = event.data.page;
-          const index = prev.findIndex(p => p.id === updatedPage.id);
-          if (index !== -1) {
-            const newPages = [...prev];
-            newPages[index] = { ...newPages[index], ...updatedPage };
-            return newPages;
-          } else {
-            return [updatedPage, ...prev];
           }
         });
       }

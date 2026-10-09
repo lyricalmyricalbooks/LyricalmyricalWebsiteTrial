@@ -1,11 +1,13 @@
 import { sectionSpacingCss } from "./sectionSpacing";
-import { useEffect } from "react";
+import { Component, useEffect, type ReactNode } from "react";
 import { motion } from "motion/react";
 import { useNavigate } from "react-router";
 import * as Sections from "./SectionComponents";
 import { hexToRgbTriplet } from "../features/site/themeTokens";
 import { googleFontHref } from "../features/site/fonts";
 import { DEFAULT_COLOR_SCHEMES } from "../features/site/colorSchemes";
+import { resolveSectionSharedBlocks } from "../features/site/sharedBlocks";
+import { UP_TO } from "../features/site/breakpoints";
 import { SectionDesignContext } from "./sectionCopy";
 import {
   boxShadowValue,
@@ -150,6 +152,45 @@ function SectionReveal({ animation, enableAnimations, children }: any) {
   );
 }
 
+const inStudioPreview = () =>
+  typeof window !== "undefined" && new URLSearchParams(window.location.search).get("preview") === "true";
+
+/**
+ * One section that throws must not blank the whole page. Shoppers see the page without it;
+ * the Studio preview shows a placeholder and tells the editor which section failed.
+ */
+export class SectionBoundary extends Component<{ sectionId: string; type: string; children: ReactNode }, { failed: boolean }> {
+  state = { failed: false };
+
+  static getDerivedStateFromError() {
+    return { failed: true };
+  }
+
+  componentDidCatch(error: Error) {
+    console.error(`Section ${this.props.type} (${this.props.sectionId}) failed to render:`, error);
+    try {
+      if (window.parent !== window) {
+        window.parent.postMessage({ type: "PREVIEW_ERROR", sectionId: this.props.sectionId,
+          message: `${this.props.type}: ${String(error?.message || error)}` }, window.location.origin);
+      }
+    } catch { /* ignore */ }
+  }
+
+  componentDidUpdate(previous: Readonly<{ sectionId: string; type: string; children: ReactNode }>) {
+    // A new draft for this section gets a fresh chance to render.
+    if (this.state.failed && previous.children !== this.props.children) this.setState({ failed: false });
+  }
+
+  render() {
+    if (!this.state.failed) return this.props.children;
+    if (!inStudioPreview()) return null;
+    return <div role="note" data-section-error={this.props.sectionId}
+      style={{ padding: 24, border: "2px dashed currentColor", opacity: 0.7, fontSize: 13 }}>
+      {`${this.props.type} could not be displayed. Check its settings in Studio.`}
+    </div>;
+  }
+}
+
 export type SectionListProps = {
   sections?: any[];
   colorSchemes?: any[];
@@ -190,7 +231,7 @@ export function SectionList({
         const SectionComponent = (Sections as any)[section.type];
         if (!SectionComponent) return null;
 
-        const s = { ...(section.settings || {}), __sectionId: section.id, __sharedBlocks: sharedBlocks };
+        const s = { ...resolveSectionSharedBlocks(section.settings || {}, sharedBlocks), __sectionId: section.id, __sharedBlocks: sharedBlocks };
         const scheme = s.colorSchemeId ? schemes.find((sc: any) => sc.id === s.colorSchemeId) : null;
         const wrapperCls =
           [
@@ -230,18 +271,20 @@ export function SectionList({
           >
             <SectionFontOverride sectionId={section.id} settings={s} />
             <style>{sectionSpacingCss(section.id, s)}</style>
-            {(s.mobilePaddingTop != null || s.mobilePaddingBottom != null || s.mobileFontScale != null || s.mobileColumns != null || s.mobileHeadingSize != null) && <style>{`@media(max-width:767px){${s.mobileHeadingSize != null ? `#section-${section.id} :is(h1,h2){font-size:${Math.max(12, Math.min(120, Number(s.mobileHeadingSize)))}px!important;}` : ""}#section-${section.id}{${s.mobileFontScale != null ? `font-size:${Number(s.mobileFontScale)}%;` : ""}}${s.mobileColumns != null ? `#section-${section.id} .grid{grid-template-columns:repeat(${Math.max(1, Math.min(4, Number(s.mobileColumns)))},minmax(0,1fr))!important;}` : ""}}`}</style>}
+            {(s.mobilePaddingTop != null || s.mobilePaddingBottom != null || s.mobileFontScale != null || s.mobileColumns != null || s.mobileHeadingSize != null) && <style>{`@media${UP_TO.mobile}{${s.mobileHeadingSize != null ? `#section-${section.id} :is(h1,h2){font-size:${Math.max(12, Math.min(120, Number(s.mobileHeadingSize)))}px!important;}` : ""}#section-${section.id}{${s.mobileFontScale != null ? `font-size:${Number(s.mobileFontScale)}%;` : ""}}${s.mobileColumns != null ? `#section-${section.id} .grid{grid-template-columns:repeat(${Math.max(1, Math.min(4, Number(s.mobileColumns)))},minmax(0,1fr))!important;}` : ""}}`}</style>}
             <SectionScopedCss sectionId={section.id} css={s.customCss} />
             {hasGlowHover && <style>{HOVER_GLOW_CSS}</style>}
             <ShapeDivider style={s.shapeDividerTop} position="top" color={s.shapeDividerTopColor} />
             <SectionReveal animation={s.animation} enableAnimations={enableAnimations}>
-              <SectionComponent
-                settings={s}
-                books={books}
-                onCtaClick={onCtaClick}
-                onProductClick={onProductClick}
-                enableAnimations={enableAnimations}
-              />
+              <SectionBoundary sectionId={section.id} type={section.type}>
+                <SectionComponent
+                  settings={s}
+                  books={books}
+                  onCtaClick={onCtaClick}
+                  onProductClick={onProductClick}
+                  enableAnimations={enableAnimations}
+                />
+              </SectionBoundary>
             </SectionReveal>
             <ShapeDivider style={s.shapeDividerBottom} position="bottom" color={s.shapeDividerBottomColor} />
           </div>

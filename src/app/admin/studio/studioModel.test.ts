@@ -72,3 +72,31 @@ describe("history", () => {
     expect(commit(h, h.present)).toBe(h);
   });
 });
+
+describe("labelled, coalesced undo history", () => {
+  it("names each step and carries the name across undo/redo", async () => {
+    const { initHistory, commit, undo, redo, undoLabel, redoLabel } = await import("./studioModel");
+    let h = initHistory(0);
+    h = commit(h, 1, { label: "Add Newsletter" });
+    h = commit(h, 2, { label: "Move Newsletter up" });
+    expect(undoLabel(h)).toBe("Move Newsletter up");
+    h = undo(h);
+    expect(h.present).toBe(1);
+    expect(undoLabel(h)).toBe("Add Newsletter");
+    expect(redoLabel(h)).toBe("Move Newsletter up");
+    h = redo(h);
+    expect(h.present).toBe(2);
+    expect(redoLabel(h)).toBe("");
+  });
+  it("typing in one field within a second is one step", async () => {
+    const { initHistory, commit, undo } = await import("./studioModel");
+    let h = initHistory("");
+    h = commit(h, "H", { label: "Edit heading", coalesce: "heading", now: 1000 });
+    h = commit(h, "He", { label: "Edit heading", coalesce: "heading", now: 1300 });
+    h = commit(h, "Hey", { label: "Edit heading", coalesce: "heading", now: 1600 });
+    expect(h.past).toEqual([""]);
+    expect(undo(h).present).toBe("");
+    h = commit(h, "Hey!", { label: "Edit heading", coalesce: "heading", now: 5000 });
+    expect(h.past).toEqual(["", "Hey"]);
+  });
+});

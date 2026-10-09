@@ -3,6 +3,7 @@ import { newOrderAccessKey, rememberOrderAccess, savedOrderAccess, orderAccessHe
 import { addressKey, addressIssues, packingKey, dispatchProblem, disputeOpen, queueOf, fulfillmentMethod, trackingFields } from "./fulfillment";
 import { restampPreorderItems } from "../features/site/preorder";
 import { themeWrite } from "./themeWrite";
+import { draftFieldUpdate, readDraftField } from "./themeStore";
 import { splitWebsiteSecrets, splitNotificationSecrets, type SecretPatch } from "./privateKeys";
 import { toCountryCodes } from "./shippingCountries";
 
@@ -47,7 +48,7 @@ import { functionFetch } from "../lib/functionsBase";
 // imported on demand so the public storefront bundle never downloads them.
 const loadLegacy = () => import("../../lib/legacyFirebase");
 import { CATEGORIES } from "../features/site/constants";
-import { categoryBookPatch, directlyAssigned, type CategoryAction } from "./studio/categoryManager";
+import { appendCategory, categoryBookPatch, directlyAssigned, type CategoryAction } from "./studio/categoryManager";
 import { normalizeCategories } from "../features/site/navItems";
 import { RISO_NOIR_ID, RISO_NOIR_TOKENS, withRisoNoirDefault } from "../features/site/risoNoir";
 import type { Book, Page, SiteSettings } from "../features/site/types";
@@ -505,6 +506,17 @@ export const adminApi = {
   },
 
   // Settings
+  // Shopper read of settings/website: no admin-only lookups, never writes, and never keeps the
+  // unpublished draft or My themes (older documents may still carry them) in shopper state or cache.
+  getPublicSettings: async () => {
+    const snap = await getDoc(doc(db, "settings", "website"));
+    const merged: any = { ...adminApi.getDefaultSettings(), ...(snap.exists() ? snap.data() : {}) };
+    delete merged.draftDesign;
+    delete merged.savedThemes;
+    if (merged.design) merged.design = withRisoNoirDefault(merged.design);
+    return merged;
+  },
+
   getSettings: async () => {
     const docRef = doc(db, "settings", "website");
     const snap = await getDoc(docRef);
@@ -568,17 +580,35 @@ export const adminApi = {
   updateShopCategories: async (categories: any[]) => {
     const docRef = doc(db, "settings", "website");
     const snapshot = JSON.parse(JSON.stringify(categories));
-    await setDoc(docRef, { design: { categories: snapshot }, draftDesign: { categories: snapshot } },
-      { mergeFields: ["design.categories", "draftDesign.categories"] });
+    await setDoc(docRef, { design: { categories: snapshot } }, { mergeFields: ["design.categories"] });
+    await draftFieldUpdate({ categories: snapshot });
     await adminApi.recordAuditLog("settings", `Updated shop categories (${snapshot.length})`).catch(error => console.warn("Categories saved; audit log unavailable", error));
+  },
+
+  // Book editor › Categories & tags › create a category: it goes live straight away AND joins
+  // Studio's working copy, appended to each list separately so unpublished draft categories
+  // are never published as a side effect.
+  addShopCategory: async (category: any) => {
+    const docRef = doc(db, "settings", "website");
+    const added = JSON.parse(JSON.stringify(category));
+    let draftBase: any;
+    await runTransaction(db, async tx => {
+      const data: any = (await tx.get(docRef)).data() || {};
+      const live = appendCategory(data.design?.categories, added, CATEGORIES);
+      tx.set(docRef, { design: { categories: live } }, { mergeFields: ["design.categories"] });
+      draftBase = data;
+    });
+    const draft = appendCategory((await readDraftField("categories", draftBase)) ?? draftBase?.design?.categories, added, CATEGORIES);
+    await draftFieldUpdate({ categories: draft });
+    await adminApi.recordAuditLog("settings", `Added shop category ${added.name}`).catch(error => console.warn("Category saved; audit log unavailable", error));
   },
 
   // Flip the storefront "under construction" wall live, keeping the Studio
   // draft in step so the next Publish doesn't silently undo it.
   setUnderConstruction: async (on: boolean) => {
     const docRef = doc(db, "settings", "website");
-    await setDoc(docRef, { design: { showUnderConstruction: on }, draftDesign: { showUnderConstruction: on } },
-      { mergeFields: ["design.showUnderConstruction", "draftDesign.showUnderConstruction"] });
+    await setDoc(docRef, { design: { showUnderConstruction: on } }, { mergeFields: ["design.showUnderConstruction"] });
+    await draftFieldUpdate({ showUnderConstruction: on });
     await adminApi.recordAuditLog("settings", `Under construction wall ${on ? "on" : "off"}`).catch(error => console.warn("Saved; audit log unavailable", error));
   },
 
@@ -595,14 +625,24 @@ export const adminApi = {
   // ── Theme version history (persisted so it survives reloads) ──
   THEME_VERSION_LIMIT: 30,
 
+  // Every Publish keeps its own version. Save draft only refreshes one "latest draft"
+  // entry, so frequent saving (Ctrl/Cmd+S) can't push published versions out of history.
+  THEME_DRAFT_VERSION_ID: "draft-latest",
+
   saveThemeVersion: async (kind: "draft" | "published", label: string, design: any) => {
     const createdAt = new Date().toISOString();
     const snapshot = JSON.parse(JSON.stringify(design));
+    if (kind === "draft") {
+      const id = adminApi.THEME_DRAFT_VERSION_ID;
+      await setDoc(doc(db, "theme-versions", id), { kind, label, createdAt, design: snapshot });
+      return { id, kind, label, createdAt, design: snapshot };
+    }
     const ref = await addDoc(collection(db, "theme-versions"), { kind, label, createdAt, design: snapshot });
-    // Best-effort pruning of anything past the retention limit.
+    // Best-effort pruning of anything past the retention limit (each Publish adds one, so a
+    // short ordered page is enough — no need to download every stored design).
     try {
-      const snap = await getDocs(query(collection(db, "theme-versions"), orderBy("createdAt", "desc")));
-      const stale = snap.docs.slice(adminApi.THEME_VERSION_LIMIT);
+      const snap = await getDocs(query(collection(db, "theme-versions"), orderBy("createdAt", "desc"), limit(adminApi.THEME_VERSION_LIMIT + 10)));
+      const stale = snap.docs.filter((d: any) => d.id !== adminApi.THEME_DRAFT_VERSION_ID).slice(adminApi.THEME_VERSION_LIMIT);
       await Promise.all(stale.map((d: any) => deleteDoc(doc(db, "theme-versions", d.id))));
     } catch (err) {
       console.warn("Could not prune theme versions:", err);
@@ -618,11 +658,12 @@ export const adminApi = {
   },
 
   // Schedule a design to go live at a future time. The storefront applies it
-  // client-side once the time passes (see useSiteData).
+  // client-side once the time passes, unless a later Publish replaced it (scheduledDesign.mjs).
   schedulePublish: (design: any, at: string) => {
     const docRef = doc(db, "settings", "website");
+    // mergeFields replaces the whole scheduled design (a deep merge would keep stale keys).
     const payload = { scheduledPublish: JSON.parse(JSON.stringify({ at, design })) };
-    return setDoc(docRef, payload, { merge: true });
+    return setDoc(docRef, payload, { mergeFields: ["scheduledPublish"] });
   },
 
   cancelScheduledPublish: () => {

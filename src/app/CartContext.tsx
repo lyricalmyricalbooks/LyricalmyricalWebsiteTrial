@@ -1,3 +1,4 @@
+import { useStudioOverlay } from "./features/site/studioOverlay";
 import { createContext, useContext, useState, useEffect, useMemo, ReactNode } from "react";
 import { preorderActive, releaseDateOf } from "./features/site/preorder";
 
@@ -151,6 +152,7 @@ export function CartProvider({ children }: { children: ReactNode }) {
   // Restored synchronously so the save effect below never writes an empty bag over the saved one.
   const [cart, setCart] = useState<CartItem[]>(readStoredCart);
   const [isCartOpen, setIsCartOpen] = useState(false);
+  useStudioOverlay("cart", setIsCartOpen);
 
   // Keep other open tabs in step (e.g. the bag emptied after a purchase in another tab).
   useEffect(() => {

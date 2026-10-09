@@ -3,6 +3,7 @@ import { adminApi } from "../api";
 import { Checkbox, Dialog, PrimaryButton, SecondaryButton, SelectField, TextArea, TextField } from "../riso/components";
 import { CATEGORIES } from "../../features/site/constants";
 import { childCategories, normalizeCategories, parentOf, renameCategory } from "../../features/site/navItems";
+import { ImageUploadButton } from "./ImageUploadButton";
 import { deleteCategory, directlyAssigned, validateCategoryName, type CategoryAction } from "./categoryManager";
 
 type Props = { design: any; published: any; onChange: (cats: any[]) => void; onReorder?: (cats: any[]) => void; onBooksChanged: (books: any[]) => void };
@@ -119,6 +120,7 @@ export function StudioCategories({ design, published, onChange, onReorder, onBoo
         <TextField label="Category name" value={editor.name} disabled={busy} onChange={e => setEditor({ ...editor, name: e.target.value })} />
         <TextArea label="Description" value={editor.description || ""} disabled={busy} onChange={e => setEditor({ ...editor, description: e.target.value })} />
         <TextField label="Category image URL (optional)" value={editor.imageUrl || ""} disabled={busy} onChange={e => setEditor({ ...editor, imageUrl: e.target.value })} />
+        <ImageUploadButton label="Upload category image" disabled={busy} onUploaded={url => setEditor((current: any) => current && { ...current, imageUrl: url })} />
         <Checkbox label="Show in the shop menu" checked={editor.showInNav !== false} disabled={busy} onChange={e => setEditor({ ...editor, showInNav: e.target.checked })} />
         <SelectField label="Sits under" value={editor.parentId || ""} disabled={busy || childCategories(editor, cats).length > 0} onChange={e => setEditor({ ...editor, parentId: e.target.value || null })}>
           <option value="">Its own spot in the menu</option>{cats.filter(c => c.id !== editor.id && !parentOf(c, cats)).map(c => <option key={c.id} value={c.id}>{c.name}</option>)}

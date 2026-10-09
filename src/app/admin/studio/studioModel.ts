@@ -2,17 +2,12 @@
 // to a `design` object goes through here so it can be unit-tested and so the
 // editor never mutates state in place.
 
-export type Section = { id: string; type: string; visible?: boolean; settings: Record<string, any> };
-export type StudioBlock = {
-  id: string;
-  type?: "group" | "text" | "image" | "button";
-  children?: StudioBlock[];
-  sharedBlockId?: string;
-  responsive?: Record<"desktop" | "tablet" | "mobile", Record<string, any>>;
-  grid?: Record<"desktop" | "tablet" | "mobile", Record<string, number>>;
-  [key: string]: any;
-};
-export type SharedBlock = { id: string; name: string; sectionType?: string; block: StudioBlock; updatedAt: string };
+import { compactDesign } from "../../features/site/designModel";
+import { MAX_BLOCK_DEPTH, normalizeBlocks, resolveSharedBlocks, type SharedBlock, type StudioBlock } from "../../features/site/sharedBlocks";
+export { MAX_BLOCK_DEPTH, normalizeBlocks, resolveSharedBlocks, type SharedBlock, type StudioBlock };
+
+/** `label` is the owner's own name for a section in Studio; shoppers never see it. */
+export type Section = { id: string; type: string; label?: string; visible?: boolean; settings: Record<string, any> };
 
 /** Where a list of sections lives inside `design`. */
 export type SectionTarget = { kind: "template"; id: string } | { kind: "global" };
@@ -23,18 +18,6 @@ export const newId = () =>
     : `s_${Date.now().toString(36)}${Math.random().toString(36).slice(2, 8)}`;
 
 const clone = <T,>(v: T): T => JSON.parse(JSON.stringify(v ?? null));
-
-export const MAX_BLOCK_DEPTH = 3;
-
-/** Normalizes legacy flat blocks and recursive composition blocks without mutating. */
-export function normalizeBlocks(blocks: any[], parent = "block", depth = 0): StudioBlock[] {
-  if (!Array.isArray(blocks) || depth >= MAX_BLOCK_DEPTH) return [];
-  return blocks.filter(b => b && typeof b === "object").map((block, index) => {
-    const id = block.id || `${parent}-${index}`;
-    const children = normalizeBlocks(block.children, id, depth + 1);
-    return { ...block, id, ...(children.length ? { children } : { children: undefined }) };
-  });
-}
 
 export function findBlock(blocks: StudioBlock[], id: string): StudioBlock | undefined {
   for (const block of blocks || []) {
@@ -72,17 +55,6 @@ export function moveBlockBefore(blocks: StudioBlock[], movingId: string, beforeI
 
 export function freshBlockIds(block: StudioBlock): StudioBlock {
   return { ...clone(block), id: newId(), children: (block.children || []).map(freshBlockIds) };
-}
-
-/** Linked shared blocks inherit source content while keeping placement/layout overrides. */
-export function resolveSharedBlocks(blocks: StudioBlock[], library: SharedBlock[] = [], depth = 0): StudioBlock[] {
-  if (depth >= MAX_BLOCK_DEPTH) return [];
-  return normalizeBlocks(blocks, "block", depth).map(block => {
-    const source = block.sharedBlockId ? library.find(item => item.id === block.sharedBlockId)?.block : undefined;
-    const merged = source ? { ...clone(source), ...block, id: block.id, sharedBlockId: block.sharedBlockId,
-      children: block.children ?? source.children } : block;
-    return { ...merged, children: resolveSharedBlocks(merged.children || [], library, depth + 1) };
-  });
 }
 
 /** Immutable deep set: setPath(obj, "a.b.c", 1). `undefined` deletes the key. */
@@ -138,7 +110,9 @@ export function normalizeDesign(incoming: any, defaults: any = {}) {
   for (const key of Object.keys(normalized)) {
     if (Array.isArray(normalized[key]?.sections)) normalized[key] = { ...normalized[key], sections: identify(normalized[key].sections) };
   }
-  return normalized;
+  // Drop page values that can never show (shop structure, nested pages) or that equal what the
+  // page inherits anyway — the shop looks identical, and Studio's values are the ones that go live.
+  return compactDesign(normalized).design;
 }
 
 export function targetKey(t: SectionTarget) {
@@ -215,23 +189,49 @@ export function patchBlockField(list: Section[], sectionId: string, blockId: str
 }
 
 // ── Undo / redo ────────────────────────────────────────────────────────────
-export type History<T> = { past: T[]; present: T; future: T[] };
+export type History<T> = {
+  past: T[]; present: T; future: T[];
+  /** What each step did ("Move Newsletter up"), parallel to `past` / `future`, for Undo/Redo labels. */
+  pastLabels?: string[]; futureLabels?: string[];
+  /** Typing in one field within a moment is one undo step, not one per keystroke. */
+  lastKey?: string; lastAt?: number;
+};
 export const HISTORY_LIMIT = 100;
+export const COALESCE_MS = 1000;
 
-export const initHistory = <T,>(present: T): History<T> => ({ past: [], present, future: [] });
+export const initHistory = <T,>(present: T): History<T> => ({ past: [], present, future: [], pastLabels: [], futureLabels: [] });
 
-export function commit<T>(h: History<T>, next: T): History<T> {
+export function commit<T>(h: History<T>, next: T, meta: { label?: string; coalesce?: string; now?: number } = {}): History<T> {
   if (next === h.present) return h;
-  return { past: [...h.past, h.present].slice(-HISTORY_LIMIT), present: next, future: [] };
+  const now = meta.now ?? Date.now();
+  if (meta.coalesce && h.lastKey === meta.coalesce && h.lastAt != null && now - h.lastAt < COALESCE_MS && h.past.length) {
+    return { ...h, present: next, future: [], futureLabels: [], lastAt: now };
+  }
+  const labels = h.pastLabels ?? h.past.map(() => "Edit");
+  return {
+    past: [...h.past, h.present].slice(-HISTORY_LIMIT), present: next, future: [],
+    pastLabels: [...labels, meta.label || "Edit"].slice(-HISTORY_LIMIT), futureLabels: [],
+    lastKey: meta.coalesce, lastAt: now,
+  };
 }
 export function undo<T>(h: History<T>): History<T> {
   if (!h.past.length) return h;
-  const past = h.past.slice(0, -1);
-  return { past, present: h.past[h.past.length - 1], future: [h.present, ...h.future] };
+  const labels = h.pastLabels ?? h.past.map(() => "Edit");
+  return {
+    past: h.past.slice(0, -1), present: h.past[h.past.length - 1], future: [h.present, ...h.future],
+    pastLabels: labels.slice(0, -1), futureLabels: [labels[labels.length - 1] || "Edit", ...(h.futureLabels ?? h.future.map(() => "Edit"))],
+  };
 }
 export function redo<T>(h: History<T>): History<T> {
   if (!h.future.length) return h;
-  return { past: [...h.past, h.present], present: h.future[0], future: h.future.slice(1) };
+  const labels = h.futureLabels ?? h.future.map(() => "Edit");
+  return {
+    past: [...h.past, h.present], present: h.future[0], future: h.future.slice(1),
+    pastLabels: [...(h.pastLabels ?? h.past.map(() => "Edit")), labels[0] || "Edit"], futureLabels: labels.slice(1),
+  };
 }
+/** "Undo: Move Newsletter up" / "Redo: …" labels for the toolbar buttons. */
+export const undoLabel = (h: History<any>) => h.past.length ? (h.pastLabels?.[h.pastLabels.length - 1] || "Edit") : "";
+export const redoLabel = (h: History<any>) => h.future.length ? (h.futureLabels?.[0] || "Edit") : "";
 
 export const sameDesign = (a: any, b: any) => JSON.stringify(a ?? null) === JSON.stringify(b ?? null);

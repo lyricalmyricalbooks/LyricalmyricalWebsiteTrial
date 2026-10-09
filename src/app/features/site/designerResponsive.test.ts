@@ -1,3 +1,4 @@
+import { layerDesign } from "./designModel";
 import { describe, expect, it } from "vitest";
 import { applyGlobalStyle, STYLE_GROUPS } from "../../admin/studio/styleSchema";
 import { getCopy } from "./storeCopy";
@@ -8,7 +9,7 @@ describe("designer responsive region editing", () => {
     const original = { copy: { wishlistTitle: "Saved" }, wishlistPage: { copy: { wishlistEmpty: "Your shelf is empty" }, sections: [1] } };
     const blank = applyGlobalStyle(original, "copy.wishlistTitle", "", ["wishlistPage"]);
     expect(getCopy(blank, "wishlistTitle")).toBe("");
-    expect(getCopy(blank.wishlistPage, "wishlistTitle")).toBe("");
+    expect(getCopy(layerDesign(blank, blank.wishlistPage), "wishlistTitle")).toBe("");
     expect(blank.wishlistPage.copy.wishlistEmpty).toBe("Your shelf is empty");
     expect(blank.wishlistPage.sections).toEqual([1]);
     const reset = applyGlobalStyle(blank, "copy.wishlistTitle", undefined, ["wishlistPage"]);
@@ -30,7 +31,7 @@ describe("designer responsive region editing", () => {
     expect(css).toContain("@media(max-width:1023px)");
     expect(css).toContain("font-size:30px !important;");
     expect(css).toContain("padding-left:4px !important;");
-    expect(css.indexOf("@media(max-width:639px)")).toBeGreaterThan(css.indexOf("@media(max-width:1023px)"));
+    expect(css.indexOf("@media(max-width:767px)")).toBeGreaterThan(css.indexOf("@media(max-width:1023px)"));
     expect(css).not.toContain("NaN");
   });
 
@@ -41,8 +42,8 @@ describe("designer responsive region editing", () => {
     } });
     expect(css).toContain("display:none !important;");
     // Hiding tablet only retains the original flex/grid display on phones.
-    expect(css).toContain("@media(min-width:640px) and (max-width:1023px)");
-    expect(css).not.toContain("@media(max-width:639px)");
+    expect(css).toContain("@media(min-width:768px) and (max-width:1023px)");
+    expect(css).not.toContain("@media(max-width:767px)");
     expect(css).not.toContain("display:revert");
     expect(css).not.toContain('data-store-region="checkoutForm"');
   });
@@ -72,7 +73,9 @@ it("commits inline copy through the same page-aware writer as Text & labels", as
     sectionFields: () => [], blockFields: () => [], blocksKey: () => "items", copyKeys: ["wishlistTitle"], styleKeys: [],
     applyStyle: (design, path, value) => applyGlobalStyle(design, path, value, ["wishlistPage"]),
   });
-  expect(next.wishlistPage.copy).toEqual({ wishlistTitle: "", wishlistEmpty: "Empty" });
+  // The stale page title is cleared; the page keeps its other page-only words.
+  expect(next.wishlistPage.copy).toEqual({ wishlistEmpty: "Empty" });
+  expect(layerDesign(next, next.wishlistPage).copy).toEqual({ wishlistTitle: "", wishlistEmpty: "Empty" });
 });
 
 it("keeps border thickness and per-side padding consistent with inherited editor values", async () => {
@@ -81,7 +84,7 @@ it("keeps border thickness and per-side padding consistent with inherited editor
     wishlistTitlePaddingLeft: 0, wishlistTitleTabletPadding: 20 };
   expect(regionValue(values, "wishlistTitle", "PaddingLeft", "mobile")).toBe(20);
   const css = storefrontRegionCss({ regions: values });
-  expect(css.slice(css.indexOf("@media(max-width:639px)"))).toContain("border-width:4px !important;");
+  expect(css.slice(css.indexOf("@media(max-width:767px)"))).toContain("border-width:4px !important;");
 });
 
 it("keeps repeated region labels tied to their own page's fields", async () => {

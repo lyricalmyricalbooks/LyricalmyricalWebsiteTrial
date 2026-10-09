@@ -2,6 +2,7 @@ import { useState, lazy, Suspense, useEffect, type ReactNode } from "react";
 import { consentAllows } from "./lib/consent";
 import { motion } from "motion/react";
 import { BrowserRouter, Routes, Route, useLocation } from "react-router";
+import { EditInStudioButton } from "./admin/EditInStudioButton";
 import { ScrollToTop } from "./lib/ScrollToTop";
 import { CartProvider } from "./CartContext";
 import { CurrencyProvider } from "./CurrencyContext";
@@ -93,6 +94,7 @@ export default function App() {
           <CartDrawer />
           <CookieConsent />
           <UnderConstructionWall />
+          <EditInStudioButton />
           <Suspense fallback={<BootSplash />}>
                 <Toaster 
                   position="top-center" 

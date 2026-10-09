@@ -39,12 +39,15 @@ function NestedBlocks({ blocks, section, depth, selectedId, blockId, label, onSe
   </div>;
 }
 
-export function StudioOutline({ sections, selectedId, blockId, onSelect, onReorder, onPatch, onAdd, onDuplicate, onDelete, onToggle }: {
+export function StudioOutline({ sections, selectedId, blockId, onSelect, onReorder, onPatch, onAdd, onDuplicate, onDelete, onToggle, hoveredId, onHover, onRename }: {
   sections: Section[]; selectedId: string | null; blockId: string | null;
   onSelect: (sectionId: string, blockId?: string) => void;
   onReorder: (sections: Section[]) => void; onPatch: (id: string, patch: any) => void;
   onAdd: (index: number) => void; onDuplicate: (id: string) => void;
   onDelete: (id: string) => void; onToggle: (id: string) => void;
+  /** Section the pointer is over in the preview, and hover reporting back to it. */
+  hoveredId?: string | null; onHover?: (sectionId: string | null) => void;
+  onRename?: (id: string) => void;
 }) {
   const [query, setQuery] = useState("");
   const searching = Boolean(query.trim());
@@ -83,14 +86,15 @@ export function StudioOutline({ sections, selectedId, blockId, onSelect, onReord
         return <div key={section.id}>
           <SortableRow id={section.id} className="studio-tree-section">
             {({ handleProps }) => <>
-              <div className="studio-tree-row" data-selected={selectedId === section.id && !blockId} data-hidden={section.visible === false}>
+              <div className="studio-tree-row" data-selected={selectedId === section.id && !blockId} data-hidden={section.visible === false}
+                data-hovered={hoveredId === section.id} onMouseEnter={() => onHover?.(section.id)} onMouseLeave={() => onHover?.(null)}>
                 <button {...(searching ? {} : handleProps)} disabled={searching} className="studio-grip" aria-label={`Reorder ${meta?.label || section.type}`}><GripVertical size={15} /></button>
                 {supportsBlocks && <button className="studio-expand" aria-label={`Expand ${meta?.label}`} aria-expanded={open} onClick={() => setExpanded(prev => {
                   const next = new Set(prev); next.has(section.id) ? next.delete(section.id) : next.add(section.id); return next;
                 })}><ChevronDown size={14} style={{ transform: open ? undefined : "rotate(-90deg)" }} /></button>}
                 <button className="studio-tree-label" aria-current={selectedId === section.id && !blockId} onClick={() => onSelect(section.id)}>
-                  <strong>{index + 1}. {meta?.label || section.type}</strong>
-                  <small>{section.visible === false ? "Hidden · " : ""}{section.settings.title || section.settings.heading || (supportsBlocks ? `${blocks.length} blocks` : "Section")}</small>
+                  <strong>{index + 1}. {(section as any).label || meta?.label || section.type}</strong>
+                  <small>{section.visible === false ? "Hidden · " : ""}{(section as any).label ? `${meta?.label || section.type} · ` : ""}{section.settings.title || section.settings.heading || (supportsBlocks ? `${blocks.length} blocks` : "Section")}</small>
                 </button>
                 <IconButton label={section.visible === false ? "Show section" : "Hide section"} onClick={() => onToggle(section.id)}>{section.visible === false ? <EyeOff size={14} /> : <Eye size={14} />}</IconButton>
                 <details className="studio-row-menu"><summary aria-label={`Actions for ${meta?.label}`}>···</summary><div>
@@ -102,6 +106,7 @@ export function StudioOutline({ sections, selectedId, blockId, onSelect, onReord
                       const next = [...sections]; [next[index], next[index + 1]] = [next[index + 1], next[index]]; onReorder(next);
                     }}>Move down</button>
                   </>}
+                  {onRename && <button onClick={() => onRename(section.id)}>Rename</button>}
                   <button onClick={() => onDuplicate(section.id)}><Copy size={13} /> Duplicate</button>
                   <button onClick={() => onDelete(section.id)}><Trash2 size={13} /> Remove</button>
                 </div></details>

@@ -1,3 +1,4 @@
+import { STATIC_SURFACES, writeDesignValue } from "../../features/site/designModel";
 // Declarative list of every site-wide style control in Studio › Style.
 // Fields use the same shape as section fields, so they render through the
 // shared SectionFieldEditor. Keys may be dotted paths (e.g. "social.instagram").
@@ -593,39 +594,16 @@ export const STYLE_GROUPS: StyleGroup[] = [
   },
 ];
 
-/** Every surface that carries its own copy of the style keys. */
-export const STATIC_SURFACES = ["heroPage", "storefront", "productPage", "collectionPage", "cartPage", "page", "page404", "wishlistPage", "accountPage", "trackingPage"];
+/** Every surface that can carry its own copy of the style keys. */
+export { STATIC_SURFACES };
 
 /**
- * Write a site-wide style value. Storefront pages resolve their own surface
- * object before the root, so the value is written to the root AND every surface;
- * otherwise a previously-customised surface silently ignores the change.
+ * Write a site-wide ("All pages") style value: set the root and clear the matching override on
+ * every page, so the value really shows everywhere (features/site/designModel.ts).
+ * `surfaceIds` is kept for callers; every page surface in the design is cleared either way.
  */
-export function applyGlobalStyle(design: any, path: string, value: any, surfaceIds: string[]) {
-  const [top, ...rest] = path.split(".");
-  const nextTop = (() => {
-    if (!rest.length) return value;
-    const cur = { ...(design[top] || {}) };
-    const leaf = rest.join(".");
-    // one level of nesting is all the style schema uses
-    if (value === undefined || (value === "" && top !== "copy")) delete cur[leaf];
-    else cur[leaf] = value;
-    return cur;
-  })();
-  const write = (obj: any) => {
-    const o = { ...(obj || {}) };
-    if (nextTop === undefined) delete o[top];
-    else if (rest.length && (top === "regions" || top === "copy")) {
-      const leaf = rest.join(".");
-      o[top] = { ...(obj?.[top] || {}) };
-      if (value === undefined || (value === "" && top !== "copy")) delete o[top][leaf];
-      else o[top][leaf] = value;
-    } else o[top] = nextTop;
-    return o;
-  };
-  const next = write(design);
-  for (const id of surfaceIds) next[id] = write(design[id]);
-  return next;
+export function applyGlobalStyle(design: any, path: string, value: any, _surfaceIds?: string[]) {
+  return writeDesignValue(design, path, value, "all");
 }
 
 /** Read a style value, preferring the root (what the editor writes). */

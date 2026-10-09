@@ -1,3 +1,4 @@
+import { layerDesign } from "./designModel";
 import { describe, it, expect } from "vitest";
 import { RISO_NOIR_TOKENS, withRisoNoirDefault, RISO_SURFACE_IDS } from "./risoNoir";
 import { buildStorefrontTokenVars } from "./themeTokens";
@@ -31,9 +32,9 @@ describe("withRisoNoirDefault", () => {
     expect(out.menus).toEqual({ header: [1] });
   });
 
-  it("also restyles page surfaces that already exist (they shadow root keys) without adding new ones", () => {
+  it("also restyles page surfaces that already exist (their overrides are cleared) without adding new ones", () => {
     const out = withRisoNoirDefault({ storefront: { backgroundColor: "#050505", sections: [1] } });
-    expect(out.storefront.backgroundColor).toBe("#000000");
+    expect(layerDesign(out, out.storefront).backgroundColor).toBe("#000000");
     expect(out.storefront.sections).toEqual([1]);
     for (const id of RISO_SURFACE_IDS.filter((s) => s !== "storefront")) expect(out[id]).toBeUndefined();
   });
