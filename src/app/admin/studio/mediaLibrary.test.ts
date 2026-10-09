@@ -1,12 +1,13 @@
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
 import { mediaWidthsFor } from "../prepareImage";
 import {
   applyMediaChange, budgetFor, collectStrings, describeUsage, filterMedia, formatBytes, isOverBudget, mainUrl, mediaRefOf,
-  missingAlt, pickPatch, thumbUrl, usagePaths, usagePlaces, type MediaItem,
+  missingAlt, pickPatch, snapshotUses, thumbUrl, usagePaths, usagePlaces, type MediaItem,
 } from "./mediaLibrary";
 import { responsiveSource } from "../../features/site/mediaRef";
+import { uploadIntoField } from "./mediaPicker";
 
 const url = (id: string, stamp: number, w: number) => `https://cdn.test/assets%2Fmedia%2F${id}%2F${stamp}-${w}w.webp?alt=media`;
 function item(over: Partial<MediaItem> = {}, stamp = 1): MediaItem {
@@ -128,6 +129,39 @@ describe("where used", () => {
     const out = applyMediaChange(design, m, { ...m, alt: "Stack of riso books" });
     expect(out.heroPage.sections[1].settings.imageUrl__media.alt).toBe("Stack of riso books");
     expect(out.heroPage.sections[1].settings.imageUrl).toBe(mainUrl(m));
+  });
+});
+
+describe("saved copies of the design", () => {
+  it("count My themes and retained Version history snapshots that still hold the picture", () => {
+    const m = item();
+    const withIt = { heroPage: { sections: [{ id: "s", type: "HeroSection", settings: { imageUrl: mainUrl(m) } }] } };
+    const uses = snapshotUses(m,
+      [{ name: "Autumn", design: withIt }, { name: "Plain", design: {} }],
+      [{ label: "Published", createdAt: "2026-10-01T00:00:00.000Z", design: withIt }, { label: "Draft", design: {} }]);
+    expect(uses).toHaveLength(2);
+    expect(uses[0]).toBe("My themes › Autumn");
+    expect(uses[1]).toMatch(/^Version history › Published \(/);
+    expect(snapshotUses(m, [], [])).toEqual([]);
+  });
+});
+
+describe("uploadIntoField", () => {
+  const lib = (status: any) => ({ status, choose: async () => null, upload: async () => item() });
+  it("puts Theme settings uploads (no onPatch) in the library and writes only the URL", async () => {
+    const onChange = vi.fn(), uploadFile = vi.fn();
+    await uploadIntoField(lib("ready"), new File(["x"], "logo.png"), { fieldKey: "logoUrl", onChange, uploadFile });
+    expect(onChange).toHaveBeenCalledWith(mainUrl(item()));
+    expect(uploadFile).not.toHaveBeenCalled();
+  });
+  it("gives section fields the __media record, and falls back to the plain upload when the library is off", async () => {
+    const onPatch = vi.fn();
+    await uploadIntoField(lib("ready"), new File(["x"], "a.png"), { fieldKey: "imageUrl", onPatch, onChange: vi.fn() });
+    expect(onPatch.mock.calls[0][0]).toHaveProperty("imageUrl__media");
+    const onChange = vi.fn();
+    await uploadIntoField(lib("denied"), new File(["x"], "a.png"), { fieldKey: "imageUrl", onPatch, onChange, uploadFile: async () => "https://plain.test/a.png" });
+    expect(onChange).toHaveBeenCalledWith("https://plain.test/a.png");
+    expect(onPatch).toHaveBeenCalledTimes(1);
   });
 });
 

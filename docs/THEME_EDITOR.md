@@ -306,9 +306,10 @@ browser can't write WebP, GIF/SVG kept as one original) and uploads to `assets/m
 Over size budget / No description** (budgets 50/150/200 KB by width), edits the description and focal point,
 lists **Where it's used** (draft, live design until Publish, custom pages — `collectStrings`/`usagePaths` in
 the pure `studio/mediaLibrary.ts`), **Replace image…** (new files under the same id; `applyMediaChange` repoints
-every draft use in one undoable change) and **Delete image** (refused while used anywhere). Image fields get
+every draft use in one undoable change) and **Delete image** (refused while used anywhere, including My themes and retained Version history snapshots — `snapshotUses`, versions re-read before deleting). Image fields get
 **Choose from library** (`studio/mediaPicker.tsx` context + the picker dialog) and their **Upload image** adds to
-the library once it is readable. Placing a picture writes the plain URL plus a public companion record
+the library once it is readable (Theme settings images too — they store the URL only, since the logo, favicon,
+share image and placeholder are drawn as plain images). Placing a picture in a section/block field writes the plain URL plus a public companion record
 `${field}__media` (`features/site/mediaRef.ts`: id, src, srcset widths, width/height, alt);
 `components/ResponsiveImage.tsx` emits `srcset`/`sizes`/`width`/`height`/lazy loading only when that record's
 `src` still equals the field, and `fetchpriority="high"` + eager loading in the first section of the home page

@@ -461,6 +461,8 @@ export function StudioEditor({ settings, onExit, onPersisted, appearance = "ligh
     loadPages();
     adminApi.getCategoryBooks().then((b: any[]) => { const published = (b || []).filter(x => x.status === "published" || !x.status); setBooks(published); setProductSlug(current => published.some(x => x.slug === current) ? current : published[0]?.slug || ""); }).catch(() => say("err", "Could not load preview products. Reopen Studio to retry."));
   }, [loadPages]);
+  // Media's delete guard reads the retained versions itself (they may not be loaded in History yet).
+  const fetchVersions = useCallback(() => adminApi.listThemeVersions() as Promise<ThemeVersion[]>, []);
   const loadVersions = useCallback(async () => {
     try { setVersions(await adminApi.listThemeVersions() as ThemeVersion[]); }
     catch { say("err", "Could not load version history. Check your connection and try again."); }
@@ -1472,6 +1474,7 @@ export function StudioEditor({ settings, onExit, onPersisted, appearance = "ligh
 
             {leftTab === "media" && (
               <StudioMediaPanel lib={mediaLib} design={design} published={published} pages={pages} names={mediaNames}
+                savedThemes={savedThemes} getVersions={fetchVersions}
                 onDesignChange={(fn, label) => change(fn, { label })}
                 onOpenPlace={openMediaPlace}
                 onOpenPage={slug => { setLeftTab("pages"); setOpenPage({ slug, nonce: Date.now() }); }}

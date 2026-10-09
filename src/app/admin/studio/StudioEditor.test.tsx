@@ -138,6 +138,38 @@ describe("Studio editor (mounted with an in-memory API)", () => {
     expect(fixture.calls.some(c => c.method === "removeMedia")).toBe(false);
   });
 
+  it("Delete is refused while My themes or Version history keeps the image, and works once nothing does", async () => {
+    const src = fixture.media[0].variants[2].url;
+    const withIt = { heroPage: { sections: [{ id: "x", type: "HeroSection", settings: { imageUrl: src } }] } };
+    fixture.versions.push({ id: "v1", kind: "published", label: "Published", createdAt: "2026-10-01T00:00:00.000Z", design: withIt });
+    fixture.settings.savedThemes = [{ id: "t1", name: "Autumn", design: withIt }];
+    await mount();
+    await click(buttons("Media")[0]);
+    await click(document.querySelector("[data-media-id='m-riso-print']")!);
+    expect(host.textContent).toContain("My themes › Autumn");
+    expect(host.textContent).toContain("Version history › Published");
+    await click(buttons("Delete image")[0]);
+    expect(host.textContent).toContain("still in use");
+
+    // Nothing holds it when Media opens, but a version saved since then does → the fresh re-read refuses.
+    act(() => root.unmount());
+    fixture.settings.savedThemes = [];
+    fixture.versions.length = 0;
+    await mount();
+    await click(buttons("Media")[0]);
+    await click(document.querySelector("[data-media-id='m-riso-print']")!);
+    expect(host.textContent).toContain("Not used anywhere yet");
+    fixture.versions.push({ id: "v2", kind: "draft", label: "Late draft", createdAt: "2026-10-02T00:00:00.000Z", design: withIt });
+    await click(buttons("Delete image")[0]);
+    expect(host.textContent).toMatch(/kept in Version history › Late draft/);
+    expect(fixture.calls.some(c => c.method === "removeMedia")).toBe(false);
+
+    fixture.versions.length = 0;
+    await click(buttons("Delete image")[0]);
+    await click(buttons("Delete image").at(-1));
+    expect(fixture.calls.find(c => c.method === "removeMedia")?.args[0]).toBe("m-riso-print");
+  });
+
   it("explains a media library whose rules aren't deployed, and image fields keep working", async () => {
     fixture.mediaDenied = true;
     await mount();

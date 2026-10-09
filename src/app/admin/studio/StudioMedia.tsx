@@ -5,7 +5,7 @@ import { isMediaDenied, mediaApi } from "../mediaApi";
 import { uploadErrorMessage, uploadMediaImage } from "./mediaUpload";
 import {
   allPaths, applyMediaChange, budgetFor, collectStrings, filterMedia, formatBytes, isOverBudget, mainUrl, missingAlt,
-  sortMedia, thumbUrl, usagePaths, usagePlaces, type MediaFilter, type MediaItem, type UsagePlace,
+  snapshotUses, sortMedia, thumbUrl, usagePaths, usagePlaces, type MediaFilter, type MediaItem, type UsagePlace,
 } from "./mediaLibrary";
 import type { MediaLibraryStatus, MediaPickerApi } from "./mediaPicker";
 
@@ -114,9 +114,12 @@ const FILTERS: { id: MediaFilter; label: string }[] = [
 ];
 
 type Names = Parameters<typeof usagePlaces>[2];
-type Usage = { draft: UsagePlace[]; liveOnly: UsagePlace[]; pages: { slug: string; title: string }[] };
+/** `snapshots`: My themes and Version history entries that still hold the picture (restoring them brings it back). */
+type Usage = { draft: UsagePlace[]; liveOnly: UsagePlace[]; pages: { slug: string; title: string }[]; snapshots: string[] };
+const useCount = (u: Usage) => u.draft.length + u.liveOnly.length + u.pages.length + u.snapshots.length;
+type Snapshots = { savedThemes: { name?: string; design?: any }[]; getVersions: () => Promise<{ label?: string; createdAt?: string; design?: any }[]> };
 
-export function StudioMediaPanel({ lib, design, published, pages, names, onDesignChange, onOpenPlace, onOpenPage, say, askConfirm }: {
+export function StudioMediaPanel({ lib, design, published, pages, names, savedThemes, getVersions, onDesignChange, onOpenPlace, onOpenPage, say, askConfirm }: Snapshots & {
   lib: MediaLibrary; design: any; published: any; pages: any[]; names: Names;
   onDesignChange: (fn: (d: any) => any, label: string) => void;
   onOpenPlace: (place: UsagePlace) => void;
@@ -128,6 +131,9 @@ export function StudioMediaPanel({ lib, design, published, pages, names, onDesig
   const [filter, setFilter] = useState<MediaFilter>("all");
   const [openId, setOpenId] = useState<string | null>(null);
   const uploader = useUploader(lib);
+  // Retained Version history snapshots count as uses too (Delete re-reads them before deleting).
+  const [versions, setVersions] = useState<Awaited<ReturnType<Snapshots["getVersions"]>> | null>(null);
+  useEffect(() => { let live = true; getVersions().then(v => { if (live) setVersions(v || []); }, () => { if (live) setVersions(null); }); return () => { live = false; }; }, [getVersions]);
 
   // Where each image is used: the draft, the live design (until the next Publish) and custom pages.
   const draftStrings = useMemo(() => collectStrings(design), [design]);
@@ -141,12 +147,13 @@ export function StudioMediaPanel({ lib, design, published, pages, names, onDesig
       draft,
       liveOnly: live.filter(p => !inDraft.has(p.label)),
       pages: pageStrings.filter(p => usagePaths(p.strings, item).length).map(p => ({ slug: p.page.slug, title: p.page.title || p.page.slug })),
+      snapshots: snapshotUses(item, savedThemes, versions || []),
     };
-  }, [design, published, draftStrings, liveStrings, pageStrings, names]);
+  }, [design, published, draftStrings, liveStrings, pageStrings, names, savedThemes, versions]);
   const usageById = useMemo(() => new Map(lib.items.map(item => [item.id, usageOf(item)])), [lib.items, usageOf]);
   const isUsed = useCallback((item: MediaItem) => {
     const u = usageById.get(item.id) || usageOf(item);
-    return u.draft.length + u.liveOnly.length + u.pages.length > 0;
+    return useCount(u) > 0;
   }, [usageById, usageOf]);
   const counts = useMemo(() => Object.fromEntries(FILTERS.map(f => [f.id, filterMedia(lib.items, "", f.id, isUsed).length])), [lib.items, isUsed]);
   const visible = useMemo(() => filterMedia(lib.items, query, filter, isUsed), [lib.items, query, filter, isUsed]);
@@ -154,11 +161,11 @@ export function StudioMediaPanel({ lib, design, published, pages, names, onDesig
 
   if (lib.status !== "ready") return <div className="studio-media"><StatusNote status={lib.status} onRetry={lib.load} /></div>;
   if (open) return <MediaDetails key={open.id} item={open} usage={usageById.get(open.id) || usageOf(open)} lib={lib} onBack={() => setOpenId(null)}
-    onDesignChange={onDesignChange} onOpenPlace={onOpenPlace} onOpenPage={onOpenPage} say={say} askConfirm={askConfirm} />;
+    savedThemes={savedThemes} getVersions={getVersions} onDesignChange={onDesignChange} onOpenPlace={onOpenPlace} onOpenPage={onOpenPage} say={say} askConfirm={askConfirm} />;
 
   return (
     <div className="studio-media" data-studio-panel="media">
-      <p className="studio-hint">Pictures uploaded here are saved as 480, 960 and 1600 px wide copies, so phones download a small file and big screens a sharp one. Image fields' <strong>Upload image</strong> adds to this library too.</p>
+      <p className="studio-hint">Pictures uploaded here are saved as 480, 960 and 1600 px wide copies, so phones download a small file and big screens a sharp one. Image fields' <strong>Upload image</strong> adds to this library too; section and block images also get the small copies on the shop.</p>
       <div className="studio-media-actions">
         <UploadButton label="Upload images" multiple disabled={!!uploader.progress} onFiles={uploader.run} />
         {uploader.progress && <span role="status">{uploader.progress}</span>}
@@ -177,7 +184,7 @@ export function StudioMediaPanel({ lib, design, published, pages, names, onDesig
   );
 }
 
-function MediaDetails({ item, usage, lib, onBack, onDesignChange, onOpenPlace, onOpenPage, say, askConfirm }: {
+function MediaDetails({ item, usage, lib, onBack, savedThemes, getVersions, onDesignChange, onOpenPlace, onOpenPage, say, askConfirm }: Snapshots & {
   item: MediaItem; usage: Usage; lib: MediaLibrary; onBack: () => void;
   onDesignChange: (fn: (d: any) => any, label: string) => void;
   onOpenPlace: (place: UsagePlace) => void; onOpenPage: (slug: string) => void;
@@ -188,7 +195,7 @@ function MediaDetails({ item, usage, lib, onBack, onDesignChange, onOpenPlace, o
   const [busy, setBusy] = useState("");
   const [error, setError] = useState("");
   const replaceInput = useRef<HTMLInputElement>(null);
-  const used = usage.draft.length + usage.liveOnly.length + usage.pages.length;
+  const used = useCount(usage);
 
   const act = async (label: string, run: () => Promise<void>) => {
     setBusy(label); setError("");
@@ -207,6 +214,12 @@ function MediaDetails({ item, usage, lib, onBack, onDesignChange, onOpenPlace, o
   };
   const remove = async () => {
     if (used) { setError("This image is still in use. Remove it from the places listed under Where it's used (and publish) before deleting it."); return; }
+    // Version history may have changed since the list was read: check the retained versions again first.
+    let versions;
+    try { versions = await getVersions(); }
+    catch { setError("Couldn't check Version history for this image, so it wasn't deleted. Check your connection and try again."); return; }
+    const kept = snapshotUses(item, savedThemes, versions || []);
+    if (kept.length) { setError(`This image is kept in ${kept.join(", ")}. Restoring that would bring it back, so it can't be deleted yet.`); return; }
     const ok = await askConfirm({ title: "Delete this image?", message: `“${item.name}” and all its sizes will be removed from your library and storage. This can't be undone.`, confirmLabel: "Delete image" });
     if (!ok) return;
     await act("Deleting…", async () => { await lib.remove(item); say("ok", "Image deleted."); onBack(); });
@@ -252,9 +265,10 @@ function MediaDetails({ item, usage, lib, onBack, onDesignChange, onOpenPlace, o
 
       <section className="studio-media-usage" aria-label="Where it's used">
         <h4>Where it's used</h4>
-        {!used ? <p className="studio-hint">Not used anywhere yet — not in your draft, the live site or a page.</p> : <ul>
+        {!used ? <p className="studio-hint">Not used anywhere yet — not in your draft, the live site, a page, My themes or Version history.</p> : <ul>
           {usage.draft.map(p => place(p, false))}
           {usage.liveOnly.map(p => place(p, true))}
+          {usage.snapshots.map(label => <li key={`snap:${label}`}><span>{label}<small> — saved copy of your design</small></span></li>)}
           {usage.pages.map(p => <li key={`page:${p.slug}`}><button type="button" className="studio-link-button" onClick={() => onOpenPage(p.slug)}>Page “{p.title}”</button></li>)}
         </ul>}
       </section>

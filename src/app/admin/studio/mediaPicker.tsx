@@ -18,16 +18,21 @@ export const MediaPickerContext = createContext<MediaPickerApi | null>(null);
 export const useMediaPicker = () => useContext(MediaPickerContext);
 
 /**
- * Upload for an image field: into the library (resized copies + `srcset`) when it is switched on and the
- * field can carry its `__media` record; otherwise the plain Studio upload the field always had.
+ * Upload for an image field. When the library is switched on the picture always goes into it (resized
+ * copies + a `media/{id}` record, listed in Studio › Media). Section and block fields (which have
+ * `onPatch`) also get the `__media` record that gives shoppers `srcset`; Theme settings images (logo,
+ * share image, favicon, placeholder…) are drawn as plain images, so they get the URL only, written
+ * through the field's own `onChange` (which keeps the All pages / This page only scope).
+ * Without the library: the plain Studio upload the field always had.
  */
 export async function uploadIntoField(media: MediaPickerApi | null, file: File, opts: {
   fieldKey: string; record?: any; onPatch?: (patch: Record<string, any>) => void;
   onChange: (url: string) => void; uploadFile?: (file: File) => Promise<string>;
 }) {
-  if (media?.status === "ready" && opts.onPatch) {
+  if (media?.status === "ready") {
     const item = await media.upload(file);
-    opts.onPatch(pickPatch(opts.fieldKey, item, opts.record));
+    if (opts.onPatch) opts.onPatch(pickPatch(opts.fieldKey, item, opts.record));
+    else opts.onChange(mainUrl(item));
     return;
   }
   if (!opts.uploadFile) return;

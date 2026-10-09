@@ -99,6 +99,18 @@ export function usagePaths(strings: StringAt[], item: MediaItem): Path[] {
 
 export type UsagePlace = { label: string; templateId?: string; sectionId?: string };
 
+/**
+ * Stored design snapshots (My themes, Version history) that still contain the picture. Restoring one of
+ * them would bring the picture back, so Delete must treat them as uses too.
+ */
+export function snapshotUses(item: MediaItem, savedThemes: { name?: string; design?: any }[], versions: { label?: string; createdAt?: string; design?: any }[]): string[] {
+  const has = (design: any) => usagePaths(collectStrings(design), item).length > 0;
+  return [
+    ...(savedThemes || []).filter(t => has(t?.design)).map(t => `My themes › ${t.name || "Untitled theme"}`),
+    ...(versions || []).filter(v => has(v?.design)).map(v => `Version history › ${v.label || "Saved version"}${v.createdAt ? ` (${new Date(v.createdAt).toLocaleDateString()})` : ""}`),
+  ];
+}
+
 /** "Home › Image banner" for `["heroPage", "sections", 2, "settings", "imageUrl"]`. */
 export function describeUsage(design: any, path: Path, names: { surface: (id: string) => string; section: (section: any) => string }): UsagePlace {
   const [top, second, third] = path;
