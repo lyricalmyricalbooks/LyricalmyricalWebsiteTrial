@@ -278,7 +278,16 @@ assistant, personalization/A-B tests, author/series/event pages, multi-language 
       `moveSectionTo` / `moveBlockTo` / `updateSectionsById` in `studioWorkflow.ts` (`studioMoves.test.ts`): blocks
       keep their children, never move into themselves, only move between sections of the same type and respect
       `MAX_BLOCK_DEPTH`; the preview's section drag-reorder uses `moveSectionTo` too.
-- [ ] 1.6 Theme settings as the global design system; slimmer search.
+- [x] 1.6 Theme settings as the global design system; slimmer search. The home is banded: **Site-wide design**
+      (presets & saved themes, logo, colours, typography, small print, buttons, layout, motion, Riso print — one
+      list), **Parts of your shop** (header/menu/footer, shop & book pages, bag/checkout/accounts, pages & features)
+      and **Advanced**. Each part card has **Show on page**: `CATEGORY_PAGES` (settingsMap.ts) names the preview page
+      or pop-over, Studio switches the preview, waits for the `STRUCTURE` scan and opens the first part whose
+      target is `style:<group>` in the element inspector. Long Text & labels groups split into sub-sections
+      (`TEXT_SUBSECTIONS` / `textSubsectionsFor`; leftovers in **More words**, error messages last). Find anything
+      no longer indexes each region field three times (desktop entry carries "tablet phone mobile" keywords).
+      Deviation from plan: no new Brand/Colours/… heading per category and no presets-gallery rebuild — the
+      existing category cards already are those headings; Page starters stay in Add section.
 - [ ] 1.7 Command palette 2.0; legacy draft path cleanup.
 
 **Phase 2 — Shopify OS 2.0 features**

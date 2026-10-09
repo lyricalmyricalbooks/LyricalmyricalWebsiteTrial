@@ -15,26 +15,47 @@ export const EXTRA_STYLE_CATEGORIES: Record<string, { title: string; blurb: stri
   paymentIcons: { title: "Payment icons", blurb: "Which card and wallet logos the footer shows." },
 };
 
-export type SettingsHeading = { id: string; title: string; blurb: string; groups: string[]; advanced?: boolean };
+export type SettingsHeading = {
+  id: string; title: string; blurb: string; groups: string[]; advanced?: boolean;
+  /** Starts a band of headings ("Site-wide design", "Parts of your shop"). */
+  band?: string;
+};
 
 const REGION_IDS = REGION_GROUPS.map((g) => g.id);
 
-/** Theme settings home, in the order an owner usually needs them. */
+/**
+ * Theme settings home. The site-wide design system first (one change restyles the whole shop),
+ * then the parts of the shop (each also editable by clicking it on the page), then advanced tools.
+ */
 export const THEME_HEADINGS: SettingsHeading[] = [
-  { id: "look", title: "Overall look", blurb: "Start here: colours, fonts and buttons used on every page.",
-    groups: ["themeLook", "colors", "type", "buttons", "logo", "riso", "effects"] },
-  { id: "chrome", title: "Header, menu & footer", blurb: "The parts that repeat at the top and bottom of every page.",
+  { id: "system", band: "Site-wide design", title: "", blurb: "Presets, brand, colours, fonts, buttons and spacing used on every page. One change restyles the whole shop.",
+    groups: ["themeLook", "logo", "colors", "type", "smallPrint", "buttons", "layout", "effects", "riso"] },
+  { id: "chrome", band: "Parts of your shop", title: "Header, menu & footer", blurb: "The parts that repeat at the top and bottom of every page. Tip: click one in the preview to edit it there.",
     groups: ["header", "navlinks", "footer", "paymentIcons"] },
   { id: "shop", title: "Shop & book pages", blurb: "The book grid, book cards and each book's own page.",
     groups: ["products", "catalog", "labels", "productPage", "productCard", "catalogLayout"] },
   { id: "buy", title: "Bag, checkout & accounts", blurb: "Everything after a shopper presses Add to bag.",
     groups: ["cartDrawer", "checkout", "accounts"] },
-  { id: "pages", title: "Pages & small details", blurb: "Custom pages (About, Journal…), page width, tiny labels and on/off switches.",
-    groups: ["customPages", "layout", "smallPrint", "elements"] },
-  { id: "elements", title: "Fine-tune single elements", advanced: true,
+  { id: "pages", title: "Pages & features", blurb: "Custom pages (About, Journal…) and switching whole features on or off.",
+    groups: ["customPages", "elements"] },
+  { id: "elements", band: "Advanced", title: "Fine-tune single elements", advanced: true,
     blurb: "Spacing, size, borders and visibility for one element at a time, per screen size. Quicker: click the element in the preview.",
-    groups: [...REGION_IDS, "code"] },
+    groups: REGION_IDS },
+  { id: "code", title: "Custom code", advanced: true, blurb: "Your own CSS or scripts (public pages only).", groups: ["code"] },
 ];
+
+/**
+ * Where each part-of-the-shop category can be seen, for "Show on page": the page to open (none =
+ * stay on the current page) and a pop-over to open first. Studio then selects the first part on that
+ * page linked to the category, in the inspector.
+ */
+export const CATEGORY_PAGES: Record<string, { template?: string; overlay?: "cart" | "search" }> = {
+  header: {}, navlinks: {}, footer: {}, paymentIcons: {},
+  products: { template: "storefront" }, catalog: { template: "storefront" }, labels: { template: "storefront" },
+  catalogLayout: { template: "storefront" }, productPage: { template: "productPage" }, productCard: { template: "productPage" },
+  cartDrawer: { overlay: "cart" }, checkout: { template: "cartPage" }, accounts: { template: "accountPage" },
+  customPages: { template: "page" },
+};
 
 /** One plain-English line under each category name (falls back to the group's own hint). */
 export const GROUP_BLURBS: Record<string, string> = {
@@ -227,6 +248,71 @@ export const TEXT_BLURBS: Record<string, string> = {
   "Under construction": "The 'coming soon' page.",
   "Maintenance page": "The page shown while the shop is paused.",
 };
+
+/**
+ * Sub-sections inside the long text groups. Each key goes to the first sub-section (in `order`)
+ * whose pattern matches; keys no pattern matches land in "More words", so nothing can disappear.
+ */
+type TextSub = { title: string; match: RegExp; order?: number };
+export const TEXT_SUBSECTIONS: Record<string, TextSub[]> = {
+  Checkout: [
+    { title: "Steps & headings", match: /^co(Brand|Return|Secure|Progress|Step|Contact$|Delivery$|Payment$|Summary|ShowSummary|HideSummary|ItemCount)/ },
+    { title: "Contact & address fields", match: /^co(SignedIn|Google|Email|Name|Address|Country|City|State|Zip|Phone|Bill|EnterAddress)/ },
+    { title: "Shipping, pickup & delivery", match: /^co(Ship|Fulfillment|Rates|ArrivesBy|FreeShip|Packed|Pickup|Carrier|Estimated|Free$|NoShipping|Preorder|TaxLater)/ },
+    { title: "Payment & the Pay button", match: /^co(Payment|Card|Pay|PayPal|Paypal|PlaceOrder|Processing|Stripe|Trust|Guarantee|TestMode|NoPayment|PrivacyNote|Policy|OnlyLeft|Express|OrderNote|Rates)/ },
+    { title: "Discount codes", match: /^co(HaveCode|Discount|Apply)/ },
+    { title: "After the order", match: /^co(Thanks|Account|Pending|Continue|OrderPlaced|OrderConfirmed|Finalizing|CheckEmail|OrderNumber|ConfirmationSent|Confirming|Success|TrackOrder)/ },
+    { title: "Empty bag", match: /^coEmpty/ },
+    { title: "Error messages", order: -1, match: /^co(Err|ServerRefused|TotalChanged|BelowMinimum|BagUpdated|Catalog|PaymentCanceled|PaymentNotFinished|DiscountInvalid|DiscountExpired|DiscountRejected|CheckoutFailed)|Error$|Failed$/ },
+  ],
+  "Order tracking": [
+    { title: "Find your order", match: /^track(Eyebrow|Title|Subtitle|Order|Email|Submit|Loading|Link|Found|Back|Another|Created|Help)/ },
+    { title: "Order status & timeline", match: /^track(Timeline|Step|InTransit|Shipment|Paid|Unpaid|Awaiting|Cancelled|Refunded|StillUnpaid|Recheck|Preorder)/ },
+    { title: "Delivery & pickup", match: /^track(Fulfillment|Pickup|LocalDelivery|Collected|ReadyFor|OutFor|Logistics|Carrier|Shipping|ShipTo|Expected)/ },
+    { title: "Items & totals", match: /^(track(Items|TotalPayable|Digital|Download)|qtyLine|summary)/ },
+    { title: "Cancel, return & privacy requests", match: /^track(Req|Return|Privacy)/ },
+    { title: "Errors & email links", order: -1, match: /^track(Err|Error|Unsub)/ },
+  ],
+  "Customer account": [
+    { title: "Signing in", match: /^account(Title|Subtitle|SignIn|Email|Magic|CheckInbox|Resend|UseDifferent|Or$|Google|ConfirmEmail|SignedIn|LinkSent|Off)/ },
+    { title: "Account pages", match: /^account(Storefront|Portal|SignOut|Wishlist|Saved|Orders|Transacted|Shipping|BackToStore)/ },
+    { title: "Saved address", match: /^account(Address|Field|Phone|Street|SaveAddress|Abort|Cancel$|Unconfigured)/ },
+    { title: "Order history", match: /^(account(History|Items|Dispatch|ShipTo|Logistics|Manage|Close|Delivered|Cancelled|Awaiting|Track|Unfulfilled|Shipped|Processing|Paid|Unpaid|Refunded|PartiallyRefunded|BookCount)|carrierLabel|trackingCodeLabel)/ },
+    { title: "Downloads", match: /^account(Digital|Ebook|Download$)/ },
+    { title: "Error messages", order: -1, match: /^account.*Error$/ },
+  ],
+  "Product page": [
+    { title: "Photos & breadcrumb", match: /^(pdpCrumb|pdpBreadcrumb|pdpCaption|pdpPhotos|ariaGoToPhoto|ariaPrevPhoto|ariaNextPhoto|bookPhotoAlt|backToCatalog|categoryFallback)/ },
+    { title: "Buy box, stock & pre-orders", match: /^(pdpInStock|pdpBackorder|pdpPreorder|preorder|addToBag|onlyLeft|saveAmount|priceOnRequest|ariaQty|bookAdded|bookFormat|wishlist|bookShare|bookLinkCopied)/ },
+    { title: "Description, details & tabs", match: /^(tab|spec|productDescriptionLabel|noDescription|pdpDetailsAria)/ },
+    { title: "Back-in-stock alert", match: /^alert/ },
+    { title: "Related books & bundles", match: /^(related|bundle)/ },
+  ],
+  Cart: [
+    { title: "Bag heading, rows & total", match: /^cart(Title|Empty|Count|Close|Each|Remove|Subtotal|Shipping|Total|Checkout|Delivery|Continue|OnlyAvailable|Qty|Decrease|Increase|Preorder)/ },
+    { title: "Free-shipping bar & suggestion", match: /^cart(FreeShip|Upsell)/ },
+    { title: "Shipping cost preview", match: /^cartEstimate/ },
+    { title: "Trust badges", match: /^trust/ },
+  ],
+};
+
+export const MORE_WORDS = "More words";
+
+/** A text group's fields split into its sub-sections (unmatched → "More words"); one section when unmapped. */
+export function textSubsectionsFor<T extends { key: string }>(group: { group: string; fields: T[] }): { title: string; fields: T[] }[] {
+  const subs = TEXT_SUBSECTIONS[group.group];
+  if (!subs) return [{ title: "", fields: group.fields }];
+  const byPriority = [...subs].sort((a, b) => (a.order ?? 0) - (b.order ?? 0));
+  const home = new Map<string, string>();
+  for (const f of group.fields) {
+    const sub = byPriority.find(x => x.match.test(f.key));
+    home.set(f.key, sub ? sub.title : MORE_WORDS);
+  }
+  const out = subs.map(x => ({ title: x.title, fields: group.fields.filter(f => home.get(f.key) === x.title) })).filter(x => x.fields.length);
+  const rest = group.fields.filter(f => home.get(f.key) === MORE_WORDS);
+  if (rest.length) out.push({ title: MORE_WORDS, fields: rest });
+  return out;
+}
 
 /** Labels the owner rewrote (including deliberately blank ones). */
 export function changedCopyCount(fields: { key: string }[], design: any): number {

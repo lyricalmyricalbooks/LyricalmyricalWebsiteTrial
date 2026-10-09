@@ -4,6 +4,7 @@
 // "phone", "publish". Studio turns a chosen result into navigation (see StudioEditor `goToResult`).
 
 import type { Section } from "./studioModel";
+import { regionFieldDevice } from "../../features/site/storefrontRegions";
 
 export type StudioTab = "sections" | "style" | "text" | "menus" | "pages";
 export type StudioActionId =
@@ -140,7 +141,11 @@ export function buildStudioIndex(input: IndexInput): SearchEntry[] {
   for (const g of input.styleGroups) {
     out.push(staticEntry(`style-group:${g.id}`, "style", g.title, "Style", `${g.hint || ""} all settings group`, { type: "style", groupId: g.id }));
     for (const f of g.fields) {
-      out.push(staticEntry(`style:${g.id}:${f.key}`, "style", f.label, `Style › ${g.title}`, `${f.key} ${g.title}`, { type: "style", groupId: g.id, key: f.key }));
+      // An element setting exists once per screen size; index it once (the desktop field) and let
+      // "tablet"/"phone" match it — the element's controls follow the previewed size anyway.
+      const region = f.key.startsWith("regions.");
+      if (region && regionFieldDevice(f.key) !== "desktop") continue;
+      out.push(staticEntry(`style:${g.id}:${f.key}`, "style", f.label, `Style › ${g.title}`, `${f.key} ${g.title}${region ? " tablet phone mobile" : ""}`, { type: "style", groupId: g.id, key: f.key }));
     }
   }
 
