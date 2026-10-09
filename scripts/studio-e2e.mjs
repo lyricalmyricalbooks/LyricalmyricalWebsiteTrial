@@ -694,17 +694,27 @@ await check("a save in another tab shows a live banner, and both sets of changes
 
 await check("Studio Health checks the previewed page, shows a finding and opens its part", desktop, async page => {
   await expectText(page, "Preview connected", 30000);
+  // A known problem inside a built-in part (a nameless 12×12 button in the footer), so the check doesn't depend on
+  // what the shop's live content happens to contain.
+  await page.frames().find(f => f !== page.mainFrame()).evaluate(() => {
+    const footer = document.querySelector("footer") || document.body;
+    const part = document.createElement("div");
+    part.setAttribute("data-studio-target", "style:footer|copy:Footer");
+    part.setAttribute("data-studio-label", "Footer");
+    part.innerHTML = '<button type="button" data-e2e-health style="width:12px;height:12px;padding:0;border:0"></button>';
+    footer.appendChild(part);
+  });
   await page.getByRole("button", { name: "Theme actions" }).click();
   await page.getByRole("menuitem", { name: "Studio Health" }).click();
   const dialog = page.getByRole("dialog", { name: "Studio Health" });
   await dialog.getByText("Checking Home at desktop size").waitFor({ timeout: 5000 });
-  const finding = dialog.locator("[data-health-id]").filter({ has: page.getByRole("button", { name: "Edit this part" }) }).first();
+  const finding = dialog.locator('[data-health-id^="noname:"]').first();
   await finding.waitFor({ timeout: 5000 });
   // Show me closes Health, scrolls the preview to it and offers the way back.
   await finding.getByRole("button", { name: "Show me" }).click();
   await page.getByRole("button", { name: "Back to Health" }).click();
   await dialog.locator("[data-health-id]").first().waitFor({ timeout: 5000 });
-  await dialog.locator("[data-health-id]").filter({ has: page.getByRole("button", { name: "Edit this part" }) }).first().getByRole("button", { name: "Edit this part" }).click();
+  await dialog.locator('[data-health-id^="noname:"]').first().getByRole("button", { name: "Edit this part" }).click();
   await page.locator("[data-studio-element-inspector], [data-studio-panel='section-inspector'], .studio-inspector [role=tab]").first().waitFor({ timeout: 5000 });
   if (await page.getByText("Nothing selected").isVisible()) throw new Error("Edit this part opened nothing");
   // Publish says how the page checks out.
@@ -747,6 +757,28 @@ await check("Themes saves the draft as a theme, previews a look without changing
   await share.locator("[data-preview-link]").first().getByRole("button", { name: "Turn off" }).click();
   await page.getByRole("dialog", { name: "Turn off this preview link?" }).getByRole("button", { name: "Turn off link" }).click();
   await page.waitForFunction(() => window.__studioFixture.calls.some(c => c.method === "revokePreviewLink"));
+});
+
+await check("Schedule publishing saves a campaign in Toronto time and lists it, from the Publish dialog", desktop, async page => {
+  await expectText(page, "Preview connected", 30000);
+  await page.getByRole("button", { name: "Add section" }).first().click();
+  await page.getByRole("button", { name: /^Newsletter/ }).first().click();
+  await page.getByRole("button", { name: "Publish", exact: true }).click();
+  await page.getByRole("button", { name: "Schedule instead…" }).click();
+  const dialog = page.getByRole("dialog", { name: "Schedule publishing" });
+  await dialog.locator("[data-scheduler-health='never']").waitFor({ timeout: 5000 });
+  await dialog.getByLabel("Campaign: from a time until a time, then switch back").check();
+  const fields = dialog.locator('input[type="datetime-local"]');
+  await fields.nth(0).fill("2031-03-02T09:00");
+  await fields.nth(1).fill("2031-03-09T18:30");
+  await dialog.getByRole("button", { name: "Schedule campaign" }).click();
+  await dialog.locator("[data-schedule-id]").first().waitFor({ timeout: 5000 });
+  const add = (await calls(page)).find(c => c.method === "addThemeSchedule");
+  if (add?.args[0].startAt !== "2031-03-02T14:00:00.000Z" || add?.args[0].endAt !== "2031-03-09T22:30:00.000Z") throw new Error(`saved ${JSON.stringify(add?.args[0])}`);
+  if ((await calls(page)).some(c => c.method === "saveDesign")) throw new Error("scheduling published or saved the draft");
+  await dialog.locator("[data-schedule-id]").first().getByRole("button", { name: "Cancel" }).click();
+  await page.getByRole("dialog", { name: /^Cancel “/ }).getByRole("button", { name: "Cancel schedule" }).click();
+  await page.waitForFunction(() => window.__studioFixture.calls.some(c => c.method === "cancelThemeSchedule"));
 });
 
 await check("phone-sized editor loads without errors", { width: 390, height: 844 }, async page => {

@@ -50,10 +50,10 @@ it('indexes only visible published Studio categories and excludes noindex books'
  expect(result.count).toBe(5);
 });
 
-it('uses activated scheduled Studio categories instead of the superseded design', () => {
+it('reads only the published design: scheduled designs are published into it by the server (Studio 3.5)', () => {
  const settings = { design: { categories: ['Old'] }, scheduledPublish: { at: '2000-01-01T00:00:00Z', design: { categories: ['Scheduled'] } } };
- const result = sitemapArtifacts('https://example.com/shop', [{ id: 'scheduled-book', title: 'Book', status: 'published', categories: ['Scheduled'] }], [], [], settings);
- expect(result.xml).toContain('/collections/scheduled'); expect(result.xml).not.toContain('/collections/old');
+ const result = sitemapArtifacts('https://example.com/shop', [{ id: 'old-book', title: 'Book', status: 'published', categories: ['Old', 'Scheduled'] }], [], [], settings);
+ expect(result.xml).toContain('/collections/old'); expect(result.xml).not.toContain('/collections/scheduled');
 });
 
 it('published store policies are listed so they render as real pages', () => {

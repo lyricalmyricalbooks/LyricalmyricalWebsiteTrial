@@ -101,6 +101,10 @@ service cloud.firestore {
     match /theme-versions/{versionId} {
       allow read, write: if isAdmin();
     }
+    // Scheduled publishes and campaigns (Studio 3.5). Admin-only; the Functions scheduler (Admin SDK) runs them.
+    match /themeSchedule/{entryId} {
+      allow read, write: if isAdmin();
+    }
     // Share previews (Studio 3.4): an unpublished design behind an unguessable token. Anyone holding the link can
     // read that one document until it expires; nobody but the admin can list, create, change or remove them.
     match /previewTokens/{token} {

@@ -187,7 +187,7 @@ assistant, personalization/A-B tests, author/series/event pages, multi-language 
       fails on any upload path storage.rules refuses) and section background / category images gained Upload
       buttons (`studio/ImageUploadButton.tsx`). Linked shared blocks resolve in `SectionList` for every section
       type (`features/site/sharedBlocks.ts`). `SectionBoundary` drops a crashing section for shoppers and shows a
-      placeholder + `PREVIEW_ERROR {sectionId}` in the preview. `features/site/scheduledDesign.mjs` ignores a
+      placeholder + `PREVIEW_ERROR {sectionId}` in the preview. `features/site/scheduledDesign.mjs` (replaced in 3.5 by the server scheduler) ignored a
       scheduled design once anything was published after it was due (`designPublishedAt`). Save draft refreshes one
       `theme-versions/draft-latest` entry; only Publish adds versions. Book editor › create category uses
       `adminApi.addShopCategory` (live and draft lists appended separately) and assigns from published categories.
@@ -536,7 +536,17 @@ the image; existing images are not migrated into the library.
   `ThemePreviewBanner` (Text & labels › Site & sharing `themePreview*`, cannot be hidden) with Exit preview; expired or
   removed links fall back to the live shop and say so. Until `firestore.rules` is deployed, Studio says links need the
   rules. Style › Theme look links to Themes.
-- [ ] 3.5 Scheduling & campaigns.
+- [x] 3.5 Scheduling & campaigns. Theme actions › **Schedule publishing…** (also **Schedule instead…** in the Publish
+  confirmation, Themes › ··· › **Schedule…**, Find "schedule") — `studio/StudioSchedule.tsx`, pure rules in
+  `studio/themeSchedule.ts` (Toronto wall-clock ↔ UTC, checks: future start, end after start, ≤120 days, one campaign at a
+  time; scheduler health). Entries are admin-only `themeSchedule/{id}` (`kind` publish | campaign, `design` copied at
+  scheduling time, `startAt`, `endAt`, `status` scheduled → live → done | cancelled | skipped). `functions/themeSchedule.js`
+  runs from `unpaidPaymentSweep` (own try/catch): a due publish replaces `settings/website.design` (+ `designPublishedAt`);
+  a campaign keeps the design it replaced (`revertDesign`) and puts it back at `endAt` unless something else was published
+  meanwhile (`note: kept-later-publish`). Each change records a theme version and audit entry; `themes/scheduler.lastRunAt`
+  shows Studio the scheduler runs. Cancel (scheduled) and End now (live campaign). The old client-side
+  `scheduledPublish`/`scheduledDesign.mjs` path is removed: shoppers never download scheduled designs any more, and the
+  sitemap/fingerprint read only the published design. Deploy `firestore.rules` and Functions with the frontend.
 
 **Phase 4 — Performance (continuous).**
 

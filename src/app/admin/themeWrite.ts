@@ -10,7 +10,7 @@ export function themeWrite(settings: Record<string, any>, publish = false, now =
   delete payload.savedThemes;
   if (payload.design) {
     if (!publish) delete payload.design;
-    // Lets a past-due scheduled design step aside for this newer Publish (scheduledDesign.mjs).
+    // A campaign ending later keeps this newer Publish instead of switching back (functions/themeSchedule.js).
     else payload.designPublishedAt = now.toISOString();
   }
   return { payload, options: { mergeFields: Object.keys(payload) } };
