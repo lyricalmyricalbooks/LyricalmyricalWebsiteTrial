@@ -43,6 +43,7 @@ import { buildPageStructure, primaryTarget, readStructure, structurePath, type P
 import { StudioInspector } from "./StudioInspector";
 import { StudioSearch } from "./StudioSearch.tsx";
 import { buildStudioIndex, contextCommands, searchedDevice, type SearchEntry } from "./studioSearch";
+import { resolveProductRoutes } from "../../features/site/productRoutes";
 import { autoFitSections, autoFitRegions } from "./autoMobile";
 import { applyCanvasAction, applyPageStyle, buildPreviewState, deliverPreviewState, findSectionOwner, moveBlockTo, moveSectionTo, PAGE_STYLE_GROUPS, PREVIEW_CHANNEL, previewRoute, sectionEntries, updateSectionsById, withDraftPage } from "./studioWorkflow";
 import { sectionStyleFields, SPACING_CARD_KEYS } from "./sectionStyleSchema";
@@ -454,7 +455,8 @@ export function StudioEditor({ settings, onExit, onPersisted, appearance = "ligh
   }, []);
   useEffect(() => {
     loadPages();
-    adminApi.getCategoryBooks().then((b: any[]) => { const published = (b || []).filter(x => x.status === "published" || !x.status); setBooks(published); setProductSlug(current => published.some(x => x.slug === current) ? current : published[0]?.slug || ""); }).catch(() => say("err", "Could not load preview products. Reopen Studio to retry."));
+    adminApi.getCategoryBooks().then((b: any[]) => { // Same collision-safe routes as the storefront (missing or shared slugs use the book id).
+    const published = resolveProductRoutes((b || []).filter(x => x.status === "published" || !x.status)); setBooks(published); setProductSlug(current => published.some(x => x.slug === current) ? current : published[0]?.slug || ""); }).catch(() => say("err", "Could not load preview products. Reopen Studio to retry."));
   }, [loadPages]);
   const loadVersions = useCallback(async () => {
     try { setVersions(await adminApi.listThemeVersions() as ThemeVersion[]); }

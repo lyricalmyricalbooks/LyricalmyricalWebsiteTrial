@@ -135,3 +135,15 @@ describe("command palette 2.0", () => {
     expect(pushRecent(["a", "b"], "z", 2)).toEqual(["z", "a"]);
   });
 });
+
+describe("book results use the storefront's collision-safe routes", () => {
+  it("lists books with shared or missing slugs under the route the preview resolves", async () => {
+    const { buildStudioIndex } = await import("./studioSearch");
+    const { resolveProductRoutes } = await import("../../features/site/productRoutes");
+    const books = resolveProductRoutes([
+      { id: "b1", slug: "night", title: "Night" }, { id: "b2", slug: "night", title: "Night (2nd)" }, { id: "b3", title: "No Slug Yet" },
+    ]);
+    const idx = buildStudioIndex({ styleGroups: [], copySchema: [], templates: [], pages: [], sectionsByTemplate: {}, sectionLabel: t => t, books });
+    expect(idx.filter(e => e.kind === "book").map(e => (e.target as any).slug)).toEqual(["b1", "b2", "no-slug-yet"]);
+  });
+});
