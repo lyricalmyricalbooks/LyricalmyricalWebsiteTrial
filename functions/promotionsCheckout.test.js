@@ -182,6 +182,35 @@ describe('gift cards', () => {
     expect(app.docs.giftCards[CARD_ID].holds).toEqual({});
     expect(app.order.giftCardsDebitedAt).toBeTruthy();
   });
+  test('a test-mode gift card cannot pay for a real order on its own', async () => {
+    const app = harness({ items: [line('ebook')], giftCards: card(5000, { isTest: true }), cards: [{ code: CODE }], paymentMethod: 'Free' });
+    app.docs.settings.website.payments.testMode = true;
+    const r = await app.call('createStripeCheckoutSession', { action: 'completeFreeOrder' });
+    expect(r.code).toBe(400);
+    expect(r.value.code).toBe('gift_card_rejected');
+    expect(app.order.paymentStatus).toBe('unpaid');
+    expect(app.docs.giftCards[CARD_ID].balanceMinor).toBe(5000);
+  });
+  test("the shopper's own earlier attempt does not block their gift card", async () => {
+    const { holdOwner } = realRequire('./stockHolds.js');
+    const owner = holdOwner({ customer: { email: 'reader@example.com' } });
+    const app = harness({ items: [line('ebook')], giftCards: card(5000, { holds: { earlier: { minor: 5000, expiresAt: Date.now() + 60000, owner } } }), cards: [{ code: CODE }], paymentMethod: 'Free' });
+    const r = await app.call('createStripeCheckoutSession', { action: 'completeFreeOrder' });
+    expect(r.code).toBe(200);
+    expect(app.docs.giftCards[CARD_ID].balanceMinor).toBe(3000);
+  });
+  test('a box set waits for the latest pre-order book inside it', async () => {
+    const books = {
+      set: { status: 'published', title: 'Set', retailPrice: 30, bundleItems: [{ bookId: 'a' }, { bookId: 'b' }] },
+      a: { status: 'published', title: 'A', retailPrice: 20, preorder: true, publishDate: '2999-01-02' },
+      b: { status: 'published', title: 'B', retailPrice: 20, preorder: true, publishDate: '2999-05-06' },
+    };
+    const app = harness({ books, items: [line('set')] });
+    app.order.customer.address = { street: '1 Main', city: 'Toronto', state: 'ON', zip: 'M6G3H1', country: 'Canada' };
+    app.docs['shipping-profiles'] = { general: { zones: [{ countries: ['CA'], rates: [{ id: 'std', name: 'Standard', type: 'flat', price: 5, enabled: true }] }] } };
+    await app.call('createStripeCheckoutSession');
+    expect(app.order.items[0]).toMatchObject({ preorder: true, releaseDate: '2999-05-06' });
+  });
   test('a disabled or unknown card is refused with a code checkout understands', async () => {
     const app = harness({ items: [line('ebook')], giftCards: card(500, { enabled: false }), cards: [{ code: CODE }] });
     const r = await app.call('createStripeCheckoutSession');

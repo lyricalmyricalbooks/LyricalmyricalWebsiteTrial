@@ -1234,3 +1234,10 @@ for display in `features/site/promotions.ts` / `discountMath.ts` (`*.parity.test
   Shopper balance check: `validateDiscountCode` `{ action: "giftCardBalance" }` (rate limited). Admin actions:
   `createStripeCheckoutSession` `{ action: "giftCardAdmin", op: issue|setEnabled|adjust|resend }` (`requireAdmin`).
   Deploy `firestore.rules` and Functions with the frontend.
+- **Gift-card safety (follow-up):** the amounts a live payment was created for are saved as `chargedGiftCards` with
+  `expectedAmountMinor`; settlement, refunds and releases use them (`chargedRedemptions`), so a later re-pricing can't
+  change what is debited. Holds carry `owner` (`holdOwner`), so a shopper's own earlier attempt never blocks them.
+  Test-mode cards (`isTest`) can't complete a no-card order. `giftCardConflict` clears on a full Stripe refund or
+  Order detail › **Mark resolved** (`resolvePaymentMismatch`). `refundOrder` refuses a full refund once a gift card the
+  order bought has been spent. Admin alert `gift-cards-not-issued` flags paid gift-card orders with no card after 10 min.
+  A box set's pre-order state follows the latest pre-order book inside it (`combinedPreorder`).

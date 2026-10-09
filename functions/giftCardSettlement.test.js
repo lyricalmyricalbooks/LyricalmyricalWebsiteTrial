@@ -23,10 +23,12 @@ function harness(order, card) {
     async set(data) { docs[name] ||= {}; docs[name][id] = { ...(docs[name][id] || {}), ...data }; },
     async update(data) { Object.assign(docs[name][id], data); },
   });
+  // Firestore update() treats "a.b" as a nested field.
+  const apply = (target, data) => { for (const [k, v] of Object.entries(data)) { if (k.includes('.')) { const [a, b] = k.split('.'); target[a] = { ...(target[a] || {}), [b]: v }; } else target[k] = v; } };
   const db = {
     collection(name) { return { doc: (id) => ref(name, id), where: () => ({ limit: () => ({ get: async () => ({ empty: true, docs: [] }) }) }) }; },
     async runTransaction(fn) {
-      return fn({ get: (r) => r.get(), update: (r, data) => { Object.assign(docs[r.name][r.id], data); }, set: (r, data) => { docs[r.name] ||= {}; docs[r.name][r.id] = data; } });
+      return fn({ get: (r) => r.get(), update: (r, data) => { apply(docs[r.name][r.id], data); }, set: (r, data) => { docs[r.name] ||= {}; docs[r.name][r.id] = data; } });
     },
   };
   const admin = { initializeApp() {}, firestore: Object.assign(() => db, { FieldValue: { increment: (n) => ({ inc: n }) } }) };
@@ -82,4 +84,18 @@ test('a full refund puts the gift-card money back once and stops cards the order
   expect(app.docs.giftCards.sold1.enabled).toBe(false);
   await app.syncStripeReversal('o1', refund);
   expect(app.docs.giftCards.gc1.balanceMinor).toBe(800);
+});
+
+test('settles the gift-card amounts the live payment was created for, not a later re-pricing', async () => {
+  // A retry re-priced the order to CA$1 of gift card, but the payment in flight was made for CA$5.
+  const app = harness({ ...order(), giftCardRedemptions: [{ id: 'gc1', minor: 100 }], chargedGiftCards: [{ id: 'gc1', minor: 500 }] }, card(800));
+  expect(await app.markStripeOrderPaid('o1', session, { message: 'paid' })).toBe(true);
+  expect(app.docs.giftCards.gc1.balanceMinor).toBe(300);
+});
+
+test('a full Stripe refund of an order whose gift card fell short clears the alert', async () => {
+  const app = harness({ ...order(), giftCardConflict: { provider: 'Stripe', at: 't' } }, card(100));
+  await app.syncStripeReversal('o1', { charge: { amount: 1500, amount_refunded: 1500, refunded: true, currency: 'cad' }, source: 'test' });
+  expect(app.docs.orders.o1.giftCardConflict.resolvedAt).toBeTruthy();
+  expect(app.docs.orders.o1.paymentStatus).toBe('unpaid');
 });
