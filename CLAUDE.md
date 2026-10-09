@@ -382,7 +382,7 @@ section/block contract, and the Studio 2.0 roadmap.
 in `PageView.tsx`) sets eyebrow, title size/case/colour, text size/colour, alignment and column
 width for every custom page. Each "Page content" section follows it unless its **Style this page on
 its own** switch (`ownStyle`) is on; pages without that section render the same component. Default is the Riso "Ruled" layout (Option D): no small "Page" label (`pageShowEyebrow`
-off), the title lined up with the header (`pageWidth: "header"`, same width as `StorefrontPageHeader`), a line
+off), the title lined up with the header (`pageWidth: "header"`, same width as the `StoreHeader` row), a line
 under it (`pageShowRule`, `pageRuleColor/Width/Spacing`) and a readable text column (`pageTextMeasure`). Title
 font/size px (desktop + phone)/weight and top spacing are `pageTitleFont`, `pageTitleSizePx*`, `pageTitleWeight`,
 `pageTopSpacing`; the Page content section has the same fields for "Style this page on its own".
@@ -415,6 +415,17 @@ Text & labels › Header (`navDropdownAll`). `/collections/:slug` renders `MainS
 category — the standalone `CollectionPage` is no longer routed.
 
 **One storefront shell:** `MainSite` renders a single Riso header/footer for every view; the Home view swaps the catalog grid for `design.heroPage.sections`. Studio › Sections (Home) › **Show a Home page** toggles `showHero` (off = open straight on the catalog). The legacy hero header/`HeroCarousel` were removed — don't re-add a second header.
+
+**One header & footer (Studio 2.0 · 2.1):** `features/site/StoreHeader.tsx` is the only storefront header and
+`features/site/StoreFooter.tsx` the only footer. MainSite passes `shop={…}` (in-page category picking, logo → Home,
+masthead layout, logo alignment, sticker pills, transparent header, wishlist count, light/dark toggle, Ctrl/⌘+K);
+product and custom pages use page mode (routed links). Wishlist, account, order tracking and 404 render inside
+`StoreChrome` (header + footer around the page; its title bar becomes a plain row via `useInStoreChrome`), switched by
+Style › Header & announcement bar › **Show the shop header & footer on wishlist, account, order tracking and missing
+pages** (`showStoreChromeOnUtilityPages`, default on). Checkout keeps its own `checkoutHeader`. Add header/footer
+features there only — `storeChrome.parity.test.tsx` checks every Studio hook against `__fixtures__/storeChromeHooks.json`
+and fails if another file renders the navigation `<header>` or `footerPanel`; refresh the fixture
+(`UPDATE_STORE_CHROME_HOOKS=1`) only for an intended hook change.
 
 **Shop card title & price:** Studio › Style › **Product cards & grid** has colour, size (desktop + phone), weight, font and letter-spacing controls for the card title and price (`productTitleColor`, `cardTitle*`, `productPriceColor`, `cardPrice*`), plus the boxed-tag and old-price colours. `features/site/cardTypography.ts` turns them into CSS (emitted by `StorefrontThemeStyle`); cards opt in with the `fm-card-title` / `fm-card-price-wrap` / `fm-card-price` / `fm-card-price-tag` / `fm-card-price-old` classes — the shop grid, collection, wishlist, search, related-books and recently-viewed cards and the **Product grid** / **Product showcase grid** sections do. When a Style card colour is set it wins over a section's own colour; empty = the section's colour. Add those classes to any new book card — `features/site/cardClasses.test.tsx` renders every section with sample books and fails on a book title without `fm-card-title`.
 

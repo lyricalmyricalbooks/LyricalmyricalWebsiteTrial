@@ -6,6 +6,7 @@ import { useSiteData } from "./useSiteData";
 import { StorefrontThemeStyle } from "./StorefrontThemeStyle";
 import { GlobalSections, TemplateSections } from "../../components/sectionRender";
 import { resolveSurfaceDesign } from "./surfaceDesign";
+import { StoreChrome } from "./StoreChrome";
 
 export function NotFoundContent({ design, books = [] }: { design: any; books?: any[] }) {
   design = resolveSurfaceDesign(design, "/studio-missing-page");
@@ -20,5 +21,5 @@ export function NotFoundContent({ design, books = [] }: { design: any; books?: a
 export default function NotFoundPage() {
   const { settings, books } = useSiteData();
   useSEO({ title: getCopy(settings?.design, "notFoundTitle"), noindex: true });
-  return <NotFoundContent design={settings?.design} books={books} />;
+  return <StoreChrome surface="page404"><NotFoundContent design={settings?.design} books={books} /></StoreChrome>;
 }

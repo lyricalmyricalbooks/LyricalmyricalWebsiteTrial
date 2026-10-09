@@ -246,8 +246,8 @@ assistant, personalization/A-B tests, author/series/event pages, multi-language 
       and whether it shows at the previewed size — and sends `STRUCTURE` (re-scanned after DOM changes, route changes
       and resizes). New bridge messages: `SCAN_STRUCTURE`, `HOVER_NODE` / `HIGHLIGHT_NODE` (outline + scroll a part),
       `NODE_HOVER` (pointer → Studio), `OPEN_OVERLAY` (`cart` / `search` / `close`, handled in the preview by
-      `features/site/studioOverlay.ts` `useStudioOverlay`, used by `CartContext`, `MainSite` and
-      `StorefrontPageHeader`) and `SET_TARGET_LABELS`: the "what do you want to edit?" pop-up now shows distinct names
+      `features/site/studioOverlay.ts` `useStudioOverlay`, used by `CartContext` and `StoreHeader`
+      — at 1.4 `MainSite` and `StorefrontPageHeader`) and `SET_TARGET_LABELS`: the "what do you want to edit?" pop-up now shows distinct names
       ("Style: Header & announcement bar", "Words: Header") from `studio/targetLabels.ts`, whose test fails on any
       storefront target without a name. Tests: `previewBridge.dom.test.ts` runs the real bridge string in jsdom.
 - [x] 1.4 Page structure tree. `studio/pageStructure.ts` (pure, tested) turns the scan into Header · Page · Footer ·
@@ -291,7 +291,23 @@ assistant, personalization/A-B tests, author/series/event pages, multi-language 
 - [ ] 1.7 Command palette 2.0; legacy draft path cleanup.
 
 **Phase 2 — Shopify OS 2.0 features**
-- [ ] 2.1 One header and footer on every page. - [ ] 2.2 Header/footer/popup section groups.
+- [x] 2.1 One header and footer on every page. `features/site/StoreHeader.tsx` is the only storefront header:
+      MainSite renders it in **shop** mode (`shop` prop: active canvas, in-page category selection, logo → Home,
+      masthead layout, logo alignment, sticker pills, transparent header, scrolling announcement, wishlist count,
+      light/dark toggle, Ctrl/⌘+K) and every standalone page in **page** mode (routed `/collections/<slug>` links).
+      Both share one category bar (`CategoryBar` + `NavDropdown`), icon cluster (`HeaderActions`), announcement bar,
+      phone menu, publisher row and search pop-over (`useStudioOverlay("search")`). `features/site/StoreFooter.tsx`
+      (was MainSite's `SiteFooter`) is the only footer. `StorefrontPageHeader.tsx` is gone. Wishlist, account,
+      order tracking and 404 (including a custom-page 404) render inside `StoreChrome` (`StoreChrome.tsx`), which adds
+      the same header and footer; their own title bars stay underneath as plain rows (`useInStoreChrome`), so the
+      structure scan lists them under Page. Style › Header & announcement bar › **Show the shop header & footer on
+      wishlist, account, order tracking and missing pages** (`showStoreChromeOnUtilityPages`, default on) turns that
+      off. Checkout keeps its minimal `checkoutHeader`. Parity: `storeChrome.parity.test.tsx` compares every Studio
+      hook, link and aria label against `__fixtures__/storeChromeHooks.json`, recorded from the replaced
+      implementations (identical except one added `aria-label` on the shop's desktop category bar), and fails if any
+      other file renders the navigation header or footer panel. Also fixed `useNavFit`: it measured the full-row
+      bar box instead of the links, shrinking them ~1% per font load/resize even with room (`naturalNavWidth`).
+- [ ] 2.2 Header/footer/popup section groups.
 - [ ] 2.3 Pickers (link, book, category, page, video, font) + catalog sources. - [ ] 2.4 Media library + responsive images.
 - [ ] 2.5 Colour schemes 2.0. - [ ] 2.6 Section library 2.0 + new sections.
 - [ ] 2.7 Custom book fields + dynamic sources. - [ ] 2.8 Alternate templates. - [ ] 2.9 Product information as blocks.

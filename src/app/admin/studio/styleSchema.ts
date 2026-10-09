@@ -248,6 +248,7 @@ export const STYLE_GROUPS: StyleGroup[] = [
       { key: "announcementSpeed", label: "Ticker speed (seconds per loop)", kind: "range", min: 5, max: 90, step: 1 },
       { key: "navStyle", label: "Nav link style", kind: "select", options: [{ value: "default", label: "Plain" }, { value: "stickers", label: "Sticker pills" }] },
       { key: "showMobileNavigation", label: "Show phone navigation", kind: "toggle", defaultValue: true },
+      { key: "showStoreChromeOnUtilityPages", label: "Show the shop header & footer on wishlist, account, order tracking and missing pages", kind: "toggle", defaultValue: true },
       { key: "hideHeaderSearch", label: "Hide search icon", kind: "toggle" },
       { key: "hideHeaderWishlist", label: "Hide wishlist (heart) icon", kind: "toggle" },
       { key: "hideHeaderAccount", label: "Hide account icon", kind: "toggle" },

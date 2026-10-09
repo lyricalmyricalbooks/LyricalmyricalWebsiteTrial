@@ -298,6 +298,18 @@ await check("a Studio link opens the right page and tool", desktop, async page =
   if (pressed !== "true") throw new Error("the link did not open Theme settings");
 }, "#designer?b=paper-weather&tab=style");
 
+await check("the wishlist page shows the one shop header and footer, listed in Page layout", desktop, async page => {
+  await expectText(page, "Preview connected", 30000);
+  const frame = page.frameLocator("iframe").first();
+  await frame.locator("header[data-section=navigation] [data-studio-label='Category bar']").first().waitFor({ state: "attached", timeout: 15000 });
+  await frame.locator("footer[data-studio-label='Footer']").waitFor({ state: "attached", timeout: 5000 });
+  // The wishlist's own title bar sits under the shop header as a plain row, not a second <header>.
+  if (await frame.locator("header [data-store-region=wishlistHeader], header[data-store-region=wishlistHeader]").count()) throw new Error("the wishlist bar is still a header");
+  const panel = page.locator(".studio-structure");
+  await panel.locator("summary", { hasText: "Header" }).click();
+  await panel.getByRole("button", { name: /^Logo/ }).first().waitFor({ timeout: 15000 });
+}, "#designer?t=wishlistPage");
+
 await check("phone-sized editor loads without errors", { width: 390, height: 844 }, async page => {
   await page.waitForTimeout(1500);
   const overflow = await page.evaluate(() => document.documentElement.scrollWidth - window.innerWidth);

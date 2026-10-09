@@ -13,6 +13,7 @@ import { adminApi } from "../../admin/api";
 import { functionUrl, functionFetch } from "../../lib/functionsBase";
 import { useCurrency } from "../../CurrencyContext";
 import { useSiteData } from "./useSiteData";
+import { StoreChrome, useInStoreChrome } from "./StoreChrome";
 import { StorefrontThemeStyle } from "./StorefrontThemeStyle";
 import { getCopy, CopyError, copyErrorText } from "./storeCopy";
 import { GlobalSections, TemplateSections } from "../../components/sectionRender";
@@ -20,7 +21,14 @@ import { orderStage, orderStep, shippingDays, stepDates } from "./orderStatus";
 import { OrderRequestBox, PrivacyRequestBox } from "./OrderRequests";
 import { waitingPreorderLines, shipDateOf, formatReleaseDate, linePreorderNote } from "./preorder";
 
+/** Order tracking, inside the one shop header and footer (Studio 2.0 · 2.1). */
 export default function OrderTracking() {
+  return <StoreChrome surface="trackingPage"><OrderTrackingContent /></StoreChrome>;
+}
+
+function OrderTrackingContent() {
+  // Under the shop header the order slip's heading is a plain block, not a second <header>.
+  const SlipHeader = useInStoreChrome() ? "div" : "header";
   const [orderIdInput, setOrderIdInput] = useState("");
   const [emailInput, setEmailInput] = useState("");
   const [order, setOrder] = useState<any>(null);
@@ -296,7 +304,7 @@ export default function OrderTracking() {
                 <ArrowLeft size={14} aria-hidden="true" /> {getCopy(settings?.design, "trackAnother")}
               </button>
 
-              <header {...regionProps("trackingSummary")} className="fm-track-card p-6 sm:p-10">
+              <SlipHeader {...regionProps("trackingSummary")} className="fm-track-card p-6 sm:p-10">
                 <div className="flex flex-col md:flex-row md:items-end justify-between gap-8">
                   <div className="min-w-0">
                     <p className="fm-track-mono mb-3">{getCopy(settings?.design, "trackFound")}</p>
@@ -314,7 +322,7 @@ export default function OrderTracking() {
                     </span>
                   </div>
                 </div>
-              </header>
+              </SlipHeader>
 
               {stage !== "active" && (
                 <div {...regionProps("trackingStatusBanner")} role="status" className="fm-track-notice" data-tone={stage === "awaiting_payment" ? "warning" : "danger"}>

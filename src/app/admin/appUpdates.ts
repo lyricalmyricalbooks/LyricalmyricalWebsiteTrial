@@ -10,6 +10,11 @@ export type AppUpdate = {
 // Newest first. Every PR adds an entry; links open the affected admin workspace.
 export const APP_UPDATES: AppUpdate[] = [
   {
+    id: "studio-2-one-header", date: "2026-10-09", title: "One header and footer on every page",
+    summary: "Your shop's header (announcement bar, logo, categories, search, wishlist, account, currency and bag) and footer are now built once and shared by every page, so a change in the Design studio shows up everywhere at the same time. The wishlist, account, order-tracking and \"page not found\" pages now show the same header and footer as the rest of the shop, with their own title bar underneath. If you'd rather keep those pages plain, switch off Theme settings › Header & announcement bar › \"Show the shop header & footer on wishlist, account, order tracking and missing pages\". Also fixed: on product and custom pages, the category links shrank slightly even when there was room; they now stay at the size you chose. Checkout keeps its own short header.",
+    links: [{ label: "Open Page layout", tab: "settings", settingsTab: "designer", studio: "#designer?tab=sections" }],
+  },
+  {
     id: "studio-2-theme-system", date: "2026-10-09", title: "Theme settings, sorted into your site's look and its parts",
     summary: "Theme settings in the Design studio now opens in three parts. \"Site-wide design\" holds what every page shares: theme presets, logo, colours, fonts, buttons, spacing and the Riso print look. \"Parts of your shop\" holds the header and footer, the shop and book pages, and the bag, checkout and account pages — each has a \"Show on page\" button that opens that page in the preview (or opens the shopping bag) and selects the part, so you can see what you're changing. Long word lists in Text & labels (Checkout, Order tracking, Customer account, Product page, Cart) are split into short sections such as \"Discount codes\" and \"Error messages\". Find anything gives shorter result lists and opens an element's setting at the screen size you're previewing.",
     links: [{ label: "Open Theme settings", tab: "settings", settingsTab: "designer", studio: "#designer?tab=style" }],
