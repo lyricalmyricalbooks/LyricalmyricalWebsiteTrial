@@ -1267,7 +1267,7 @@ export const adminApi = {
   saveDiscount: async (discount: any) => {
     const now = new Date().toISOString();
     const payload = {
-      code: (discount.code || "").toUpperCase(),
+      code: discount.method === "automatic" ? "" : (discount.code || "").toUpperCase(),
       type: discount.type || "percentage",
       value: discount.value ?? 0,
       isActive: discount.isActive ?? true,
@@ -1289,11 +1289,16 @@ export const adminApi = {
       getQuantity: discount.getQuantity ?? null,
       getDiscountValue: discount.getDiscountValue ?? null,
       tiers: discount.tiers ?? null,
+      // Automatic offers have no code (never redeemable by typing one) and a title shoppers see.
+      method: discount.method === "automatic" ? "automatic" : "code",
+      title: discount.method === "automatic" ? String(discount.title || "").trim() : "",
+      giftBookId: discount.type === "gift" ? discount.giftBookId || null : null,
+      giftVariantId: discount.type === "gift" ? discount.giftVariantId || null : null,
       createdAt: now,
       updatedAt: now,
     };
     const docRef = await addDoc(collection(db, "discounts"), payload);
-    await adminApi.recordAuditLog("campaigns", `Created campaign: ${payload.code}`);
+    await adminApi.recordAuditLog("campaigns", `Created campaign: ${payload.code || payload.title || "automatic offer"}`);
     return { id: docRef.id, ...payload };
   },
 
@@ -1307,7 +1312,7 @@ export const adminApi = {
     delete payload.usageCount;
     delete payload.createdAt;
     await updateDoc(doc(db, "discounts", id), payload);
-    await adminApi.recordAuditLog("campaigns", `Updated campaign: ${payload.code || id}`);
+    await adminApi.recordAuditLog("campaigns", `Updated campaign: ${payload.code || payload.title || id}`);
     return { id, ...payload };
   },
 
@@ -1320,6 +1325,30 @@ export const adminApi = {
     } catch (err) {
       await deleteDoc(doc(db, "discounts", id));
     }
+  },
+
+  // GIFT CARDS ───────────────────────────────────────────────────────────────
+  // Admin-readable, server-written (firestore.rules). Every change goes through the
+  // createStripeCheckoutSession giftCardAdmin action so balances and history stay consistent.
+  getGiftCards: async () => {
+    const snap = await getDocs(collection(db, "giftCards"));
+    return snap.docs.map(d => ({ id: d.id, ...d.data() })) as any[];
+  },
+  getGiftCard: async (id: string) => {
+    const snap = await getDoc(doc(db, "giftCards", id));
+    return snap.exists() ? ({ id: snap.id, ...snap.data() } as any) : null;
+  },
+  giftCardAdmin: async (op: "issue" | "setEnabled" | "adjust" | "resend", payload: Record<string, any> = {}) => {
+    const idToken = await auth.currentUser?.getIdToken();
+    if (!idToken) throw new Error("You must be signed in as admin.");
+    const response = await functionFetch("createStripeCheckoutSession", {
+      method: "POST",
+      headers: { "Content-Type": "application/json", "Authorization": `Bearer ${idToken}` },
+      body: JSON.stringify({ action: "giftCardAdmin", op, ...payload }),
+    });
+    const result = await response.json().catch(() => ({}));
+    if (!response.ok) throw new Error(result.error || "The gift card couldn't be updated.");
+    return result as { ok?: boolean; id?: string; code?: string; last4?: string; balanceMinor?: number; emailError?: string };
   },
 
   validateDiscount: async (code: string) => {

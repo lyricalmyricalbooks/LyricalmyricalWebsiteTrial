@@ -46,10 +46,12 @@ import { studioHash } from "../lib/studioLocation";
 
 import { BookSeoPane } from "./BookSeoPane";
 import { preorderActive, releaseDateOf, formatReleaseDate } from "../features/site/preorder";
+import { AddOnsEditor, BoxSetEditor, ProductTypeCard, SaleWindowFields } from "./BookEditorExtras";
+import { addOnProblems, bundleProblems, giftCardProblems, isBoxSet, isGiftCardProduct, productForSave, saleStatus, saleWindowProblem } from "./productExtras";
 
 const MAX_BOOK_PHOTOS = 20;
 
-type BookTab = "details" | "media" | "pricing" | "inventory" | "editions" | "organize" | "seo";
+type BookTab = "details" | "media" | "pricing" | "inventory" | "editions" | "addons" | "boxset" | "organize" | "seo";
 
 function SortablePhoto({ photo, index, onRemove, onAlt, onMakeCover }: {
   photo: any; index: number; onRemove: (id: string) => void; onAlt: (id: string, alt: string) => void; onMakeCover: (id: string) => void;
@@ -123,6 +125,10 @@ export function BookEditor({ book, onClose, onSave }: BookEditorProps) {
     preorder: false,
     metaTitle: "",
     metaDescription: "",
+    saleStartsAt: "",
+    saleEndsAt: "",
+    addOns: [],
+    bundleItems: [],
   });
 
   const [publishReview, setPublishReview] = useState(false);
@@ -151,6 +157,8 @@ export function BookEditor({ book, onClose, onSave }: BookEditorProps) {
   const [newCategoryParent, setNewCategoryParent] = useState("");
   const [savingCategory, setSavingCategory] = useState(false);
   const saveRef = useRef<() => void>(() => {});
+  // Box set switch: on while the owner is choosing the books, even before the first is added.
+  const [boxSetOn, setBoxSetOn] = useState(false);
 
   const sensors = useSensors(
     useSensor(PointerSensor, { activationConstraint: { distance: 5 } }),
@@ -214,6 +222,8 @@ export function BookEditor({ book, onClose, onSave }: BookEditorProps) {
         preorder: false,
         metaTitle: "",
         metaDescription: "",
+        saleStartsAt: "",
+        saleEndsAt: "",
       };
 
       const dataToLoad = {
@@ -223,6 +233,8 @@ export function BookEditor({ book, onClose, onSave }: BookEditorProps) {
         variants: Array.isArray(book.variants) ? book.variants : [],
         categories: Array.isArray(book.categories) ? book.categories : [],
         tags: Array.isArray((book as any).tags) ? (book as any).tags : [],
+        addOns: Array.isArray((book as any).addOns) ? (book as any).addOns : [],
+        bundleItems: Array.isArray((book as any).bundleItems) ? (book as any).bundleItems : [],
       };
       // Sanitize through JSON round-trip to strip any non-serializable Firebase
       // SDK internals (e.g. PlatformLoggerServiceImpl) that Firestore may attach
@@ -231,6 +243,7 @@ export function BookEditor({ book, onClose, onSave }: BookEditorProps) {
       const safeData = JSON.parse(JSON.stringify(dataToLoad));
       setFormData(safeData);
       setInitialData(JSON.parse(JSON.stringify(safeData)));
+      setBoxSetOn(isBoxSet(safeData));
     } else {
       // Set initial data for new books to current empty formData state
       setInitialData(JSON.parse(JSON.stringify(formData)));
@@ -434,6 +447,12 @@ export function BookEditor({ book, onClose, onSave }: BookEditorProps) {
       const p = v?.price;
       if (p === "" || p == null || !Number.isFinite(Number(p)) || Number(p) < 0) problems.push(`Edition ${v?.name || i + 1} needs a price (0 or more).`);
     });
+    const giftCard = isGiftCardProduct(formData);
+    const boxSet = !giftCard && isBoxSet(formData);
+    if (formData.isOnSale && !giftCard) { const sale = saleWindowProblem(formData); if (sale) problems.push(sale); }
+    if (giftCard) problems.push(...giftCardProblems(formData));
+    else if (boxSet) problems.push(...bundleProblems({ ...formData, id: book?.id }, (id) => recommendationCatalog.find((b: any) => b.id === id)));
+    else problems.push(...addOnProblems(formData.addOns || []));
     if (formData.manualCurrencyOverrides) {
       if (formData.usdPrice < 0 || formData.eurPrice < 0) problems.push("Override prices cannot be negative.");
       if (formData.costPrice < 0 || formData.usdCostPrice < 0 || formData.eurCostPrice < 0) problems.push("Cost prices cannot be negative.");
@@ -446,11 +465,13 @@ export function BookEditor({ book, onClose, onSave }: BookEditorProps) {
     }
 
     if (formData.status === "published" && !reviewed) { setPublishReview(true); return; }
+    // Gift cards are digital and untracked; box sets take stock from the books inside (productExtras).
+    const toSave = productForSave(formData);
     setLoading(true);
     try {
       if (book) {
         // Pass what the editor loaded so untouched stock keeps its live value.
-        await adminApi.updateBook(book.id, formData, initialData);
+        await adminApi.updateBook(book.id, toSave, initialData);
         toast.success("Book updated successfully");
         // Pre-order switch or release date changed: paid, unsent pre-orders follow the new date.
         if (!!(book as any).preorder !== !!formData.preorder || ((book as any).preorder || formData.preorder) && String((book as any).publishDate || "") !== String(formData.publishDate || "")) {
@@ -462,10 +483,11 @@ export function BookEditor({ book, onClose, onSave }: BookEditorProps) {
           }
         }
       } else {
-        await adminApi.createBook(formData);
+        await adminApi.createBook(toSave);
         toast.success("New title added to library");
       }
-      setInitialData(formData);
+      setFormData(toSave);
+      setInitialData(toSave);
       onSave();
     } catch (err: any) {
       console.error("Save error details:", err);
@@ -658,13 +680,34 @@ export function BookEditor({ book, onClose, onSave }: BookEditorProps) {
   };
 
   const set = (name: string, value: any) => setFormData((prev: any) => ({ ...prev, [name]: value }));
+  const giftCard = isGiftCardProduct(formData);
+  const giftAmount = (n: number) => ({
+    id: crypto.randomUUID(), name: `CA$${n}`, price: n,
+    usdPrice: Number((n * (rates.USD || 0.73)).toFixed(2)), eurPrice: Number((n * (rates.EUR || 0.67)).toFixed(2)),
+    stock: 0, stockLevel: 0, photoUrl: "", sku: "", weight: "", digital: true,
+  });
+  // Switching type only changes what the editor shows; nothing is discarded until the book is saved.
+  const setProductType = (type: "book" | "giftCard") => setFormData((prev: any) => {
+    if (type === "giftCard") {
+      return { ...prev, productType: "giftCard", trackInventory: false, variants: (prev.variants || []).length ? prev.variants : [25, 50, 100].map(giftAmount) };
+    }
+    const next = { ...prev };
+    delete next.productType;
+    return next;
+  });
+  const toggleBoxSet = (on: boolean) => {
+    setBoxSetOn(on);
+    if (!on) set("bundleItems", []);
+  };
   const slugify = (s: string) => s.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "");
   const num = (n: any) => Number(n) || 0;
   const fmt = (n: any) => num(n).toFixed(2);
   const overrides = !!formData.manualCurrencyOverrides;
   const hasVariants = (formData.variants || []).length > 0;
   const isDigital = ["E-book (PDF)", "E-book (EPUB)", "Audiobook"].includes(formData.format);
-  const activePrice = formData.isOnSale && num(formData.salePrice) > 0 ? num(formData.salePrice) : num(formData.retailPrice);
+  // The price shoppers pay today: a scheduled sale that hasn't started (or has ended) doesn't count.
+  const saleNow = saleStatus(formData) === "on";
+  const activePrice = saleNow ? num(formData.salePrice) : num(formData.retailPrice);
   const marginPct = activePrice > 0 ? ((activePrice - num(formData.costPrice)) / activePrice) * 100 : 0;
   const salePct = formData.isOnSale && num(formData.retailPrice) > 0 ? Math.round((1 - num(formData.salePrice) / num(formData.retailPrice)) * 100) : 0;
   const cover = formData.photos?.[0]?.url as string | undefined;
@@ -682,17 +725,21 @@ export function BookEditor({ book, onClose, onSave }: BookEditorProps) {
     { label: "Search description", ok: !!formData.metaDescription, tab: "seo" as BookTab },
   ];
   const doneCount = checklist.filter((c) => c.ok).length;
-  const tabIssues: Record<BookTab, number> = { details: 0, media: 0, pricing: 0, inventory: 0, editions: 0, organize: 0, seo: 0 };
+  const tabIssues: Record<BookTab, number> = { details: 0, media: 0, pricing: 0, inventory: 0, editions: 0, addons: 0, boxset: 0, organize: 0, seo: 0 };
   checklist.filter((c) => !c.ok).forEach((c) => { tabIssues[c.tab] += 1; });
   const tabs: Array<{ id: BookTab; label: string; count?: number }> = [
     { id: "details", label: "Details", count: tabIssues.details || undefined },
     { id: "media", label: "Images", count: (formData.photos || []).length },
     { id: "pricing", label: "Pricing", count: tabIssues.pricing || undefined },
     { id: "inventory", label: "Inventory & shipping" },
-    { id: "editions", label: "Editions", count: (formData.variants || []).length },
+    { id: "editions", label: giftCard ? "Amounts" : "Editions", count: (formData.variants || []).length },
+    // Gift cards never carry add-ons or box-set parts; box sets don't offer add-ons.
+    ...(!giftCard && !boxSetOn ? [{ id: "addons" as BookTab, label: "Add-ons", count: (formData.addOns || []).length || undefined }] : []),
+    ...(!giftCard ? [{ id: "boxset" as BookTab, label: "Box set", count: boxSetOn ? (formData.bundleItems || []).length : undefined }] : []),
     { id: "organize", label: "Categories & tags", count: tabIssues.organize || undefined },
     { id: "seo", label: "Search (SEO)", count: tabIssues.seo || undefined },
   ];
+  const shownTab: BookTab = tabs.some((t) => t.id === tab) ? tab : "details";
   const statusTone = formData.status === "published" ? "success" : formData.status === "archived" ? "neutral" : "warning";
 
   const money = (label: string, name: string, symbol: string, opts: { disabled?: boolean; hint?: string } = {}) => (
@@ -755,13 +802,14 @@ export function BookEditor({ book, onClose, onSave }: BookEditorProps) {
         onConfirm={() => { setConfirmDiscard(false); onClose(); }} onCancel={() => setConfirmDiscard(false)} />
 
       <div className="be-tabbar shrink-0">
-        <Tabs label="Book editor sections" tabs={tabs} value={tab} onChange={setTab} />
+        <Tabs label="Book editor sections" tabs={tabs} value={shownTab} onChange={setTab} />
       </div>
 
       <div className="be-body custom-scrollbar flex-1">
         <form className="be-main" onSubmit={(e) => { e.preventDefault(); handleSave(); }}>
-          {tab === "details" && (
+          {shownTab === "details" && (
             <>
+              <ProductTypeCard form={formData} onChange={setProductType} />
               <SectionCard title="Book details" description="The essentials shoppers see first.">
                 <div className="be-grid">
                   <div className="be-span-2"><TextField label="Book title" name="title" value={formData.title} onChange={handleChange} placeholder="e.g. Find Still Catches Me Shifted" required /></div>
@@ -797,14 +845,14 @@ export function BookEditor({ book, onClose, onSave }: BookEditorProps) {
                   <TextField label="Publication date" type="date" name="publishDate" value={formData.publishDate || ""} onChange={handleChange} />
                   <TextField label="Page count" type="number" min={0} name="pageCount" value={formData.pageCount ?? 0} onChange={handleChange} />
                   <TextField label="Language" name="language" value={formData.language || ""} onChange={handleChange} placeholder="English" />
-                  <TextField label="Dimensions" name="dimensions" value={formData.dimensions || ""} onChange={handleChange} placeholder="6 x 9 in" />
-                  <TextField label="Weight" name="weight" value={formData.weight || ""} onChange={handleChange} placeholder="450 g" hint="Used for weight-based shipping." />
+                  {!giftCard && <TextField label="Dimensions" name="dimensions" value={formData.dimensions || ""} onChange={handleChange} placeholder="6 x 9 in" />}
+                  {!giftCard && <TextField label="Weight" name="weight" value={formData.weight || ""} onChange={handleChange} placeholder="450 g" hint={boxSetOn ? "Used for weight-based shipping. Leave blank to use the books inside added together." : "Used for weight-based shipping."} />}
                 </div>
               </SectionCard>
             </>
           )}
 
-          {tab === "media" && (
+          {shownTab === "media" && (
             <SectionCard title="Book images" description="Use genuine cover and interior photographs. Drag the ⠿ handle to reorder; the first image is the cover shown in the shop and search."
               actions={<button type="button" className="rp-btn rp-btn-secondary rp-btn-sm" onClick={() => fileInputRef.current?.click()} disabled={uploading || formData.photos.length >= MAX_BOOK_PHOTOS}><Upload size={14} aria-hidden /> Upload images</button>}>
               <div className={`be-drop ${dragOver ? "is-over" : ""}`}
@@ -839,7 +887,12 @@ export function BookEditor({ book, onClose, onSave }: BookEditorProps) {
             </SectionCard>
           )}
 
-          {tab === "pricing" && (
+          {shownTab === "pricing" && giftCard && (
+            <SectionCard title="Price" description="A gift card's prices are its amounts. Set them on the Amounts tab — each one is both what the shopper pays and what the card is worth. Gift cards are never taxed, discounted or put on sale.">
+              <button type="button" className="rp-btn rp-btn-secondary rp-btn-sm" onClick={() => setTab("editions")}>Go to Amounts</button>
+            </SectionCard>
+          )}
+          {shownTab === "pricing" && !giftCard && (
             <>
               <SectionCard title="Price" description="Enter the CAD price. Shoppers who pick USD or EUR see, and are charged, the CAD price converted at today's exchange rate. The USD/EUR figures below are for your reference only.">
                 <div className="be-toggles"><Toggle label="Edit reference USD & EUR prices" checked={overrides} onChange={(v) => set("manualCurrencyOverrides", v)} /></div>
@@ -858,7 +911,7 @@ export function BookEditor({ book, onClose, onSave }: BookEditorProps) {
                 </div>
                 {activePrice > 0 && num(formData.costPrice) > activePrice && <p className="be-warn" role="status">⚠ Cost is higher than the selling price — you'd lose money on each copy.</p>}
               </SectionCard>
-              <SectionCard title="Sale pricing" description="Show a struck-through original price with a discounted one.">
+              <SectionCard title="Sale pricing" description="Show a struck-through original price with a discounted one — now, or between the dates you choose.">
                 <Toggle label="This book is on sale" checked={!!formData.isOnSale} onChange={(v) => set("isOnSale", v)} />
                 {formData.isOnSale && (
                   <>
@@ -874,14 +927,24 @@ export function BookEditor({ book, onClose, onSave }: BookEditorProps) {
                       {salePct > 0 && <StatusBadge tone="success">{salePct}% off</StatusBadge>}
                     </div>
                     {num(formData.salePrice) >= num(formData.retailPrice) && <p className="be-warn" role="status">⚠ The sale price isn't lower than the regular price.</p>}
+                    <SaleWindowFields form={formData} set={set} />
                   </>
                 )}
               </SectionCard>
             </>
           )}
 
-          {tab === "inventory" && (
+          {shownTab === "inventory" && (
             <>
+              {giftCard ? (
+                <SectionCard title="Inventory" description="Gift cards have no stock limit. Each one bought creates a new code that is emailed straight away, so there is nothing to ship or count." >
+                  <p className="be-note">Inventory tracking is off for gift cards.</p>
+                </SectionCard>
+              ) : boxSetOn ? (
+                <SectionCard title="Inventory" description="A box set has no stock of its own. Each set sold takes copies from the books inside it (Box set tab), so it sells out when any of them does.">
+                  <button type="button" className="rp-btn rp-btn-secondary rp-btn-sm" onClick={() => setTab("boxset")}>Go to Box set</button>
+                </SectionCard>
+              ) : (
               <SectionCard title="Inventory" description={hasVariants ? "Stock is totalled from your editions." : "Track how many copies you have."}>
                 <div className="be-toggles">
                   <Toggle label="Track inventory (decrement stock on each sale)" checked={!!formData.trackInventory} onChange={(v) => set("trackInventory", v)} />
@@ -894,7 +957,8 @@ export function BookEditor({ book, onClose, onSave }: BookEditorProps) {
                 </div>
                 {lowStock && <p className="be-warn" role="status">⚠ Low stock. Consider reprinting or turning on backorders.</p>}
               </SectionCard>
-              <SectionCard title="Pre-order" description="Sell this book before it comes out. On its publication date it becomes a normal book by itself.">
+              )}
+              {!giftCard && <SectionCard title="Pre-order" description="Sell this book before it comes out. On its publication date it becomes a normal book by itself.">
                 <div className="be-toggles">
                   <Toggle label="Take pre-orders until the publication date" checked={!!formData.preorder} onChange={(v) => set("preorder", v)} />
                 </div>
@@ -916,12 +980,12 @@ export function BookEditor({ book, onClose, onSave }: BookEditorProps) {
                     {formData.scheduleDate && String(formData.scheduleDate) > new Date().toISOString() && <p className="be-warn" role="status">⚠ This book is scheduled to appear later, so shoppers can't pre-order it until then. Clear the schedule to open pre-orders now.</p>}
                   </>
                 )}
-              </SectionCard>
-              <SectionCard title="Shipping & visibility">
+              </SectionCard>}
+              <SectionCard title={giftCard ? "Visibility" : "Shipping & visibility"}>
                 <div className="be-grid">
-                  <SelectField label="Shipping profile" name="shippingProfileId" value={formData.shippingProfileId} onChange={handleChange}>
+                  {!giftCard && <SelectField label="Shipping profile" name="shippingProfileId" value={formData.shippingProfileId} onChange={handleChange}>
                     {shippingProfiles.map((p) => <option key={p.id} value={p.id}>{p.name}</option>)}
-                  </SelectField>
+                  </SelectField>}
                   <SelectField label="Status" name="status" value={formData.status} onChange={handleChange} hint="Only Published books appear in the shop.">
                     <option value="draft">Draft</option>
                     <option value="published">Published</option>
@@ -931,7 +995,7 @@ export function BookEditor({ book, onClose, onSave }: BookEditorProps) {
                   <div className="be-toggles be-self-end"><Toggle label="Featured on the homepage" checked={!!formData.isFeatured} onChange={(v) => set("isFeatured", v)} /></div>
                 </div>
               </SectionCard>
-              {isDigital && (
+              {isDigital && !giftCard && (
                 <SectionCard title="Secure digital file" description="Stored securely and delivered to paying customers only.">
                   {formData.digitalFileName ? (
                     <div className="be-file">
@@ -952,19 +1016,37 @@ export function BookEditor({ book, onClose, onSave }: BookEditorProps) {
             </>
           )}
 
-          {tab === "editions" && (
-            <SectionCard title="Editions & pricing" description="Sell multiple formats or special editions of the same book. Base price and stock are replaced by these."
-              actions={<button type="button" onClick={addVariant} className="rp-btn rp-btn-primary rp-btn-sm"><Plus size={14} aria-hidden /> Add edition</button>}>
-              {!hasVariants && <p className="be-note">No special editions. The base price and stock on the Pricing and Inventory tabs apply.</p>}
+          {shownTab === "editions" && (
+            <SectionCard title={giftCard ? "Gift card amounts" : "Editions & pricing"}
+              description={giftCard ? "Each edition is an amount, e.g. CA$25. Shoppers pick one; the card is worth what they pay. Every amount must be more than $0." : "Sell multiple formats or special editions of the same book. Base price and stock are replaced by these."}
+              actions={<button type="button" onClick={giftCard ? () => set("variants", [...(formData.variants || []), { ...giftAmount(0), name: "", price: "" }]) : addVariant} className="rp-btn rp-btn-primary rp-btn-sm"><Plus size={14} aria-hidden /> {giftCard ? "Add amount" : "Add edition"}</button>}>
+              {giftCard && (
+                <div className="be-inline-actions" role="group" aria-label="Quick add amounts">
+                  <span className="be-label-xs">Quick add:</span>
+                  {[10, 25, 50, 100].map((n) => (
+                    <button key={n} type="button" className="rp-btn rp-btn-secondary rp-btn-sm"
+                      disabled={(formData.variants || []).some((v: any) => num(v.price) === n)}
+                      onClick={() => set("variants", [...(formData.variants || []), giftAmount(n)])}><Plus size={13} aria-hidden /> CA${n}</button>
+                  ))}
+                </div>
+              )}
+              {!hasVariants && <p className="be-note">{giftCard ? "No amounts yet. Add at least one." : "No special editions. The base price and stock on the Pricing and Inventory tabs apply."}</p>}
               <div className="be-variants">
                 {(formData.variants || []).map((v: Variant, i: number) => (
                   <fieldset key={v.id} className="be-variant">
-                    <legend>Edition {i + 1}{v.name ? ` — ${v.name}` : ""}</legend>
+                    <legend>{giftCard ? "Amount" : "Edition"} {i + 1}{v.name ? ` — ${v.name}` : ""}</legend>
                     <div className="be-variant-tools">
-                      {stockBadge(num(v.stock))}
+                      {!giftCard && stockBadge(num(v.stock))}
                       <button type="button" className="rp-btn rp-btn-ghost rp-btn-sm" onClick={() => duplicateVariant(v.id)}><Copy size={13} aria-hidden /> Duplicate</button>
-                      <button type="button" className="rp-btn rp-btn-ghost rp-btn-sm" onClick={() => removeVariant(v.id)} aria-label={`Remove edition ${v.name || i + 1}`}><Trash2 size={13} aria-hidden /> Remove</button>
+                      <button type="button" className="rp-btn rp-btn-ghost rp-btn-sm" onClick={() => removeVariant(v.id)} aria-label={`Remove ${giftCard ? "amount" : "edition"} ${v.name || i + 1}`}><Trash2 size={13} aria-hidden /> Remove</button>
                     </div>
+                    {giftCard ? (
+                    <div className="be-grid be-grid-3">
+                      <TextField label="Amount name" placeholder="e.g. CA$25" value={v.name} onChange={(e) => updateVariant(v.id, "name", e.target.value)} hint="What shoppers see in the amount picker." />
+                      <TextField label="Amount (CA$)" type="number" min={1} step="0.01" value={v.price} onChange={(e) => updateVariant(v.id, "price", e.target.value === "" ? "" : Number(e.target.value))} />
+                      <TextField label="SKU" value={v.sku || ""} onChange={(e) => updateVariant(v.id, "sku", e.target.value)} />
+                    </div>
+                    ) : (
                     <div className="be-grid be-grid-4">
                       <div className="be-span-2"><TextField label="Edition name" placeholder="e.g. Signed Collector's Copy" value={v.name} onChange={(e) => updateVariant(v.id, "name", e.target.value)} /></div>
                       <TextField label="SKU" value={v.sku || ""} onChange={(e) => updateVariant(v.id, "sku", e.target.value)} />
@@ -974,6 +1056,7 @@ export function BookEditor({ book, onClose, onSave }: BookEditorProps) {
                       <TextField label="Price (EUR)" type="number" min={0} step="0.01" disabled={!overrides} value={(v as any).eurPrice ?? 0} onChange={(e) => updateVariant(v.id, "eurPrice", Number(e.target.value))} />
                       <TextField label="Stock" type="number" min={0} value={v.stock} onChange={(e) => updateVariant(v.id, "stock", Number(e.target.value))} />
                     </div>
+                    )}
                     <div className="be-variant-img">
                       {v.photoUrl && <img src={v.photoUrl} alt="" />}
                       <SelectField label="Edition image" value={v.photoUrl || ""} onChange={(e) => updateVariant(v.id, "photoUrl", e.target.value)}>
@@ -987,7 +1070,13 @@ export function BookEditor({ book, onClose, onSave }: BookEditorProps) {
             </SectionCard>
           )}
 
-          {tab === "organize" && (
+          {shownTab === "addons" && <AddOnsEditor form={formData} set={set} />}
+
+          {shownTab === "boxset" && (
+            <BoxSetEditor form={formData} set={set} bookId={book?.id} catalog={recommendationCatalog} catalogError={recommendationError} on={boxSetOn} onToggle={toggleBoxSet} />
+          )}
+
+          {shownTab === "organize" && (
             <>
             <SectionCard title="Categories & tags" description="Categories build the shop menus — pick every one this book belongs in. New categories created here are published to the shop and added to Design › Menus automatically. Tags power search.">
               <div className="be-chips" role="group" aria-label="Categories">
@@ -1067,7 +1156,7 @@ export function BookEditor({ book, onClose, onSave }: BookEditorProps) {
             </>
           )}
 
-          {tab === "seo" && (
+          {shownTab === "seo" && (
             <BookSeoPane book={formData} onChange={set} />
           )}
         </form>
@@ -1079,11 +1168,16 @@ export function BookEditor({ book, onClose, onSave }: BookEditorProps) {
             <p className="be-rail-title">{formData.title?.trim() || "Untitled book"}</p>
             <p className="be-rail-sub">{formData.subtitle || "—"}</p>
             <div className="be-rail-price">
-              {formData.isOnSale && num(formData.salePrice) > 0 && <s>${fmt(formData.retailPrice)}</s>}
-              <strong>${fmt(activePrice)}</strong> <span>CAD</span>
+              {giftCard ? (() => {
+                const amounts = (formData.variants || []).map((v: any) => num(v.price)).filter((n: number) => n > 0);
+                return <><strong>{amounts.length ? `$${fmt(Math.min(...amounts))}${amounts.length > 1 ? `–${fmt(Math.max(...amounts))}` : ""}` : "No amounts"}</strong> <span>CAD</span></>;
+              })() : <>
+                {saleNow && <s>${fmt(formData.retailPrice)}</s>}
+                <strong>${fmt(activePrice)}</strong> <span>CAD</span>
+              </>}
             </div>
             <div className="be-rail-row"><span>Format</span><b>{formData.format}</b></div>
-            <div className="be-rail-row"><span>Stock</span><b>{formData.trackInventory ? num(formData.stockLevel) : "Not tracked"}</b></div>
+            <div className="be-rail-row"><span>{giftCard ? "Type" : "Stock"}</span><b>{giftCard ? "Gift card" : boxSetOn ? "From the books inside" : formData.trackInventory ? num(formData.stockLevel) : "Not tracked"}</b></div>
             <SelectField label="Status" name="status" value={formData.status} onChange={handleChange}>
               <option value="draft">Draft</option>
               <option value="published">Published</option>

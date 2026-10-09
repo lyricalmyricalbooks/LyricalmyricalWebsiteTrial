@@ -1,5 +1,5 @@
 import {
-  BookOpen, Settings, Inbox, LayoutDashboard, Tag, BadgePercent, ShoppingCart, Users, Boxes,
+  BookOpen, Settings, Inbox, LayoutDashboard, Tag, BadgePercent, ShoppingCart, Users, Boxes, Gift,
 } from "lucide-react";
 import type { NavEntry } from "./components";
 
@@ -10,6 +10,7 @@ export const NAV: NavEntry[] = [
   { id: "inventory", label: "Inventory", icon: Boxes },
   { id: "catalog", label: "Books", icon: BookOpen },
   { id: "discounts", label: "Discounts", icon: Tag },
+  { id: "giftCards", label: "Gift cards", icon: Gift },
   { id: "reviews", label: "Reviews", icon: BadgePercent },
   { id: "messages", label: "Messages", icon: Inbox },
   { id: "settings", label: "Settings", icon: Settings, children: [
@@ -28,6 +29,7 @@ export const PAGE_COPY: Record<string, { title: string; description: string }> =
   inventory: { title: "Inventory", description: "Stock on hand, low-stock and reprint alerts, and quick count corrections." },
   catalog: { title: "Books", description: "Manage titles, pricing, formats, and inventory." },
   discounts: { title: "Discounts", description: "Create and schedule discount codes and automatic offers." },
+  giftCards: { title: "Gift cards", description: "Gift cards shoppers bought and ones you issued: balances, history and resending codes." },
   reviews: { title: "Reviews", description: "Moderate customer reviews before they appear on the storefront." },
   messages: { title: "Messages", description: "Messages people send you from the contact form on your website." },
   settings: { title: "Settings", description: "Store identity, shipping, payments, design, and notifications." },

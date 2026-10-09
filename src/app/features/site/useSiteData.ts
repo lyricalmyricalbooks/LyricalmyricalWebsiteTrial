@@ -13,6 +13,7 @@ import { RISO_NOIR_TOKENS, withRisoNoirDefault } from "./risoNoir";
 import { setSiteIdentity } from "../../lib/seo";
 import { applyCustomCode } from "./customCode";
 import { applyBackorderPolicy } from "./backorder";
+import { withBundleStock } from "./bundleStock";
 import { resolveProductRoutes } from "./productRoutes";
 import { loadCatalog, newestFirst } from "./loadCatalog";
 
@@ -201,7 +202,8 @@ export function useSiteData() {
   const sellableBooks = useMemo(() => {
     const now = new Date().toISOString();
     const visible = studioPreview ? books : books.filter(book => isLiveBook(book as any, now));
-    return resolveProductRoutes(visible).map(applyBackorderPolicy);
+    // Box sets show the stock their books allow (parts are read from the whole catalog, drafts included, like the server).
+    return resolveProductRoutes(withBundleStock(visible, books)).map(applyBackorderPolicy);
   }, [books, studioPreview]);
 
   return { books: sellableBooks, settings: { ...settings, design: resolveSurfaceDesign(settings.design, location.pathname) }, pages, loading, fresh };

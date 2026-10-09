@@ -45,6 +45,7 @@ type NotificationSettings = {
   customer_welcome: TemplateFields;
   delivery_update: TemplateFields;
   contact_reply: TemplateFields;
+  gift_card: TemplateFields;
 };
 
 const DEFAULT_SETTINGS: NotificationSettings = {
@@ -110,6 +111,13 @@ const DEFAULT_SETTINGS: NotificationSettings = {
     signoff: "Warmly,\nThe Lyricalmyrical Team",
     enabled: true
   },
+  gift_card: {
+    subject: "You've received a {{amount}} gift card",
+    body: "Hi {{recipient_name}},\n\n{{sender_name}} sent you a {{amount}} gift card for Lyricalmyrical Books.\n\n{{message}}\n\nYour gift card code: {{code}}\n\nEnter this code at checkout to use it. Any balance left over stays on the card for next time. {{expires}}",
+    buttonText: "Shop now",
+    signoff: "Happy reading,\nThe Lyricalmyrical Team",
+    enabled: true
+  },
   delivery_update: {
     subject: "Delivery Update: Your order is {{status}}",
     body: "Hi {{customer_name}},\n\nYour package tracking status has been updated: {{status}}.\n\nCarrier: {{tracking_carrier}}\nTracking: {{tracking_number}}",
@@ -128,7 +136,8 @@ const TABS = [
   { id: "order_refunded", label: "Order Refunded" },
   { id: "customer_welcome", label: "Welcome" },
   { id: "delivery_update", label: "Delivery" },
-  { id: "contact_reply", label: "Message received" }
+  { id: "contact_reply", label: "Message received" },
+  { id: "gift_card", label: "Gift card" }
 ] as const;
 
 function compilePreviewHtml(templateId: keyof Omit<NotificationSettings, "brand">, data: NotificationSettings) {
@@ -150,12 +159,18 @@ function compilePreviewHtml(templateId: keyof Omit<NotificationSettings, "brand"
     .replace(/\{\{email\}\}/g, "julianne.smith@gmail.com")
     .replace(/\{\{status\}\}/g, "out for delivery")
     .replace(/\{\{subject\}\}/g, "Stocking your books")
-    .replace(/\{\{message\}\}/g, "Hello! Do you sell wholesale to independent bookshops?")
+    .replace(/\{\{message\}\}/g, templateId === "gift_card" ? "Happy birthday! Enjoy something new to read." : "Hello! Do you sell wholesale to independent bookshops?")
     .replace(/\{\{tracking_url\}\}/g, "#")
     .replace(/\{\{cart_url\}\}/g, "#")
     .replace(/\{\{order_url\}\}/g, "#")
     .replace(/\{\{shipping_method\}\}/g, "Canada Post Expedited Parcel")
     .replace(/\{\{delivery_estimate\}\}/g, "2-4 business days after dispatch")
+    .replace(/\{\{recipient_name\}\}/g, "Sam")
+    .replace(/\{\{sender_name\}\}/g, "Julianne")
+    .replace(/\{\{amount\}\}/g, "CA$50.00")
+    .replace(/\{\{code\}\}/g, "ABCD-EFGH-JKMN-PQRS")
+    .replace(/\{\{expires\}\}/g, "It never expires.")
+    .replace(/\{\{shop_url\}\}/g, "#")
     .replace(/\n/g, "<br/>");
 
   const ctaButtonHtml = buttonText ? risoButton("#", buttonText, brandColor, brand.emailTheme) : "";
@@ -204,7 +219,7 @@ export function NotificationEditor() {
   const [saving, setSaving] = useState(false);
   const [original, setOriginal] = useState("");
   const [resendDraft, setResendDraft] = useState("");
-  const [group, setGroup] = useState<"orders" | "cart" | "account" | "contact">("orders");
+  const [group, setGroup] = useState<"orders" | "cart" | "account" | "contact" | "giftCards">("orders");
   
   // Test Email states
   const [testEmail, setTestEmail] = useState("");
@@ -251,7 +266,8 @@ export function NotificationEditor() {
           order_refunded: { ...DEFAULT_SETTINGS.order_refunded, ...(dbData.order_refunded || {}) },
           customer_welcome: { ...DEFAULT_SETTINGS.customer_welcome, ...(dbData.customer_welcome || {}) },
           delivery_update: { ...DEFAULT_SETTINGS.delivery_update, ...(dbData.delivery_update || {}) },
-          contact_reply: { ...DEFAULT_SETTINGS.contact_reply, ...(dbData.contact_reply || {}) }
+          contact_reply: { ...DEFAULT_SETTINGS.contact_reply, ...(dbData.contact_reply || {}) },
+          gift_card: { ...DEFAULT_SETTINGS.gift_card, ...(dbData.gift_card || {}) }
         };
         if (dbData.brand?.resendApiKey || dbData.resendApiKey) {
           // Older saves left the key in the public doc: move it to adminSecrets now.
@@ -382,7 +398,8 @@ export function NotificationEditor() {
     order_refunded: ["{{customer_name}}", "{{order_id}}", "{{total_price}}"],
     customer_welcome: ["{{customer_name}}", "{{email}}"],
     delivery_update: ["{{customer_name}}", "{{order_id}}", "{{status}}", "{{tracking_carrier}}", "{{tracking_number}}", "{{tracking_url}}"],
-    contact_reply: ["{{customer_name}}", "{{email}}", "{{subject}}", "{{message}}"]
+    contact_reply: ["{{customer_name}}", "{{email}}", "{{subject}}", "{{message}}"],
+    gift_card: ["{{recipient_name}}", "{{sender_name}}", "{{amount}}", "{{code}}", "{{message}}", "{{expires}}", "{{shop_url}}"]
   };
 
   if (loading) return <LoadingState label="Loading notification templates…" />;
@@ -394,15 +411,16 @@ export function NotificationEditor() {
     cart: { label: "Cart", ids: ["abandoned_cart"] },
     account: { label: "Account", ids: ["customer_welcome"] },
     contact: { label: "Contact form", ids: ["contact_reply"] },
+    giftCards: { label: "Gift cards", ids: ["gift_card"] },
   } as const;
   const groupTabs = TABS.filter((t) => (GROUPS[group].ids as readonly string[]).includes(t.id));
-  const pickGroup = (g: "orders" | "cart" | "account" | "contact") => {
+  const pickGroup = (g: "orders" | "cart" | "account" | "contact" | "giftCards") => {
     setGroup(g);
     setActiveTab(GROUPS[g].ids[0] as any);
     if (!testEmail && auth.currentUser?.email) setTestEmail(auth.currentUser.email);
   };
   const enabled = currentTemplate.enabled !== false;
-  const subjectPreview = currentTemplate.subject.replace(/\{\{order_id\}\}/g, "LM-98241").replace(/\{\{status\}\}/g, "out for delivery");
+  const subjectPreview = currentTemplate.subject.replace(/\{\{order_id\}\}/g, "LM-98241").replace(/\{\{status\}\}/g, "out for delivery").replace(/\{\{amount\}\}/g, "CA$50.00");
 
   return (
     <div className="rp-stack">

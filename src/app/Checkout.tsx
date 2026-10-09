@@ -11,7 +11,7 @@ import { useCart, catalogUnitPrice, repriceCart } from "./CartContext";
 import { amountIn, orderMoney, totalNeedsConfirming } from "./features/site/orderMoney";
 import { POLICY_KEYS, policySlug, policyTitle } from "./features/site/policyPages";
 import {
-  ChevronLeft, Tag, ShieldCheck, X, AlertCircle,
+  ChevronLeft, Tag, ShieldCheck, X, AlertCircle, CreditCard,
   Package, Truck, CheckCircle2, Loader2, Lock, Building, Check
 } from "lucide-react";
 import { m } from "motion/react";
@@ -46,6 +46,10 @@ import { loadCatalog } from "./features/site/loadCatalog";
 import { quoteLocalFulfillment } from "./features/site/localFulfillment";
 import { catalogFulfillmentItems, discountedPhysicalSubtotal, bogoPercent } from "./features/site/checkoutFulfillment";
 import { bagPreorder, linePreorderNote, formatReleaseDate } from "./features/site/preorder";
+import { discountAmountFor, discountableItems, pickAutomaticDiscount } from "./features/site/discountMath";
+import { isGiftCardProduct, bundleComponents } from "./features/site/promotions";
+import { isLiveBook } from "./features/site/liveBook";
+import { componentsSummary } from "./features/site/orderLineNotes";
 import { FulfillmentMethodPicker, bestFirst, type FulfillmentSelection } from "./features/site/FulfillmentMethodPicker";
 
 // ─── State / province drop-down for countries with a fixed list ──────────────
@@ -222,6 +226,14 @@ export function Checkout() {
   const [summaryOpen, setSummaryOpen]         = useState(false);
   const [appliedDiscount, setAppliedDiscount] = useState<any>(null);
   const [discountError, setDiscountError]     = useState("");
+  // Automatic offers (Discounts › Automatic) — the server applies the same choice when no code is used.
+  const [autoOffers, setAutoOffers] = useState<any[]>([]);
+  // Gift cards typed into checkout's "Gift card" box (balances as last checked; the server re-checks).
+  const [giftCards, setGiftCards] = useState<Array<{ code: string; last4: string; balanceMinor: number }>>([]);
+  const [giftCardOpen, setGiftCardOpen] = useState(false);
+  const [giftCardInput, setGiftCardInput] = useState("");
+  const [giftCardError, setGiftCardError] = useState("");
+  const [giftCardApplying, setGiftCardApplying] = useState(false);
   const [shippoRatesLoading, setShippoRatesLoading] = useState(false);
 
 
@@ -485,6 +497,25 @@ export function Checkout() {
   }, [catalogState, books, cart]);
 
   useEffect(() => {
+    if (catalogState !== "ready") return;
+    let cancelled = false;
+    (async () => {
+      try {
+        const res = await functionFetch("validateDiscountCode", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ action: "automaticDiscounts" }),
+        });
+        const data = res.ok ? await res.json() : null;
+        if (!cancelled && Array.isArray(data?.discounts)) setAutoOffers(data.discounts);
+      } catch {
+        // No offers shown; the server still prices the order.
+      }
+    })();
+    return () => { cancelled = true; };
+  }, [catalogState]);
+
+  useEffect(() => {
     async function detectCountry() {
       try {
         const res = await fetch("https://ipapi.co/json/");
@@ -642,6 +673,8 @@ export function Checkout() {
   };
 
   const [availableRates, setAvailableRates] = useState<any[]>([]);
+  // The physical free gift (if any) for the shipping quotes below; set once the discount is known.
+  const freeGiftRef = useRef<null | { id: string; variantId?: string; price: number; quantity: number; shippingProfileId: string | null; weightGrams: number | null }>(null);
   const [fulfillmentSelection, setFulfillmentSelection] = useState<FulfillmentSelection>({ method: "shipping", optionId: "" });
 
   const shippingItemsForCart = () => cart.map((item) => {
@@ -656,6 +689,67 @@ export function Checkout() {
   });
 
   const catalogItems = useMemo(() => catalogFulfillmentItems(cart, booksMap), [cart, booksMap]);
+
+  // Same arithmetic as the server (features/site/discountMath.ts mirrors functions/discountMath.js):
+  // gift cards are never discounted; a code replaces automatic offers; a free gift is a line
+  // whose price is the discount.
+  const booksById = useMemo(() => Object.fromEntries(booksMap), [booksMap]);
+  const pricedLines = useMemo(() => cart.map(item => ({ ...item, giftCard: isGiftCardProduct(booksMap.get(item.id)) })), [cart, booksMap]);
+  const discountableLines = useMemo(() => discountableItems(pricedLines), [pricedLines]);
+  // Codes count only what they can discount (gift cards in the bag never qualify).
+  const discountableTotal = useMemo(() => discountableLines.reduce((sum, item) => sum + item.price * item.quantity, 0), [discountableLines]);
+  const discountableCount = useMemo(() => discountableLines.reduce((sum, item) => sum + item.quantity, 0), [discountableLines]);
+  const giftCardLinesTotal = useMemo(() => pricedLines.filter(item => item.giftCard).reduce((sum, item) => sum + item.price * item.quantity, 0), [pricedLines]);
+  const giftOffer = (offer: any) => {
+    const book = booksMap.get(offer?.giftBookId);
+    const variant = offer?.giftVariantId ? (book?.variants || []).find((v: any) => v.id === offer.giftVariantId) : undefined;
+    if (!book || !isLiveBook(book) || isGiftCardProduct(book) || bundleComponents(book).length || (offer.giftVariantId && !variant)) return null;
+    if (!offer.giftVariantId && Array.isArray(book.variants) && book.variants.length) return null;
+    if (book.trackInventory && !book.allowBackorder) {
+      const inBag = cart.filter(i => i.id === book.id && (i.variantId || "") === (offer.giftVariantId || "")).reduce((sum, i) => sum + i.quantity, 0);
+      const stock = Number(variant ? (variant.stock ?? variant.stockLevel) : book.stockLevel) || 0;
+      if (stock < inBag + 1) return null;
+    }
+    const price = catalogUnitPrice(book, variant);
+    return Number.isFinite(price) && price >= 0 ? { book, variant, price } : null;
+  };
+  const autoPick = useMemo(() => pickAutomaticDiscount(autoOffers.filter(offer => !offer.restricted), discountableLines, booksById, offer => giftOffer(offer)?.price ?? NaN),
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [autoOffers, discountableLines, booksById, cart]);
+  const roundCents = (value: number) => Math.round((Number(value) || 0) * 100) / 100;
+  const codeDiscountAmount = useMemo(() => {
+    if (!appliedDiscount) return 0;
+    try {
+      return roundCents(discountAmountFor(appliedDiscount, discountableLines, booksById, { giftPrice: giftOffer(appliedDiscount)?.price }));
+    } catch {
+      return 0;
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [appliedDiscount, discountableLines, booksById]);
+  // The discount that will be charged: the shopper's code, else the best automatic offer.
+  const activeDiscount = appliedDiscount || autoPick?.discount || null;
+  const discountAmount = appliedDiscount ? codeDiscountAmount : roundCents(autoPick?.amount || 0);
+  const autoBeatsCode = Boolean(appliedDiscount && autoPick && !autoPick.freeShipping && roundCents(autoPick.amount) > codeDiscountAmount);
+  const freeGift = useMemo(() => {
+    if (activeDiscount?.type !== "gift") return null;
+    const found = giftOffer(activeDiscount);
+    return found ? { id: found.book.id, variantId: found.variant?.id, title: found.book.title || "", variantName: found.variant?.name, price: found.price, photoUrl: found.variant?.photoUrl || found.book.photos?.[0]?.url || "" } : null;
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [activeDiscount, booksMap, cart]);
+  const freeGiftPrice = freeGift?.price || 0;
+  {
+    const giftItem = freeGift && catalogFulfillmentItems([{ id: freeGift.id, variantId: freeGift.variantId, price: freeGift.price, quantity: 1 }], booksMap)?.[0];
+    const giftBook = freeGift ? booksMap.get(freeGift.id) : null;
+    const giftVariant = freeGift?.variantId ? (giftBook?.variants || []).find((v: any) => v.id === freeGift.variantId) : null;
+    freeGiftRef.current = giftItem?.physical ? { id: freeGift!.id, variantId: freeGift!.variantId, price: freeGift!.price, quantity: 1, shippingProfileId: giftBook?.shippingProfileId || null, weightGrams: parseWeightGrams(giftVariant?.weight) ?? parseWeightGrams(giftBook?.weight) } : null;
+  }
+  // Lines that are taxed and shipped like the server's: gift cards out, the free gift in.
+  const taxLines = useMemo(() => {
+    if (!catalogItems) return null;
+    const own = catalogItems.filter(item => !isGiftCardProduct(booksMap.get(item.id)));
+    const gift = freeGift ? catalogFulfillmentItems([{ id: freeGift.id, variantId: freeGift.variantId, price: freeGift.price, quantity: 1, promoGift: true }], booksMap) : [];
+    return [...own, ...(gift || [])];
+  }, [catalogItems, freeGift, booksMap]);
 
   // "Add CA$X more for free shipping" — only when the real shipping rules would
   // actually make this delivery free at that total (checked with the same engine).
@@ -693,6 +787,8 @@ export function Checkout() {
     const physical = catalogItems?.filter(item => item.physical) || [];
     const physicalIds = new Set(physical.map(item => `${item.id}:${item.variantId || ""}`));
     const shippableItems = items.filter((item, index) => physicalIds.has(`${cart[index].id}:${cart[index].variantId || ""}`));
+    // A physical free gift travels in the parcel too (the server weighs it the same way).
+    if (freeGiftRef.current) shippableItems.push(freeGiftRef.current);
     const quotes = quoteShipping(shippableItems, { country: customer.address.country || "Canada" }, shippingProfiles).filter(q => q.type !== "pickup");
     setAvailableRates(quotes.map((q) => ({ id: q.id, name: q.name, price: q.price, deliveryDays: q.deliveryDays })));
   };
@@ -729,9 +825,10 @@ export function Checkout() {
               name: customer.name || "Customer"
             },
             // Only the books that travel: e-books add no parcel weight.
-            items: cart
+            items: [...cart
               .filter(i => !catalogItems || catalogItems.some(item => item.physical && item.id === i.id && (item.variantId || "") === (i.variantId || "")))
-              .map(i => ({ id: i.id, quantity: i.quantity, variantId: i.variantId }))
+              .map(i => ({ id: i.id, quantity: i.quantity, variantId: i.variantId })),
+              ...(freeGiftRef.current ? [{ id: freeGiftRef.current.id, quantity: 1, variantId: freeGiftRef.current.variantId }] : [])]
           })
         });
 
@@ -755,7 +852,7 @@ export function Checkout() {
     }, 1500);
 
     return () => clearTimeout(delayDebounce);
-  }, [customer.address.street, customer.address.unit, customer.address.city, customer.address.state, customer.address.zip, customer.address.country, cart, shippingProfiles, cartTotal, catalogItems]);
+  }, [customer.address.street, customer.address.unit, customer.address.city, customer.address.state, customer.address.zip, customer.address.country, cart, shippingProfiles, cartTotal, catalogItems, freeGift?.id]);
 
 
   useEffect(() => {
@@ -769,7 +866,7 @@ export function Checkout() {
   useEffect(() => {
     if (appliedDiscount && books.length > 0) {
       try {
-        validateDiscountRestrictions(appliedDiscount, customer.email, cart, booksMap, cartCount, cartTotal);
+        validateDiscountRestrictions(appliedDiscount, customer.email, discountableLines, booksMap, discountableCount, discountableTotal);
       } catch (err: any) {
         setAppliedDiscount(null);
         setDiscountError(copyErrorText(err, checkoutDesign, "coDiscountInvalid"));
@@ -777,93 +874,8 @@ export function Checkout() {
     }
   }, [customer.email, cart, books, appliedDiscount]);
  
-  // ⚡ Bolt: Memoize heavy discount calculations to avoid blocking main thread on every render
-  // Measured impact: prevents O(N*M) and O(N log N) calculations when typing in checkout inputs
-  const discountAmount = useMemo(() => {
-    if (!appliedDiscount) return 0;
-    const cap = Number(appliedDiscount.maxDiscountAmount);
-    // Same as the server: the "Maximum discount" ceiling, then never below 0 or above the bag.
-    const capped = (amount: number) => Math.max(0, Math.min(cap > 0 && amount > cap ? cap : amount, cartTotal) || 0);
-    
-    // Calculate qualifying subtotal and qualifying items list
-    const { qualifyingSubtotal, qualifyingItems } = (() => {
-      if (appliedDiscount.appliesTo === "all" || appliedDiscount.appliesTo === "catalog") {
-        return { qualifyingSubtotal: cartTotal, qualifyingItems: cart };
-      }
 
-      // ⚡ Bolt: Convert constraints to O(1) Sets outside the loop
-      const selectedCats = new Set(appliedDiscount.selectedCategories || []);
-      const selectedProds = new Set(appliedDiscount.selectedProducts || []);
-
-      const itemsList = cart.filter(item => {
-        let qualifies = false;
-        if (appliedDiscount.appliesTo === "categories") {
-          const catalogBook = booksMap.get(item.id);
-          const bookCats = catalogBook && Array.isArray(catalogBook.categories) ? catalogBook.categories : [];
-          qualifies = bookCats.some(cat => selectedCats.has(cat));
-        } else if (appliedDiscount.appliesTo === "products") {
-          qualifies = selectedProds.has(item.id);
-        }
-        return qualifies;
-      });
-      const sub = itemsList.reduce((sum, item) => sum + item.quantity * item.price, 0);
-      return { qualifyingSubtotal: sub, qualifyingItems: itemsList };
-    })();
-
-    if (appliedDiscount.type === "percentage") {
-      return capped(qualifyingSubtotal * (Number(appliedDiscount.value) / 100));
-    }
-    if (appliedDiscount.type === "fixed") {
-      return capped(Math.min(Number(appliedDiscount.value), qualifyingSubtotal));
-    }
-    if (appliedDiscount.type === "bogo") {
-      const buyQty = Number(appliedDiscount.buyQuantity) || 1;
-      const getQty = Number(appliedDiscount.getQuantity) || 1;
-      const getVal = bogoPercent(appliedDiscount.getDiscountValue);
-
-      const unitPrices: number[] = [];
-      qualifyingItems.forEach(i => {
-        for (let k = 0; k < i.quantity; k++) {
-          unitPrices.push(i.price);
-        }
-      });
-
-      const totalQualUnits = unitPrices.length;
-      const requiredUnits = buyQty + getQty;
-      if (totalQualUnits < requiredUnits) return 0;
-
-      unitPrices.sort((a, b) => b - a);
-
-      const sets = Math.floor(totalQualUnits / requiredUnits);
-      const discountQty = sets * getQty;
-
-      let discountAmount = 0;
-      const cheapestUnits = unitPrices.slice(-discountQty);
-      cheapestUnits.forEach(price => {
-        discountAmount += price * (getVal / 100);
-      });
-
-      return capped(discountAmount);
-    }
-    if (appliedDiscount.type === "tiered") {
-      const tiers = appliedDiscount.tiers || [];
-      if (!Array.isArray(tiers) || tiers.length === 0) return 0;
-
-      const sortedTiers = [...tiers].sort((a, b) => Number(b.minSpend) - Number(a.minSpend));
-      const matchingTier = sortedTiers.find(t => qualifyingSubtotal >= Number(t.minSpend));
-      if (!matchingTier) return 0;
-
-      const val = Number(matchingTier.value);
-      if (matchingTier.type === "percentage") {
-        return capped(qualifyingSubtotal * (val / 100));
-      } else if (matchingTier.type === "fixed") {
-        return capped(Math.min(val, qualifyingSubtotal));
-      }
-    }
-    return 0;
-  }, [appliedDiscount, cart, cartTotal, booksMap]);
-
-  const physicalItems = useMemo(() => catalogItems?.filter(item => item.physical) || [], [catalogItems]);
+  const physicalItems = useMemo(() => taxLines?.filter(item => item.physical) || [], [taxLines]);
   // Pre-ordered printed books hold the parcel until the latest release (functions/preorder.js).
   const preorderShip = useMemo(() => bagPreorder(cart.filter(i => !catalogItems || catalogItems.some(ci => ci.id === i.id && (ci.variantId || "") === (i.variantId || "") && ci.physical))), [cart, catalogItems]);
   // Known to be e-books only (not just "catalog still loading").
@@ -877,9 +889,9 @@ export function Checkout() {
   }, [physicalItems.length, settings?.localFulfillment]);
   // A pickup limited to an area (e.g. Toronto, "M") needs the shopper's address to check eligibility.
   const pickupNeedsAddress = !!settings?.localFulfillment?.pickupLocations?.some((location: any) => location.enabled && Array.isArray(location.postalPrefixes) && location.postalPrefixes.length);
-  const physicalSubtotalAfterDiscount = useMemo(() => catalogItems
-    ? discountedPhysicalSubtotal(catalogItems, discountAmount, appliedDiscount, booksMap)
-    : 0, [catalogItems, discountAmount, appliedDiscount, booksMap]);
+  const physicalSubtotalAfterDiscount = useMemo(() => taxLines
+    ? discountedPhysicalSubtotal(taxLines, discountAmount, activeDiscount, booksMap)
+    : 0, [taxLines, discountAmount, activeDiscount, booksMap]);
   const localQuotes = useMemo(() => catalogItems && physicalItems.length
     ? quoteLocalFulfillment(settings?.localFulfillment, customer.address, physicalSubtotalAfterDiscount, physicalItems)
     : [], [catalogItems, physicalItems, settings?.localFulfillment, customer.address, physicalSubtotalAfterDiscount]);
@@ -923,7 +935,7 @@ export function Checkout() {
   useEffect(() => {
     // Same matching as the server's charge, so the tax shown is the tax paid.
     const rateFor = (address: any) => matchTaxRate(taxRates, address?.country, address?.state);
-    const taxable = Math.max(0, cartTotal - discountAmount);
+    const taxable = Math.max(0, cartTotal - giftCardLinesTotal + freeGiftPrice - discountAmount);
     if (fulfillmentSelection.method === "pickup") {
       const pickup = localQuotes.find(quote => quote.id === fulfillmentSelection.optionId && quote.method === "pickup");
       const physicalTaxable = Math.min(taxable, physicalSubtotalAfterDiscount);
@@ -936,7 +948,7 @@ export function Checkout() {
     }
     const matchedTaxRate = rateFor(customer.address);
     setTaxCost(taxable * (Number(matchedTaxRate?.rate || 0) / 100));
-  }, [customer.address.country, customer.address.state, customer.billingAddress.country, customer.billingAddress.state, fulfillmentSelection, localQuotes, physicalSubtotalAfterDiscount, cartTotal, appliedDiscount, taxRates, discountAmount]);
+  }, [customer.address.country, customer.address.state, customer.billingAddress.country, customer.billingAddress.state, fulfillmentSelection, localQuotes, physicalSubtotalAfterDiscount, cartTotal, appliedDiscount, taxRates, discountAmount, giftCardLinesTotal, freeGiftPrice]);
 
   const applyDiscount = async () => {
     // Pasted codes often carry spaces; the server trims too.
@@ -946,13 +958,41 @@ export function Checkout() {
     setDiscountError("");
     try {
       const discount = await adminApi.validateDiscount(code);
-      validateDiscountRestrictions(discount, customer.email, cart, booksMap, cartCount, cartTotal);
+      validateDiscountRestrictions(discount, customer.email, discountableLines, booksMap, discountableCount, discountableTotal);
       setAppliedDiscount(discount);
     } catch (err: any) {
       setDiscountError(copyErrorText(err, checkoutDesign, "coDiscountExpired"));
       setAppliedDiscount(null);
     } finally {
       setIsApplying(false);
+    }
+  };
+
+  // Checkout's "Gift card" box: checks the balance now; the server re-checks and holds it at payment.
+  const applyGiftCard = async () => {
+    const code = giftCardInput.trim().toUpperCase();
+    if (!code) return;
+    if (giftCards.length >= 5) { setGiftCardError(c("coGiftCardTooMany")); return; }
+    setGiftCardApplying(true);
+    setGiftCardError("");
+    try {
+      const res = await functionFetch("validateDiscountCode", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ action: "giftCardBalance", code }),
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok || typeof data?.balanceMinor !== "number") {
+        setGiftCardError(typeof data?.error === "string" && data.error ? data.error : c("coGiftCardInvalid"));
+        return;
+      }
+      setGiftCards(current => current.some(card => card.last4 === data.last4 && card.code.replace(/[^A-Z0-9]/g, "") === code.replace(/[^A-Z0-9]/g, ""))
+        ? current : [...current, { code, last4: String(data.last4 || ""), balanceMinor: data.balanceMinor }]);
+      setGiftCardInput("");
+    } catch {
+      setGiftCardError(c("coGiftCardInvalid"));
+    } finally {
+      setGiftCardApplying(false);
     }
   };
 
@@ -964,12 +1004,24 @@ export function Checkout() {
 
 
 
-  const isFreeShipping  = appliedDiscount?.type === "freeship";
+  const isFreeShipping  = appliedDiscount ? appliedDiscount.type === "freeship" : Boolean(autoPick?.freeShipping);
   const selectedShippingQuote = availableRates.find(rate => rate.id === fulfillmentSelection.optionId || rate.name === fulfillmentSelection.optionId);
   const selectedLocalQuote = localQuotes.find(quote => quote.id === fulfillmentSelection.optionId && quote.method === fulfillmentSelection.method);
   const shippingCost = !physicalItems.length ? 0 : fulfillmentSelection.method === "shipping" ? Number(selectedShippingQuote?.price || 0) : Number(selectedLocalQuote?.price || 0);
   const finalShipping   = isFreeShipping ? 0 : shippingCost;
-  const finalTotal      = cartTotal - discountAmount + finalShipping + taxCost;
+  const itemsSubtotal   = cartTotal + freeGiftPrice;
+  const beforeGiftCards = itemsSubtotal - discountAmount + finalShipping + taxCost;
+  // Gift cards pay what is left, never other gift cards in the bag (same split as the server).
+  const giftCardUse = useMemo(() => {
+    let left = Math.max(0, Math.round((beforeGiftCards - giftCardLinesTotal) * 100));
+    return giftCards.map(card => {
+      const minor = Math.min(left, Math.max(0, card.balanceMinor));
+      left -= minor;
+      return { ...card, minor };
+    });
+  }, [giftCards, beforeGiftCards, giftCardLinesTotal]);
+  const giftCardAmount = giftCardUse.reduce((sum, card) => sum + card.minor, 0) / 100;
+  const finalTotal      = Math.round((beforeGiftCards - giftCardAmount) * 100) / 100;
   // Tax is a real figure (even CA$0.00) once the tax rules are loaded and the address it
   // depends on names a country and, where it has a list, a recognised province/state.
   const taxAddressKnown = (address: any) => {
@@ -1052,6 +1104,10 @@ export function Checkout() {
   // A server "Discount code error: …" reply means only the code is the problem.
   const discountRejection = (data: any) => {
     const message = typeof data?.error === "string" ? data.error : "";
+    if (data?.code === "gift_card_rejected") {
+      return Object.assign(new Error(message), { giftCardRejected: true, reason: message.replace(/^Gift card error:\s*/i, "") || c("coGiftCardInvalid") });
+    }
+    if (data?.code === "nothing_to_charge") return new CopyError(checkoutDesign, "coGiftCardCovers");
     if (!/^Discount code error:/i.test(message)) return null;
     return Object.assign(new Error(message), { discountRejected: true, reason: message.replace(/^Discount code error:\s*/i, "") });
   };
@@ -1174,8 +1230,12 @@ export function Checkout() {
           photoUrl: item.photoUrl,
           stripePriceId: item.stripePriceId || null,
           shippingProfileId: item.shippingProfileId || null,
+          // The server re-prices extras from the catalog; only their ids and wording are used.
+          ...(item.addOns?.length ? { addOns: item.addOns.map(addOn => ({ id: addOn.id, ...(addOn.text ? { text: addOn.text } : {}) })) } : {}),
+          ...(item.giftCardDetails ? { giftCardDetails: item.giftCardDetails } : {}),
         })),
-        subtotal: cartTotal,
+        ...(giftCards.length ? { giftCards: giftCards.map(card => ({ code: card.code })) } : {}),
+        subtotal: itemsSubtotal,
         discount: discountAmount,
         shipping: finalShipping,
         shippingMethod: fulfillmentSelection.method === "shipping" ? (selectedShippingQuote?.name || null) : null,
@@ -1198,9 +1258,15 @@ export function Checkout() {
       localStorage.setItem("last_customer_email", customer.email);
       
       // The code is part of the key: removing a refused code must make a fresh order, even when the total is unchanged.
-      const cardKey = JSON.stringify([orderData.items, orderData.total, orderData.customer, currency, fulfillmentSelection, orderData.appliedDiscount?.code || null]);
+      const cardKey = JSON.stringify([orderData.items, orderData.total, orderData.customer, currency, fulfillmentSelection, orderData.appliedDiscount?.code || null, giftCards.map(card => card.code)]);
       const reuse = payingByCardForm && pendingCardOrder.current?.key === cardKey ? pendingCardOrder.current : null;
       let orderId: string;
+
+      // Gift cards are taken when the payment is confirmed: a manual payment (days later) can't use them.
+      if (isManual && giftCards.length && finalTotal > 0) {
+        setNotice({ tone: "error", text: c("coGiftCardManual") });
+        return;
+      }
 
       // A $0 order (100% discount, free e-book) has nothing to charge: the server prices it
       // and completes it only when its own total is zero.
@@ -1231,7 +1297,9 @@ export function Checkout() {
             currency: currency.toLowerCase(),
             orderDraft: {
               customer,
-              items: cart.map(item => ({ id: item.id, variantId: item.variantId || null, quantity: item.quantity })),
+              items: cart.map(item => ({ id: item.id, variantId: item.variantId || null, quantity: item.quantity,
+                ...(item.addOns?.length ? { addOns: item.addOns.map(addOn => ({ id: addOn.id, ...(addOn.text ? { text: addOn.text } : {}) })) } : {}),
+                ...(item.giftCardDetails ? { giftCardDetails: item.giftCardDetails } : {}) })),
               ...(physicalItems.length ? { fulfillmentSelection } : {}),
               ...(orderData.shippingMethod ? { shippingMethod: orderData.shippingMethod } : {}),
               ...(checkoutCartId ? { cartId: checkoutCartId } : {}),
@@ -1331,6 +1399,14 @@ export function Checkout() {
       }
 
     } catch (err: any) {
+      if (err?.giftCardRejected) {
+        // The server refused a gift card (used up, disabled…): take the cards off so the shopper can retry.
+        setGiftCards([]);
+        setGiftCardOpen(true);
+        setGiftCardError(err.reason);
+        setNotice({ tone: "error", text: c("coGiftCardRejected", { reason: err.reason }) });
+        return;
+      }
       if (err?.discountRejected) {
         // The server refused the code (expired, already used, wrong email…): take it off
         // so the next attempt can go through, and say why next to the code box.
@@ -1927,7 +2003,7 @@ export function Checkout() {
 
             <div className="space-y-5">
               {cart.map(item => (
-                <div key={`${item.id}-${item.variantId || "default"}`} className="flex items-center gap-4">
+                <div key={item.lineKey || `${item.id}-${item.variantId || "default"}`} className="flex items-center gap-4">
                   <div className="relative h-16 w-14 shrink-0 rounded-lg border border-slate-200 bg-white p-1 shadow-sm">
                     <img loading="lazy" decoding="async" src={item.photoUrl} alt="" className="h-full w-full rounded object-cover" />
                     <span className="absolute -right-2 -top-2 flex h-5 min-w-5 items-center justify-center rounded-full bg-slate-600 px-1 text-xs font-semibold text-white">{item.quantity}</span>
@@ -1935,6 +2011,15 @@ export function Checkout() {
                   <div className="min-w-0 flex-1">
                     <p className="truncate text-sm font-medium text-slate-900">{item.title}</p>
                     {item.variantName && <p className="mt-0.5 text-xs text-slate-500">{item.variantName}</p>}
+                    {(item.addOns || []).map(addOn => (
+                      <p key={addOn.id} className="mt-0.5 text-xs text-slate-500">{c("cartAddOnLine", { label: addOn.label })}{addOn.text ? ` ${c("cartAddOnText", { text: addOn.text })}` : ""}</p>
+                    ))}
+                    {item.giftCardDetails?.recipientEmail && <p className="mt-0.5 text-xs text-slate-500">{c("coLineGiftCardFor", { recipient: item.giftCardDetails.recipientName || item.giftCardDetails.recipientEmail })}</p>}
+                    {(() => {
+                      const parts = bundleComponents(booksMap.get(item.id)).map(part => ({ ...part, title: booksMap.get(part.id)?.title || "", variantName: part.variantId ? (booksMap.get(part.id)?.variants || []).find((v: any) => v.id === part.variantId)?.name : undefined }));
+                      const items = componentsSummary(parts);
+                      return items ? <p className="mt-0.5 text-xs text-slate-500">{c("coLineIncludes", { items })}</p> : null;
+                    })()}
                     {linePreorderNote(item, c) && <p className="mt-0.5 text-xs font-medium text-slate-700">{linePreorderNote(item, c)}</p>}
                     {!checkoutDesign.hideCheckoutLowStock && typeof item.stockLimit === "number" && item.stockLimit > 0 && item.stockLimit <= designNumber(checkoutDesign, "lowStockProductThreshold", 3) && (
                       <p className="mt-0.5 text-xs font-medium" style={{ color: "var(--warning, #b45309)" }}>{c("coOnlyLeft", { count: item.stockLimit })}</p>
@@ -1943,6 +2028,18 @@ export function Checkout() {
                   <span className="text-sm font-medium text-slate-900">{formatPrice(item.price * item.quantity)}</span>
                 </div>
               ))}
+              {freeGift && (
+                <div className="flex items-center gap-4" data-studio-target="copy:Checkout" data-studio-label="Free gift line">
+                  <div className="relative h-16 w-14 shrink-0 rounded-lg border border-slate-200 bg-white p-1 shadow-sm">
+                    {freeGift.photoUrl && <img loading="lazy" decoding="async" src={freeGift.photoUrl} alt="" className="h-full w-full rounded object-cover" />}
+                  </div>
+                  <div className="min-w-0 flex-1">
+                    <p className="truncate text-sm font-medium text-slate-900">{c("coFreeGiftLine", { title: freeGift.title })}</p>
+                    {freeGift.variantName && <p className="mt-0.5 text-xs text-slate-500">{freeGift.variantName}</p>}
+                  </div>
+                  <span className="text-sm font-medium" style={{ color: "var(--success)" }}>{c("coFreeGiftPrice")}</span>
+                </div>
+              )}
             </div>
 
             {preorderShip.count > 0 && (
@@ -1983,12 +2080,60 @@ export function Checkout() {
             )}
             {discountError && <p className="mt-2 flex items-center gap-1.5 text-xs text-red-600"><AlertCircle size={13} />{discountError}</p>}
             {appliedDiscount && <p className="mt-2 flex items-center gap-1.5 text-xs font-medium" style={{ color: "var(--success)" }}><CheckCircle2 size={13} />{c("coDiscountApplied", { code: appliedDiscount.code })}</p>}
+            {autoBeatsCode && checkoutDesign.showCheckoutAutoDiscountHint !== false && (
+              <div role="note" className="mt-3 rounded-lg border border-slate-200 bg-white px-3 py-2.5 text-xs text-slate-700" data-studio-target="style:checkout|copy:Checkout" data-studio-label="Automatic offer hint">
+                <p>{c("coAutoBetter", { title: autoPick?.discount?.title || "" })}</p>
+                <button type="button" onClick={removeDiscount} className="mt-1.5 font-semibold underline underline-offset-4">{c("coAutoBetterRemove", { title: autoPick?.discount?.title || "" })}</button>
+              </div>
+            )}
+
+            {checkoutDesign.showCheckoutGiftCardBox !== false && (
+              <div {...regionProps("checkoutGiftCard")} className="mt-5">
+                {!(giftCardOpen || giftCards.length || giftCardInput) ? (
+                  <button type="button" onClick={() => setGiftCardOpen(true)} className="flex items-center gap-2 text-sm font-medium text-slate-600 underline-offset-4 hover:underline">
+                    <CreditCard size={15} /> {c("coGiftCardOpen")}
+                  </button>
+                ) : (
+                  <>
+                    <div className="flex gap-3">
+                      <div className="relative flex-1">
+                        <CreditCard size={15} className="absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-400" />
+                        <input
+                          type="text"
+                          value={giftCardInput}
+                          onChange={e => setGiftCardInput(e.target.value.toUpperCase())}
+                          onKeyDown={e => { if (e.key === "Enter") { e.preventDefault(); applyGiftCard(); } }}
+                          placeholder={c("coGiftCardLabel")}
+                          aria-label={c("coGiftCardLabel")}
+                          autoComplete="off"
+                          spellCheck={false}
+                          className="w-full rounded-lg border border-slate-300 bg-white py-3 pl-10 pr-3 text-sm text-slate-900 outline-none transition placeholder:text-slate-400 focus:border-[color:var(--accent)] focus:ring-1 focus:ring-[color:var(--accent)]"
+                        />
+                      </div>
+                      <button type="button" onClick={applyGiftCard} disabled={giftCardApplying || !giftCardInput.trim()} className="rounded-lg bg-slate-700 px-5 text-sm font-semibold text-white transition hover:bg-slate-800 disabled:cursor-not-allowed disabled:opacity-50">
+                        {giftCardApplying ? <><Loader2 size={17} className="animate-spin" aria-hidden="true" /><span className="sr-only">{c("coGiftCardApplying")}</span></> : c("coGiftCardApply")}
+                      </button>
+                    </div>
+                    {giftCardError && <p role="alert" className="mt-2 flex items-center gap-1.5 text-xs text-red-600"><AlertCircle size={13} />{giftCardError}</p>}
+                    {giftCards.map(card => (
+                      <p key={card.code} className="mt-2 flex items-center justify-between gap-2 text-xs font-medium" style={{ color: "var(--success)" }}>
+                        <span className="flex items-center gap-1.5"><CheckCircle2 size={13} />{c("coGiftCardApplied", { last4: card.last4, balance: formatPrice(card.balanceMinor / 100) })}</span>
+                        <button type="button" onClick={() => setGiftCards(current => current.filter(other => other.code !== card.code))} aria-label={c("coGiftCardRemoveAria", { last4: card.last4 })} className="text-slate-600 underline underline-offset-4">{c("coGiftCardRemove")}</button>
+                      </p>
+                    ))}
+                    {giftCards.length > 0 && selectedPaymentMethod.startsWith("manual_") && finalTotal > 0 && (
+                      <p role="note" className="mt-2 text-xs text-slate-700">{c("coGiftCardManual")}</p>
+                    )}
+                  </>
+                )}
+              </div>
+            )}
 
             <div className="my-7 border-t border-slate-200" />
 
             <div className="space-y-3 text-sm">
-              <div className="flex justify-between text-slate-600"><span>{c("summarySubtotal")}</span><span className="font-medium text-slate-900">{formatPrice(cartTotal)}</span></div>
-              {discountAmount > 0 && <div className="flex justify-between" style={{ color: "var(--success)" }}><span>{c("summaryDiscount")}</span><span>-{formatPrice(discountAmount)}</span></div>}
+              <div className="flex justify-between text-slate-600"><span>{c("summarySubtotal")}</span><span className="font-medium text-slate-900">{formatPrice(itemsSubtotal)}</span></div>
+              {discountAmount > 0 && <div className="flex justify-between" style={{ color: "var(--success)" }}><span>{appliedDiscount ? c("summaryDiscount") : c("coAutoDiscountLabel", { title: autoPick?.discount?.title || c("summaryDiscount") })}</span><span>-{formatPrice(discountAmount)}</span></div>}
               <div className="flex justify-between text-slate-600">
                 <span>{c("summaryShipping")}{getActiveShippingDetails()?.serviceName ? ` · ${getActiveShippingDetails()?.serviceName}` : ""}</span>
                 <span className="font-medium text-slate-900">{needsDeliveryChoice ? c("coShipChoose") : isFreeShipping || shippingCost === 0 ? c("coFree") : formatPrice(finalShipping)}</span>
@@ -2002,6 +2147,9 @@ export function Checkout() {
                 </div>
               )}
               <div className="flex justify-between text-slate-600"><span>{c("summaryTax")}</span><span className="font-medium text-slate-900">{taxCost > 0 || taxKnown ? formatPrice(taxCost) : c("coTaxLater")}</span></div>
+              {giftCardUse.filter(card => card.minor > 0).map(card => (
+                <div key={card.code} className="flex justify-between text-slate-600"><span>{c("coGiftCardSummary", { last4: card.last4 })}</span><span className="font-medium text-slate-900">-{formatPrice(card.minor / 100)}</span></div>
+              ))}
             </div>
 
             <div className="my-6 border-t border-slate-200" />
