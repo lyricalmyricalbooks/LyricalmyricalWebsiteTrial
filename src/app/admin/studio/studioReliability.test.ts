@@ -58,7 +58,7 @@ describe("Studio editing reliability", () => {
       "page:about": { sections: [{ id: "about", type: "HeroSection", settings: { title: "About" } }] },
     }, checkSchema);
     expect(checks.find(result => result.text.includes("description"))).toMatchObject({ tone: "warn" });
-    expect(checks.filter(result => /not measured|not automatically measured/.test(result.text))).toHaveLength(2);
+    expect(checks.filter(result => /measured on the page in the preview/.test(result.text))).toEqual([expect.objectContaining({ tone: "warn" })]);
   });
   it("counts connected fields as content and connected picture descriptions as described (2.7)", () => {
     const checks = designChecks({ productPage: { sections: [
