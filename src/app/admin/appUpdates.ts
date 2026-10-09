@@ -15,6 +15,11 @@ export const APP_UPDATES: AppUpdate[] = [
     links: [{ label: "Open Media", tab: "settings", settingsTab: "designer", studio: "#designer?tab=media" }],
   },
   {
+    id: "overview-front-page", date: "2026-10-09", title: "A livelier Overview that tells you how the shop is doing",
+    summary: "Overview now opens like a newspaper front page. A headline sums up the period in one sentence (for example \"CA$1,530 taken, up 10% on the 30 days before\"), with the best-selling title underneath and the revenue or traffic chart in a bright panel. Beside it, a black \"Today's run sheet\" counts what needs you right now — orders to ship, reviews to moderate, titles to reprint, sold-out books — each with a button straight to the fix. The other figures sit in one ruled strip below, with green and red change badges. Ready to sell?, Newest orders and the Dig deeper tabs work as before.",
+    links: [{ label: "Open Overview", tab: "overview" }],
+  },
+  {
     id: "studio-2-theme-system", date: "2026-10-09", title: "Theme settings, sorted into your site's look and its parts",
     summary: "Theme settings in the Design studio now opens in three parts. \"Site-wide design\" holds what every page shares: theme presets, logo, colours, fonts, buttons, spacing and the Riso print look. \"Parts of your shop\" holds the header and footer, the shop and book pages, and the bag, checkout and account pages — each has a \"Show on page\" button that opens that page in the preview (or opens the shopping bag) and selects the part, so you can see what you're changing. Long word lists in Text & labels (Checkout, Order tracking, Customer account, Product page, Cart) are split into short sections such as \"Discount codes\" and \"Error messages\". Find anything gives shorter result lists and opens an element's setting at the screen size you're previewing.",
     links: [{ label: "Open Theme settings", tab: "settings", settingsTab: "designer", studio: "#designer?tab=style" }],
