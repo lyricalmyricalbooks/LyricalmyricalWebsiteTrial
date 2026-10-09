@@ -51,6 +51,11 @@ function returnRestockItems(order, returnCase) {
   // No return in progress, a declined one, or books that never left the shop: the admin's restock choice covers every line.
   if (order.returnProgress?.state === "rejected" || (!order.returnProgress && (!openReturn || !dispatched(order)))) return order.items || [];
   if (returnCase?.state !== "inspected") return [];
-  return (returnCase.inspection || []).map(row => ({ id: row.id, variantId: row.variantId, quantity: row.restockQuantity ?? (row.condition === "resellable" ? row.quantity : 0) })).filter(row => row.quantity > 0);
+  // A box set goes back as the books inside it (the order line keeps its components).
+  return (returnCase.inspection || []).map(row => {
+    const line = Number.isInteger(row.index) ? (order.items || [])[row.index] : null;
+    const components = line && line.id === row.id && Array.isArray(line.components) && line.components.length ? { components: line.components } : {};
+    return { id: row.id, variantId: row.variantId, quantity: row.restockQuantity ?? (row.condition === "resellable" ? row.quantity : 0), ...components };
+  }).filter(row => row.quantity > 0);
 }
 module.exports = { physicalLines, returnTransition, publicReturn, returnRestockItems };

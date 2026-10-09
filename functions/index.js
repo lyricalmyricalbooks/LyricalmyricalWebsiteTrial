@@ -29,6 +29,9 @@ const { checkoutRate } = require("./checkoutRate");
 const { canadaPostLabelRates, isCanadaPostRate } = require("./labelRates");
 const { discountedPhysicalSubtotal, resolveLocalSelection, isPhysicalItem, bogoPercent } = require("./localFulfillment");
 const { catalogUnitPrice } = require("./catalogPrice");
+const { discountableItems, discountAmountFor, pickAutomaticDiscount } = require("./discountMath");
+const { addOnSelection, bundleComponents, bundleAvailable, isGiftCardProduct, giftCardDetails } = require("./promotions");
+const { MAX_CARDS_PER_ORDER, GIFT_CARD_MESSAGES, GiftCardError, newGiftCardCode, normalizeGiftCardCode, giftCardId, last4, giftCardProblem, availableMinor, allocateGiftCards, reserveGiftCards, releaseGiftCards, readGiftCards, debitShortfall, writeGiftCardChange, cardsForOrder, withHistory } = require("./giftCards");
 const { readBooks, writeStock } = require("./inventory");
 const { resolveCountry } = require("./shippingGeo");
 const { REQUIRED_WEBHOOK_EVENTS, modesToTry, intentAsSession, paidIntentOrderId, webhookEndpointReport, signingSecrets, reversalState, ordersDueReversalCheck } = require("./stripeRecovery");
@@ -263,10 +266,28 @@ function customerTotalsTable(order) {
           <tr><td colspan="2" style="padding:8px 0;text-align:right;color:#666;">Subtotal</td><td style="text-align:right;">${m(order.subtotal)}</td></tr>
           <tr><td colspan="2" style="padding:8px 0;text-align:right;color:#666;">Shipping</td><td style="text-align:right;">${m(order.shipping)}</td></tr>
           ${order.tax ? `<tr><td colspan="2" style="padding:8px 0;text-align:right;color:#666;">Tax</td><td style="text-align:right;">${m(order.tax)}</td></tr>` : ""}
-          ${order.discount ? `<tr><td colspan="2" style="padding:8px 0;text-align:right;color:#0a7;">Discount</td><td style="text-align:right;color:#0a7;">−${m(order.discount)}</td></tr>` : ""}
+          ${order.discount ? `<tr><td colspan="2" style="padding:8px 0;text-align:right;color:#0a7;">${discountLabel(order)}</td><td style="text-align:right;color:#0a7;">−${m(order.discount)}</td></tr>` : ""}
+          ${order.giftCardAmount ? `<tr><td colspan="2" style="padding:8px 0;text-align:right;color:#666;">Gift card${(order.giftCardRedemptions || []).length > 1 ? "s" : ""} ${escapeHtml((order.giftCardRedemptions || []).map(r => `••••${r.last4 || ""}`).join(", "))}</td><td style="text-align:right;">−${m(order.giftCardAmount)}</td></tr>` : ""}
           <tr><td colspan="2" style="padding:12px 0;text-align:right;font-weight:bold;">Total</td><td style="text-align:right;font-weight:bold;">${m(order.total)}</td></tr>
         </table>
       `;
+}
+
+// "Discount" / "Discount (SPRING)" / the automatic offer's title.
+function discountLabel(order) {
+  const applied = order.appliedDiscount || {};
+  const name = applied.automatic ? applied.title : applied.code;
+  return name ? `Discount (${escapeHtml(name)})` : "Discount";
+}
+
+// Add-ons, box-set contents, free gift and gift-card recipient under an order line (escaped).
+function lineExtrasHtml(i) {
+  const notes = [];
+  if (i.promoGift) notes.push("Free gift");
+  for (const addOn of Array.isArray(i.addOns) ? i.addOns : []) notes.push(`${escapeHtml(addOn.label)}${addOn.text ? `: “${escapeHtml(addOn.text)}”` : ""}`);
+  if (Array.isArray(i.components) && i.components.length) notes.push(`Includes ${i.components.map(c => `${Number(c.quantity) > 1 ? `${Number(c.quantity)} × ` : ""}${escapeHtml(c.title || "")}${c.variantName ? ` (${escapeHtml(c.variantName)})` : ""}`).join(", ")}`);
+  if (i.giftCard && i.giftCardDetails?.recipientEmail) notes.push(`For ${escapeHtml(i.giftCardDetails.recipientName || i.giftCardDetails.recipientEmail)}`);
+  return notes.length ? `<div style="color:#888;font-size:12px;margin-top:4px;">${notes.join("<br/>")}</div>` : "";
 }
 
 function orderRowsHtml(items = [], order = null) {
@@ -275,7 +296,7 @@ function orderRowsHtml(items = [], order = null) {
       i => `
       <tr>
         <td style="padding:12px 0;border-bottom:1px solid #eee;">
-          ${escapeHtml(i.title)}${i.variantName ? ` <span style="color:#888;">(${escapeHtml(i.variantName)})</span>` : ""}
+          ${escapeHtml(i.title)}${i.variantName ? ` <span style="color:#888;">(${escapeHtml(i.variantName)})</span>` : ""}${lineExtrasHtml(i)}
         </td>
         <td style="padding:12px 0;border-bottom:1px solid #eee;text-align:right;color:#888;">×${i.quantity}</td>
         <td style="padding:12px 0;border-bottom:1px solid #eee;text-align:right;">${order ? orderMoneyFmt(i.price * i.quantity, order) : moneyFmt(i.price * i.quantity)}</td>
@@ -527,11 +548,13 @@ async function fetchValidDiscount(code) {
   let firstProblem = null;
   for (const docSnap of snap.docs) {
     const data = docSnap.data();
+    // An automatic offer is never redeemed by typing a code (even one left over from before).
+    if (data.method === "automatic") continue;
     const problem = discountProblem(data);
     if (!problem) return { id: docSnap.id, ...data };
     firstProblem = firstProblem || problem;
   }
-  throw new Error(firstProblem);
+  throw new Error(firstProblem || "Invalid or expired discount code");
 }
 
 function discountProblem(data) {
@@ -542,150 +565,6 @@ function discountProblem(data) {
   if (dateState === "expired") return "This code has expired";
   if (data.usageLimit && (data.usageCount || 0) >= data.usageLimit) return "This code has reached its usage limit";
   return null;
-}
-
-// Computes the discount amount from server-trusted item prices.
-// booksById maps item.id -> book data (for category targeting).
-function computeDiscountAmount(discount, items, booksById) {
-  // Never more than the books cost (a 150% tier must not eat into shipping and tax), never negative.
-  const subtotal = items.reduce((s, i) => s + i.price * i.quantity, 0);
-  const raw = Number(computeRawDiscountAmount(discount, items, booksById)) || 0;
-  return capDiscountAmount(discount, Math.max(0, Math.min(raw, subtotal)));
-}
-
-// Optional "Maximum discount" ceiling (CA$) set on a code; never raises an amount.
-function capDiscountAmount(discount, amount) {
-  const cap = Number(discount && discount.maxDiscountAmount);
-  return cap > 0 && amount > cap ? cap : amount;
-}
-
-function computeRawDiscountAmount(discount, items, booksById) {
-  const subtotal = items.reduce((s, i) => s + i.price * i.quantity, 0);
-  if (discount.minOrderAmount && subtotal < Number(discount.minOrderAmount)) {
-    throw new Error(`This code requires a minimum order of ${moneyFmt(discount.minOrderAmount)}.`);
-  }
-  const totalQty = items.reduce((s, i) => s + i.quantity, 0);
-  if (discount.minQuantity && totalQty < Number(discount.minQuantity)) {
-    throw new Error(`This code requires a minimum of ${discount.minQuantity} items.`);
-  }
-
-  // 1. BOGO Calculation
-  if (discount.type === "bogo") {
-    const buyQty = Number(discount.buyQuantity) || 1;
-    const getQty = Number(discount.getQuantity) || 1;
-    const getVal = bogoPercent(discount.getDiscountValue);
-
-    let qualItems = [];
-    if (discount.appliesTo === "categories") {
-      const selected = discount.selectedCategories || [];
-      qualItems = items.filter(i => {
-        const cats = (booksById[i.id] && booksById[i.id].categories) || [];
-        return cats.some(c => selected.includes(c));
-      });
-      if (qualItems.length === 0) {
-        throw new Error("This BOGO code only applies to specific categories not in your cart.");
-      }
-    } else if (discount.appliesTo === "products") {
-      const selected = discount.selectedProducts || [];
-      qualItems = items.filter(i => selected.includes(i.id));
-      if (qualItems.length === 0) {
-        throw new Error("This BOGO code only applies to specific products not in your cart.");
-      }
-    } else {
-      qualItems = items;
-    }
-
-    const unitPrices = [];
-    qualItems.forEach(i => {
-      for (let k = 0; k < i.quantity; k++) {
-        unitPrices.push(i.price);
-      }
-    });
-
-    const totalQualUnits = unitPrices.length;
-    const requiredUnits = buyQty + getQty;
-    if (totalQualUnits < requiredUnits) {
-      throw new Error(`This code requires buying at least ${requiredUnits} qualifying items.`);
-    }
-
-    unitPrices.sort((a, b) => b - a);
-
-    const sets = Math.floor(totalQualUnits / requiredUnits);
-    const discountQty = sets * getQty;
-
-    let discountAmount = 0;
-    const cheapestUnits = unitPrices.slice(-discountQty);
-    cheapestUnits.forEach(price => {
-      discountAmount += price * (getVal / 100);
-    });
-
-    return discountAmount;
-  }
-
-  // 2. Tiered Calculation
-  if (discount.type === "tiered") {
-    const tiers = discount.tiers || [];
-    if (!Array.isArray(tiers) || tiers.length === 0) {
-      return 0;
-    }
-
-    let qualSubtotal = subtotal;
-    if (discount.appliesTo === "categories") {
-      const selected = discount.selectedCategories || [];
-      qualSubtotal = items.reduce((s, i) => {
-        const cats = (booksById[i.id] && booksById[i.id].categories) || [];
-        return cats.some(c => selected.includes(c)) ? s + i.price * i.quantity : s;
-      }, 0);
-      if (qualSubtotal === 0) {
-        throw new Error("This tiered code only applies to specific categories not in your cart.");
-      }
-    } else if (discount.appliesTo === "products") {
-      const selected = discount.selectedProducts || [];
-      qualSubtotal = items.reduce(
-        (s, i) => (selected.includes(i.id) ? s + i.price * i.quantity : s), 0
-      );
-      if (qualSubtotal === 0) {
-        throw new Error("This tiered code only applies to specific products not in your cart.");
-      }
-    }
-
-    const sortedTiers = [...tiers].sort((a, b) => Number(b.minSpend) - Number(a.minSpend));
-    const matchingTier = sortedTiers.find(t => qualSubtotal >= Number(t.minSpend));
-
-    if (!matchingTier) {
-      const lowestMinSpend = Math.min(...tiers.map(t => Number(t.minSpend)));
-      throw new Error(`This code requires a minimum spend of ${moneyFmt(lowestMinSpend)} on qualifying items.`);
-    }
-
-    const val = Number(matchingTier.value);
-    if (matchingTier.type === "percentage") {
-      return qualSubtotal * (Math.min(100, Math.max(0, val)) / 100);
-    } else if (matchingTier.type === "fixed") {
-      return Math.min(val, qualSubtotal);
-    }
-    return 0;
-  }
-
-  // 3. Legacy Percentage & Fixed Calculation
-  let qualifying = subtotal;
-  if (discount.appliesTo === "categories") {
-    const selected = discount.selectedCategories || [];
-    qualifying = items.reduce((s, i) => {
-      const cats = (booksById[i.id] && booksById[i.id].categories) || [];
-      return cats.some(c => selected.includes(c)) ? s + i.price * i.quantity : s;
-    }, 0);
-    if (qualifying === 0) throw new Error("This code only applies to specific categories not in your cart.");
-  } else if (discount.appliesTo === "products") {
-    const selected = discount.selectedProducts || [];
-    qualifying = items.reduce(
-      (s, i) => (selected.includes(i.id) ? s + i.price * i.quantity : s), 0
-    );
-    if (qualifying === 0) throw new Error("This code only applies to specific products not in your cart.");
-  }
-
-  if (discount.type === "percentage") return qualifying * (Math.min(100, Math.max(0, Number(discount.value))) / 100);
-  if (discount.type === "fixed") return Math.min(Number(discount.value), qualifying);
-  return 0;
 }
 
 // "One use per customer": a customer (matched by email) who already has a paid order that used
@@ -933,78 +812,249 @@ function catalogFormat(book, variant) {
   return book.format || '';
 }
 function catalogDigital(book, variant) {
+  // A gift card is emailed, never shipped.
+  if (isGiftCardProduct(book)) return true;
   return variant?.digital === true || variant?.isDigital === true || (!variant && (book.digital === true || book.isDigital === true));
 }
 
-async function recalculateOrder(orderRef, order, checkoutCurrency) {
-  // No receipt or e-book link can reach a malformed address, so no payment is taken for one.
+// A checkout refusal the shopper can act on (sold out, discount refused…): answered with 400.
+class PricingError extends Error {
+  constructor(message, code) {
+    super(message);
+    this.status = 400;
+    if (code) this.code = code;
+  }
+}
+
+// Active automatic discounts (Discounts › Automatic): no code, applied by checkout itself.
+async function loadAutomaticDiscounts() {
+  const snap = await db.collection("discounts").where("method", "==", "automatic").limit(50).get();
+  return snap.docs.map(docSnap => ({ id: docSnap.id, ...docSnap.data() })).filter(discount => !discountProblem(discount));
+}
+
+// Prices an order from the live catalog for every checkout path (card, PayPal, manual, free).
+// Nothing the browser sends decides a price: books, editions, add-ons, box-set parts, the
+// discount (a code, else the best automatic offer, including a free gift), shipping, tax and
+// gift-card amounts are all worked out here. Throws PricingError for a shopper-fixable problem.
+async function priceOrder(order, { orderId = "", settings: knownSettings = null } = {}) {
   if (!/^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/.test(String(order.customer?.email || "").trim())) {
-    throw new Error("Check the email address: it doesn't look complete.");
+    throw new PricingError("Check the email address: it doesn't look complete.");
   }
   const booksById = {};
+  const getBook = async id => {
+    if (typeof id !== "string" || !id || id.includes("/")) return null;
+    if (!(id in booksById)) {
+      const snap = await db.collection("books").doc(id).get();
+      booksById[id] = snap.exists ? snap.data() : null;
+    }
+    return booksById[id];
+  };
   const items = [];
   for (const requested of order.items || []) {
-    const bookDoc = await db.collection("books").doc(requested.id).get();
-    if (!bookDoc.exists) throw new Error(`Book ${requested.title || requested.id} not found in library catalog.`);
-    const book = bookDoc.data();
-    booksById[requested.id] = book;
+    // A free gift is never taken from the browser: it is re-added below when the order earns it.
+    if (!requested || requested.promoGift === true) continue;
+    const label = requested.title || requested.id;
+    const book = await getBook(requested.id);
+    if (!book) throw new PricingError(`Book ${label} not found in library catalog.`);
     const problem = purchaseProblem(book, requested.variantId);
-    if (problem === "choose_edition") throw new Error(`Choose an edition of "${book.title || requested.id}" before checking out.`);
-    if (problem) throw new Error(`"${book.title || requested.id}" is not available to buy right now. Please remove it from your bag.`);
+    if (problem === "choose_edition") throw new PricingError(`Choose an edition of "${book.title || label}" before checking out.`);
+    if (problem) throw new PricingError(`"${book.title || label}" is not available to buy right now. Please remove it from your bag.`);
     const quantity = Math.max(1, Math.min(99, Math.floor(Number(requested.quantity) || 1)));
-    const variant = requested.variantId
-      ? (book.variants || []).find(v => v.id === requested.variantId) || null
-      : null;
-    if (requested.variantId && !variant) throw new Error(`Selected edition for book ${requested.id} is no longer available.`);
-    if (book.trackInventory && !book.allowBackorder) {
+    const variant = requested.variantId ? (book.variants || []).find(v => v.id === requested.variantId) || null : null;
+    if (requested.variantId && !variant) throw new PricingError(`Selected edition for "${book.title || label}" is no longer available.`);
+    const parts = bundleComponents(book);
+    const components = [];
+    if (parts.length) {
+      for (const part of parts) {
+        const partBook = await getBook(part.id);
+        const partVariant = part.variantId ? (partBook?.variants || []).find(v => v.id === part.variantId) || null : null;
+        if (!partBook || (part.variantId && !partVariant)) throw new PricingError(`"${book.title || label}" is not available to buy right now. Please remove it from your bag.`);
+        components.push({ id: part.id, variantId: part.variantId, quantity: part.quantity, title: partBook.title || "", ...(partVariant?.name ? { variantName: partVariant.name } : {}) });
+      }
+      const sets = bundleAvailable(book, id => booksById[id] || undefined);
+      if (sets < quantity) throw new PricingError(`Insufficient stock for ${book.title || label}. Only ${Math.max(0, sets)} left.`);
+    } else if (book.trackInventory && !book.allowBackorder) {
       const available = variant ? Number(variant.stock || 0) : Number(book.stockLevel || 0);
-      if (available < quantity) throw new Error(`Insufficient stock for ${requested.title}. Only ${available} left.`);
+      if (available < quantity) throw new PricingError(`Insufficient stock for ${book.title || label}${variant?.name ? ` (${variant.name})` : ""}. Only ${available} left.`);
     }
-    const price = catalogUnitPrice(book, variant);
-    if (!Number.isFinite(price) || price < 0) throw new Error(`Book ${requested.id} is temporarily unavailable for purchase (pricing error).`);
-    items.push({ ...requested, title: book.title || requested.title || "", variantName: variant ? (variant.name || null) : null, quantity, price, format: catalogFormat(book, variant), digital: catalogDigital(book, variant), isDigital: catalogDigital(book, variant), shippingProfileId: book.shippingProfileId || null, weightGrams: itemWeightGrams(book, variant), ...preorderLine(book) });
+    const basePrice = catalogUnitPrice(book, variant);
+    if (!Number.isFinite(basePrice) || basePrice < 0) throw new PricingError(`"${book.title || label}" is temporarily unavailable for purchase (pricing error).`);
+    let picked;
+    try {
+      picked = addOnSelection(book, requested.addOns);
+    } catch (err) {
+      throw new PricingError(err.message);
+    }
+    const giftCard = isGiftCardProduct(book);
+    if (giftCard && !(basePrice > 0)) throw new PricingError(`"${book.title || label}" is not available to buy right now. Please remove it from your bag.`);
+    let giftCardInfo = null;
+    if (giftCard) {
+      try {
+        giftCardInfo = giftCardDetails(requested.giftCardDetails);
+      } catch (err) {
+        throw new PricingError(err.message);
+      }
+    }
+    // Only fields the browser may describe are kept; everything that prices or ships comes from the catalog.
+    const { components: _c, promoGift: _p, giftCard: _g, giftCardDetails: _d, addOns: _a, bundle: _b, basePrice: _bp, ...rest } = requested;
+    const partWeights = components.map(part => itemWeightGrams(booksById[part.id] || {}, null) ?? null);
+    const bundleWeight = components.length && partWeights.every(w => w != null) ? partWeights.reduce((sum, w, i) => sum + w * components[i].quantity, 0) : null;
+    items.push({
+      ...rest,
+      // Names come from the catalog, never from the browser (they go into emails).
+      title: book.title || requested.title || "",
+      variantName: variant ? (variant.name || null) : null,
+      quantity,
+      price: Math.round((basePrice + picked.price) * 100) / 100,
+      ...(picked.addOns.length ? { basePrice, addOns: picked.addOns } : {}),
+      ...(components.length ? { bundle: true, components } : {}),
+      ...(giftCard ? { giftCard: true, giftCardDetails: giftCardInfo } : {}),
+      format: giftCard ? "Gift card" : catalogFormat(book, variant),
+      digital: catalogDigital(book, variant),
+      isDigital: catalogDigital(book, variant),
+      shippingProfileId: book.shippingProfileId || null,
+      weightGrams: itemWeightGrams(book, variant) ?? bundleWeight,
+      // Pre-order state comes from the catalog at checkout (never from the browser).
+      ...preorderLine(book),
+    });
   }
-  if (!items.length) throw new Error("Order has no items.");
+  if (!items.length) throw new PricingError("Order has no items.");
 
-  const subtotal = items.reduce((sum, item) => sum + item.price * item.quantity, 0);
+  const settings = knownSettings || (await db.collection("settings").doc("website").get()).data() || {};
+  const testMode = settings.payments?.testMode === true;
+  const email = order.customer?.email;
+  const discountable = discountableItems(items);
+
+  // Discount: a code the shopper entered, else the best automatic offer. One per order.
   let discount = 0;
   let appliedDiscount = null;
   let verifiedDiscount = null;
+  let freeShipping = false;
+  const giftPrices = {};
+  const giftLineFor = async offer => {
+    const giftBook = await getBook(offer.giftBookId);
+    const giftVariant = offer.giftVariantId ? (giftBook?.variants || []).find(v => v.id === offer.giftVariantId) || null : null;
+    if (!giftBook || purchaseProblem(giftBook, offer.giftVariantId || null) || (offer.giftVariantId && !giftVariant)) return null;
+    if (isGiftCardProduct(giftBook) || bundleComponents(giftBook).length) return null;
+    if (giftBook.trackInventory && !giftBook.allowBackorder) {
+      const inBag = items.filter(i => i.id === offer.giftBookId && (i.variantId || null) === (offer.giftVariantId || null)).reduce((sum, i) => sum + i.quantity, 0);
+      const stock = giftVariant ? Number(giftVariant.stock || 0) : Number(giftBook.stockLevel || 0);
+      if (stock < inBag + 1) return null;
+    }
+    const price = catalogUnitPrice(giftBook, giftVariant);
+    if (!Number.isFinite(price) || price < 0) return null;
+    return {
+      id: offer.giftBookId, variantId: offer.giftVariantId || null, title: giftBook.title || "", variantName: giftVariant?.name || null,
+      quantity: 1, price, promoGift: true, photoUrl: giftVariant?.photoUrl || giftBook.photos?.[0]?.url || "",
+      format: catalogFormat(giftBook, giftVariant), digital: catalogDigital(giftBook, giftVariant), isDigital: catalogDigital(giftBook, giftVariant),
+      shippingProfileId: giftBook.shippingProfileId || null, weightGrams: itemWeightGrams(giftBook, giftVariant), ...preorderLine(giftBook),
+    };
+  };
+  const giftLines = {};
+  const priceGift = async offer => {
+    if (!(offer.id in giftLines)) giftLines[offer.id] = await giftLineFor(offer);
+    giftPrices[offer.id] = giftLines[offer.id] ? giftLines[offer.id].price : NaN;
+  };
   if (order.appliedDiscount?.code) {
-    // Same "Discount code error:" prefix as the Stripe path, so checkout can drop the code and explain.
+    // Same "Discount code error:" prefix on every path, so checkout can drop the code and explain.
     try {
       const verified = await fetchValidDiscount(order.appliedDiscount.code);
       verifiedDiscount = verified;
-      validateDiscountCustomer(verified, order.customer?.email);
-      await assertDiscountNotUsedByCustomer(verified, order.customer?.email);
-      discount = computeDiscountAmount(verified, items, booksById);
-      appliedDiscount = { id: verified.id, code: verified.code, type: verified.type, value: verified.value };
+      validateDiscountCustomer(verified, email);
+      await assertDiscountNotUsedByCustomer(verified, email);
+      if (verified.type === "gift") await priceGift(verified);
+      discount = discountAmountFor(verified, discountable, booksById, { giftPrice: giftPrices[verified.id] });
+      freeShipping = verified.type === "freeship";
+      appliedDiscount = { id: verified.id, code: verified.code, type: verified.type, value: verified.value ?? null };
     } catch (discountErr) {
-      throw new Error(`Discount code error: ${discountErr.message}`);
+      throw new PricingError(`Discount code error: ${discountErr.message}`, "discount_rejected");
+    }
+  } else {
+    const offers = [];
+    for (const offer of await loadAutomaticDiscounts()) {
+      try {
+        validateDiscountCustomer(offer, email);
+        await assertDiscountNotUsedByCustomer(offer, email);
+      } catch {
+        continue;
+      }
+      if (offer.type === "gift") await priceGift(offer);
+      offers.push(offer);
+    }
+    const best = pickAutomaticDiscount(offers, discountable, booksById, offer => giftPrices[offer.id]);
+    if (best) {
+      verifiedDiscount = best.discount;
+      discount = best.amount;
+      freeShipping = best.freeShipping;
+      appliedDiscount = { id: best.discount.id, code: null, automatic: true, title: String(best.discount.title || "").slice(0, 120), type: best.discount.type, value: best.discount.value ?? null };
     }
   }
+  if (verifiedDiscount?.type === "gift" && giftLines[verifiedDiscount.id]) items.push(giftLines[verifiedDiscount.id]);
+  discount = Math.round(discount * 100) / 100;
+
+  // Gift cards are paid at face value: no tax and no discount on them.
+  const taxable = items.filter(item => item.giftCard !== true);
+  const subtotal = items.reduce((sum, item) => sum + item.price * item.quantity, 0);
   const profilesSnap = await db.collection("shipping-profiles").get();
   const profiles = profilesSnap.docs.map(doc => ({ id: doc.id, ...doc.data() }));
-  const settingsDoc = await db.collection("settings").doc("website").get();
-  const settings = settingsDoc.data() || {};
-  const discountedPhysical = discountedPhysicalSubtotal(items, discount, verifiedDiscount, booksById);
-  const shipResult = await resolveShipping(items, order, profiles, appliedDiscount?.type === "freeship", settings, discountedPhysical);
+  const discountedPhysical = discountedPhysicalSubtotal(taxable, discount, verifiedDiscount, booksById);
+  let shipResult;
+  try {
+    shipResult = await resolveShipping(items, order, profiles, freeShipping, settings, discountedPhysical);
+  } catch (err) {
+    throw new PricingError(err.message);
+  }
   const shipping = shipResult.cost;
-  const tax = authoritativeTax(items, discount, verifiedDiscount, booksById, settings, order, shipResult.fulfillment);
-  const total = subtotal - discount + shipping + tax;
+  let tax;
+  try {
+    tax = authoritativeTax(taxable, discount, verifiedDiscount, booksById, settings, order, shipResult.fulfillment);
+  } catch (err) {
+    throw new PricingError(err.message);
+  }
+  const beforeGiftCards = subtotal - discount + shipping + tax;
+
+  // Gift cards (checkout's "Gift card" box) pay what is left, except other gift cards in the bag.
+  const giftCardLines = items.filter(item => item.giftCard === true).reduce((sum, item) => sum + item.price * item.quantity, 0);
+  const coverableMinor = Math.max(0, Math.round((beforeGiftCards - giftCardLines) * 100));
+  const codes = [...new Set((Array.isArray(order.giftCards) ? order.giftCards : []).map(card => normalizeGiftCardCode(card && card.code)).filter(Boolean))];
+  if (codes.length > MAX_CARDS_PER_ORDER) throw new PricingError(`Use up to ${MAX_CARDS_PER_ORDER} gift cards on one order.`, "gift_card_rejected");
+  const cardsAvailable = [];
+  const nowMs = Date.now();
+  for (const code of codes) {
+    const id = giftCardId(code);
+    const snap = await db.collection("giftCards").doc(id).get();
+    const card = snap.exists ? snap.data() : null;
+    const problem = giftCardProblem(card, { testMode });
+    if (problem) throw new PricingError(`Gift card error: ${GIFT_CARD_MESSAGES[problem]}`, "gift_card_rejected");
+    cardsAvailable.push({ id, last4: last4(code), availableMinor: availableMinor(card, orderId, nowMs) });
+  }
+  const redemptions = allocateGiftCards(cardsAvailable, coverableMinor).map(r => ({ ...r, last4: cardsAvailable.find(c => c.id === r.id).last4 }));
+  const giftCardAmount = redemptions.reduce((sum, r) => sum + r.minor, 0) / 100;
+  const total = Math.round((beforeGiftCards - giftCardAmount) * 100) / 100;
+  return {
+    items, booksById, settings, testMode, subtotal, discount, appliedDiscount, verifiedDiscount,
+    shipping, shippingMethod: shipResult.method || null, shippingEstimate: shipResult.estimate || null, fulfillment: shipResult.fulfillment || null,
+    tax, giftCardAmount, giftCardRedemptions: redemptions, total,
+  };
+}
+
+async function recalculateOrder(orderRef, order, checkoutCurrency, orderId = "") {
+  const priced = await priceOrder(order, { orderId });
+  const { items, subtotal, discount, appliedDiscount, shipping, tax, total, settings } = priced;
   const rates = await getExchangeRates();
   const exchangeRate = rates[checkoutCurrency] || FALLBACK_RATES[checkoutCurrency] || 1;
   const convertedTotal = Math.round(total * exchangeRate * 100) / 100;
   const update = {
     items: items.map(({ shippingProfileId, ...item }) => item), subtotal, discount, appliedDiscount,
     shipping, tax, total, checkoutCurrency: checkoutCurrency.toUpperCase(), exchangeRate,
-    ...(shipResult.method ? { shippingMethod: shipResult.method } : {}),
-    shippingEstimate: shipResult.estimate || null,
-    fulfillment: shipResult.fulfillment || null,
+    giftCardAmount: priced.giftCardAmount, giftCardRedemptions: priced.giftCardRedemptions,
+    ...(priced.shippingMethod ? { shippingMethod: priced.shippingMethod } : {}),
+    shippingEstimate: priced.shippingEstimate,
+    fulfillment: priced.fulfillment,
     updatedAt: new Date().toISOString(),
   };
   await orderRef.update(update);
-  return { ...update, convertedTotal, settings };
+  return { ...update, convertedTotal, settings, testMode: priced.testMode };
 }
 
 // A shopper who retries (switches card ↔ PayPal ↔ e-Transfer, or edits the bag) gets a new
@@ -1032,9 +1082,43 @@ async function releaseSupersededAttempt(req, email, currentOrderId) {
       if (intent && !["requires_payment_method", "canceled"].includes(intent.status)) return;
     }
     await releaseStock(db, prevId, prev.items || []);
+    await releaseGiftCards(db, prevId, prev.giftCardRedemptions);
   } catch (err) {
     console.warn(`Could not release superseded attempt ${prevId}:`, err.message);
   }
+}
+
+// Holds the order's tracked stock, then its gift-card amounts, for the payment window.
+// A gift card that can no longer cover its part gives the stock back and throws GiftCardError.
+async function reserveCheckout(orderId, items, order, giftCardRedemptions, testMode) {
+  await reserveStock(db, orderId, items, Date.now(), holdOwner(order));
+  if (!(giftCardRedemptions || []).length) return;
+  try {
+    await reserveGiftCards(db, orderId, giftCardRedemptions, { testMode });
+  } catch (err) {
+    await releaseStock(db, orderId, items);
+    throw err;
+  }
+}
+
+// Inside a payment transaction, after every read: takes the order's gift-card amounts off the
+// cards once. Returns false (and records giftCardConflict) when a card can no longer pay its part:
+// the order is then not marked paid, exactly like a stock conflict.
+function settleGiftCards(transaction, orderRef, orderId, order, cards, provider, now) {
+  const redemptions = order.giftCardRedemptions || [];
+  if (!redemptions.length || order.giftCardsDebitedAt) return true;
+  const short = debitShortfall(redemptions, cards);
+  if (short) {
+    transaction.update(orderRef, {
+      giftCardConflict: { provider, reason: "balance", cardId: short, at: now },
+      activity: [...(order.activity || []), { type: "event", message: `${provider} confirmed payment, but a gift card on this order no longer had enough balance. The order was not marked paid; refund or reconcile the payment and contact the customer.`, createdAt: now }],
+      updatedAt: now,
+    });
+    return false;
+  }
+  writeGiftCardChange(transaction, db, orderId, redemptions, cards, -1, now);
+  transaction.update(orderRef, { giftCardsDebitedAt: now });
+  return true;
 }
 
 async function reserveForConfirmedPayment(orderId, provider, paymentId) {
@@ -1103,7 +1187,12 @@ async function markOrderPaidFromPayPal(orderId, paypalData) {
       discountRef = db.collection("discounts").doc(order.appliedDiscount.id);
       discountDoc = await transaction.get(discountRef);
     }
+    const giftCards = sandbox ? new Map() : await readGiftCards(transaction, db, order.giftCardRedemptions);
     const now = new Date().toISOString();
+    if (!sandbox && !settleGiftCards(transaction, orderRef, orderId, order, giftCards, "PayPal", now)) {
+      transaction.update(orderRef, { paypalCaptureId: paypalData.captureId || null });
+      return;
+    }
     transaction.update(orderRef, {
       paymentStatus: "paid", fulfillmentStatus: "paid", status: "open",
       ...(sandbox ? { isTest: true, sandboxPayment: true } : {}),
@@ -1156,17 +1245,20 @@ exports.createPayPalOrder = onBrowserRequest(
       if (refusal) return res.status(409).json({ error: "This order was cancelled. Please start a new order from your bag.", code: "order_closed" });
       let priced;
       try {
-        priced = await recalculateOrder(orderRef, order, currency);
+        priced = await recalculateOrder(orderRef, order, currency, orderId);
       } catch (pricingErr) {
-        return res.status(400).json({ error: pricingErr.message });
+        return res.status(400).json({ error: pricingErr.message, ...(pricingErr.code ? { code: pricingErr.code } : {}) });
       }
+      if (!(priced.convertedTotal > 0)) return res.status(400).json({ error: "Your gift card covers this order. Review your bag and place the order again.", code: "nothing_to_charge" });
       const config = await getPayPalConfig();
       if (!config.testMode) {
         await releaseSupersededAttempt(req, order.customer?.email, orderId);
         try {
-          await reserveStock(db, orderId, order.items || [], Date.now(), holdOwner(order));
+          // Priced lines (with box-set parts), not the browser's lines.
+          await reserveCheckout(orderId, priced.items, order, priced.giftCardRedemptions, config.testMode);
         } catch (holdErr) {
           if (holdErr instanceof StockHoldError) return res.status(409).json({ error: holdErr.message, code: holdErr.code });
+          if (holdErr instanceof GiftCardError) return res.status(409).json({ error: holdErr.message, code: "gift_card_rejected" });
           throw holdErr;
         }
       }
@@ -1317,7 +1409,8 @@ exports.paypalWebhook = onRequest(
 // ──────────────────────────────────────────────────────────────
 exports.createStripeCheckoutSession = onBrowserRequest(
   // SHIPPO_API_TOKEN: live carrier rates are re-priced here; STRIPE_WEBHOOK_SECRET: webhook health reports it.
-  { secrets: [STRIPE_SECRET_KEY, SHIPPO_API_TOKEN, STRIPE_WEBHOOK_SECRET] },
+  // RESEND_API_KEY: Admin › Gift cards emails codes through this function (Gmail first, Resend fallback).
+  { secrets: [STRIPE_SECRET_KEY, SHIPPO_API_TOKEN, STRIPE_WEBHOOK_SECRET, RESEND_API_KEY] },
   async (req, res) => {
     if (applyCors(req, res)) return;
     if (req.method !== "POST") {
@@ -1330,6 +1423,7 @@ exports.createStripeCheckoutSession = onBrowserRequest(
     if (req.body?.action === "trackingLink") return handleTrackingLink(req, res);
     if (req.body?.action === "registerPaymentDomain") return handleRegisterPaymentDomain(req, res);
     if (req.body?.action === "webhookHealth") return handleWebhookHealth(req, res);
+    if (req.body?.action === "giftCardAdmin") return handleGiftCardAdmin(req, res);
     if (req.body?.action === "cancelOrder") return handleCancelOrder(req, res);
     if (req.body?.action === "resolvePaymentMismatch") return handleResolveMismatch(req, res);
     if (req.body?.action === "orderRequest") return handleOrderRequest(req, res);
@@ -1372,8 +1466,10 @@ exports.createStripeCheckoutSession = onBrowserRequest(
           ...(typeof source.orderNote === 'string' ? { orderNote: source.orderNote.slice(0, 500) } : {}),
           ...(typeof source.locale === 'string' ? { locale: source.locale.slice(0, 20) } : {}),
         };
+        // Gift cards are taken when the payment is confirmed, which a manual payment may be days later.
+        if (Array.isArray(source.giftCards) && source.giftCards.length) throw new Error('Gift cards can be used when paying by card or PayPal, or when they cover the whole order.');
         const priced = await recalculateOrder({ update: async () => {} }, order, checkoutCurrencyOf(req.body.currency) || 'cad');
-        const { convertedTotal, settings: ignoredSettings, ...trusted } = priced;
+        const { convertedTotal, settings: ignoredSettings, testMode: ignoredTestMode, ...trusted } = priced;
         const orderId = crypto.randomBytes(12).toString('hex').toUpperCase();
         const trackingKey = crypto.randomBytes(32).toString('hex');
         // The order is placed: stop the "you left something in your bag" reminder now, not
@@ -1419,15 +1515,16 @@ exports.createStripeCheckoutSession = onBrowserRequest(
         if (freeOrder.paymentStatus !== "unpaid" || freeOrder.paymentMethod !== "Free" || freeOrder.isTest === true || checkoutRefusal(freeOrder)) {
           return res.status(400).json({ error: "This order can't be completed without payment." });
         }
-        const priced = await recalculateOrder(freeRef, freeOrder, checkoutCurrencyOf(req.body.currency) || "cad");
+        const priced = await recalculateOrder(freeRef, freeOrder, checkoutCurrencyOf(req.body.currency) || "cad", freeId);
         if (Math.round(Number(priced.total) * 100) !== 0) {
           return res.status(400).json({ error: "This order has a total to pay. Review your bag and choose a payment method." });
         }
         await releaseSupersededAttempt(req, freeOrder.customer?.email, freeId);
-        await completeOrderWithoutCard(freeId, "Free order completed — nothing to charge.");
+        const paidNow = await completeOrderWithoutCard(freeId, priced.giftCardAmount > 0 ? "Order paid in full with a gift card." : "Free order completed — nothing to charge.");
+        if (!paidNow) return res.status(409).json({ error: "Your gift card balance changed. Review your order and try again.", code: "gift_card_rejected" });
         return res.status(200).json({ paid: true });
       } catch (err) {
-        return res.status(400).json({ error: err.message });
+        return res.status(400).json({ error: err.message, ...(err.code && /^(gift_card|discount_)/.test(err.code) ? { code: err.code.startsWith("gift_card") ? "gift_card_rejected" : err.code } : {}) });
       }
     }
 
@@ -1466,124 +1563,24 @@ exports.createStripeCheckoutSession = onBrowserRequest(
         return;
       }
 
-      // 1. Load each book once: inventory check + authoritative pricing +
-      //    shipping profile. Client-supplied prices are never trusted.
-      const booksById = {};
-      const items = [];
-      for (const item of order.items || []) {
-        const bookDoc = await db.collection("books").doc(item.id).get();
-        if (!bookDoc.exists) {
-          res.status(400).json({ error: `Book ${item.title} not found in library catalog.` });
-          return;
-        }
-        const book = bookDoc.data();
-        booksById[item.id] = book;
-        const problem = purchaseProblem(book, item.variantId);
-        if (problem) {
-          res.status(400).json({ error: problem === "choose_edition"
-            ? `Choose an edition of "${book.title || item.title}" before checking out.`
-            : `"${book.title || item.title}" is not available to buy right now. Please remove it from your bag.` });
-          return;
-        }
-
-        let variant = null;
-        if (item.variantId) {
-          variant = (book.variants || []).find(v => v.id === item.variantId) || null;
-          if (!variant) {
-            res.status(400).json({ error: `Selected edition for book ${item.id} is no longer available.` });
-            return;
-          }
-        }
-        if (book.trackInventory && !book.allowBackorder) {
-          if (variant) {
-            if (variant.stock < item.quantity) {
-              res.status(400).json({ error: `Insufficient stock for ${item.title} (${variant.name}). Only ${variant.stock} left.` });
-              return;
-            }
-          } else if (book.stockLevel < item.quantity) {
-            res.status(400).json({ error: `Insufficient stock for ${item.title}. Only ${book.stockLevel} left.` });
-            return;
-          }
-        }
-
-        const unitPrice = catalogUnitPrice(book, variant);
-        if (!Number.isFinite(unitPrice) || unitPrice < 0) {
-          res.status(400).json({ error: `"${item.title}" is temporarily unavailable for purchase (pricing error).` });
-          return;
-        }
-        items.push({
-          ...item,
-          // Names come from the catalog, never from the browser (they go into emails).
-          title: book.title || item.title || "",
-          variantName: variant ? (variant.name || null) : null,
-          price: unitPrice,
-          format: catalogFormat(book, variant),
-          digital: catalogDigital(book, variant),
-          isDigital: catalogDigital(book, variant),
-          quantity: Math.max(1, Math.min(99, Math.floor(Number(item.quantity) || 1))),
-          shippingProfileId: book.shippingProfileId || null,
-          weightGrams: itemWeightGrams(book, variant),
-          // Pre-order state comes from the catalog at checkout (never from the browser).
-          ...preorderLine(book),
-        });
-      }
-
-      const subtotalTrusted = items.reduce((s, i) => s + i.price * i.quantity, 0);
-
-      // 2. Server-side discount validation (codes, limits, targeting)
-      let discountAmount = 0;
-      let appliedDiscount = null;
-      let verifiedDiscount = null;
-      if (order.appliedDiscount && order.appliedDiscount.code) {
-        let discount;
-        try {
-          discount = await fetchValidDiscount(order.appliedDiscount.code);
-          verifiedDiscount = discount;
-          validateDiscountCustomer(discount, order.customer?.email);
-          await assertDiscountNotUsedByCustomer(discount, order.customer?.email);
-          discountAmount = computeDiscountAmount(discount, items, booksById);
-        } catch (discountErr) {
-          res.status(400).json({ error: `Discount code error: ${discountErr.message}` });
-          return;
-        }
-        appliedDiscount = {
-          id: discount.id,
-          code: discount.code,
-          type: discount.type,
-          value: discount.value,
-        };
-      }
-
-      // 3. Dynamic Shipping Calculation (free when a freeship code applies)
-      const profilesSnap = await db.collection("shipping-profiles").get();
-      const profiles = profilesSnap.docs.map(doc => ({ id: doc.id, ...doc.data() }));
-      let shippingCost;
-      let shippingMethodCharged;
-      let shippingEstimate = null;
-      let fulfillment;
-      const settingsDoc = await db.collection("settings").doc("website").get();
-      const settings = settingsDoc.data() || {};
+      // 1–4. Server pricing: catalog items, add-ons, box sets, discount (code or automatic),
+      //      shipping, tax and gift cards. Client-supplied prices are never trusted.
+      let priced;
       try {
-        const discountedPhysical = discountedPhysicalSubtotal(items, discountAmount, verifiedDiscount, booksById);
-        const shipResult = await resolveShipping(items, order, profiles, appliedDiscount && appliedDiscount.type === "freeship", settings, discountedPhysical);
-        shippingCost = shipResult.cost;
-        shippingMethodCharged = shipResult.method;
-        shippingEstimate = shipResult.estimate || null;
-        fulfillment = shipResult.fulfillment || null;
-      } catch (shipErr) {
-        res.status(400).json({ error: shipErr.message });
-        return;
+        priced = await priceOrder(order, { orderId });
+      } catch (pricingErr) {
+        if (pricingErr instanceof PricingError) return res.status(400).json({ error: pricingErr.message, ...(pricingErr.code ? { code: pricingErr.code } : {}) });
+        throw pricingErr;
       }
-
-      // 4. Dynamic Tax Calculation (region-aware: state/province before country)
-      let taxCost;
-      try {
-        taxCost = authoritativeTax(items, discountAmount, verifiedDiscount, booksById, settings, order, fulfillment);
-      } catch (taxErr) {
-        return res.status(400).json({ error: taxErr.message });
-      }
-
-      const finalTotal = subtotalTrusted - discountAmount + shippingCost + taxCost;
+      const { items, settings, appliedDiscount, fulfillment, shippingEstimate } = priced;
+      const subtotalTrusted = priced.subtotal;
+      const discountAmount = priced.discount;
+      const shippingCost = priced.shipping;
+      const shippingMethodCharged = priced.shippingMethod;
+      const taxCost = priced.tax;
+      const giftCardAmount = priced.giftCardAmount;
+      const giftCardRedemptions = priced.giftCardRedemptions;
+      const finalTotal = priced.total;
       const rates = await getExchangeRates();
       const exchangeRate = rates[checkoutCurrency] || FALLBACK_RATES[checkoutCurrency] || 1.0;
 
@@ -1623,6 +1620,8 @@ exports.createStripeCheckoutSession = onBrowserRequest(
         shippingEstimate,
         fulfillment,
         tax: taxCost,
+        giftCardAmount,
+        giftCardRedemptions,
         total: finalTotal,
         checkoutCurrency: checkoutCurrency.toUpperCase(),
         exchangeRate: exchangeRate,
@@ -1645,13 +1644,13 @@ exports.createStripeCheckoutSession = onBrowserRequest(
       }
 
       const stripe = new Stripe(stripeSecret);
-      const subtotal = subtotalTrusted;
-      const discount = discountAmount;
-      const discountFactor = subtotal > 0 ? (subtotal - discount) / subtotal : 1;
+      // The discount is spread over the discountable lines; gift cards are always face value.
+      const discountableSubtotal = items.filter(item => item.giftCard !== true).reduce((sum, item) => sum + item.price * item.quantity, 0);
+      const discountFactor = discountableSubtotal > 0 ? (discountableSubtotal - discountAmount) / discountableSubtotal : 1;
 
       const lineItems = items.map(item => {
         const convertedPrice = item.price * exchangeRate;
-        const itemPriceInCents = Math.round(convertedPrice * discountFactor * 100);
+        const itemPriceInCents = Math.round(convertedPrice * (item.giftCard === true ? 1 : discountFactor) * 100);
         let title = item.title;
         if (item.variantName) {
           title += ` (${item.variantName})`;
@@ -1695,14 +1694,26 @@ exports.createStripeCheckoutSession = onBrowserRequest(
         });
       }
 
-      // Sandbox sessions rehearse payment only; they do not reserve or consume live stock.
+      // Gift cards pay part of the order: the card is charged only what is left.
+      const giftCardMinor = Math.round(giftCardAmount * exchangeRate * 100);
+      const chargeMinor = lineItems.reduce((sum, li) => sum + li.price_data.unit_amount * li.quantity, 0) - giftCardMinor;
+      if (giftCardMinor > 0 && !paymentElement) {
+        res.status(400).json({ error: "Gift cards can be used with the card form on the checkout page.", code: "gift_card_rejected" });
+        return;
+      }
+      if (giftCardMinor > 0 && chargeMinor < 1) {
+        res.status(400).json({ error: "Your gift card covers this order. Review your bag and place the order again.", code: "nothing_to_charge" });
+        return;
+      }
+
+      // Sandbox sessions rehearse payment only; they do not reserve or consume live stock or gift cards.
       if (!testMode) {
         await releaseSupersededAttempt(req, order.customer?.email, orderId);
         try {
-          await reserveStock(db, orderId, items, Date.now(), holdOwner(order));
+          await reserveCheckout(orderId, items, order, giftCardRedemptions, testMode);
         } catch (holdErr) {
-          if (holdErr instanceof StockHoldError) {
-            res.status(409).json({ error: holdErr.message, code: holdErr.code });
+          if (holdErr instanceof StockHoldError || holdErr instanceof GiftCardError) {
+            res.status(409).json({ error: holdErr.message, code: holdErr instanceof GiftCardError ? "gift_card_rejected" : holdErr.code });
             return;
           }
           throw holdErr;
@@ -1736,7 +1747,7 @@ exports.createStripeCheckoutSession = onBrowserRequest(
             return;
           }
         }
-        const amount = lineItems.reduce((sum, li) => sum + li.price_data.unit_amount * li.quantity, 0);
+        const amount = chargeMinor;
         const intent = await stripe.paymentIntents.create({
           amount,
           currency: checkoutCurrency,
@@ -1882,6 +1893,97 @@ async function handleVerifyStripeKeys(req, res) {
 // mode the shop is using. Repair adds missing events, re-enables a disabled
 // endpoint, or creates the endpoint and saves its signing secret privately in
 // adminSecrets/stripeWebhook so stripeWebhook can verify it.
+// Admin › Gift cards: issue, disable/enable, adjust a balance or resend the email. The browser
+// can read gift cards (admin only) but never write them; every change goes through here.
+async function handleGiftCardAdmin(req, res) {
+  const adminUser = await requireAdmin(req, res);
+  if (!adminUser) return;
+  const body = req.body || {};
+  const actor = adminUser.email || "admin";
+  const now = new Date().toISOString();
+  try {
+    if (body.op === "issue") {
+      const amountMinor = Math.floor(Number(body.amountMinor));
+      if (!Number.isFinite(amountMinor) || amountMinor < 100 || amountMinor > 1000000) return res.status(400).json({ error: "Enter an amount between CA$1 and CA$10,000." });
+      const recipientEmail = String(body.recipientEmail || "").trim().toLowerCase().slice(0, 320);
+      if (recipientEmail && !/^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/.test(recipientEmail)) return res.status(400).json({ error: "Check the recipient's email address." });
+      const expiresOn = String(body.expiresOn || "").slice(0, 10);
+      if (expiresOn && !/^\d{4}-\d{2}-\d{2}$/.test(expiresOn)) return res.status(400).json({ error: "Use a date for the expiry." });
+      if (body.sendEmail === true && !recipientEmail) return res.status(400).json({ error: "Add the recipient's email address to send the code." });
+      let code = "";
+      let id = "";
+      const data = {
+        last4: "", initialMinor: amountMinor, balanceMinor: amountMinor, currency: "CAD", enabled: true,
+        ...(expiresOn ? { expiresOn } : {}),
+        recipientEmail, recipientName: String(body.recipientName || "").trim().slice(0, 100),
+        senderName: String(body.senderName || "Lyricalmyrical Books").trim().slice(0, 100),
+        message: String(body.message || "").trim().slice(0, 300), note: String(body.note || "").trim().slice(0, 500),
+        source: "admin", issuedBy: actor, holds: {},
+        history: [{ type: "issued", minor: amountMinor, actor, at: now }],
+        createdAt: now, updatedAt: now,
+      };
+      // A fresh random code; create() refuses the (astronomically unlikely) duplicate.
+      for (let attempt = 0; attempt < 3 && !id; attempt++) {
+        code = newGiftCardCode();
+        try {
+          await db.collection("giftCards").doc(giftCardId(code)).create({ ...data, code, last4: last4(code) });
+          id = giftCardId(code);
+        } catch (err) {
+          if (attempt === 2) throw err;
+        }
+      }
+      let emailError = null;
+      if (body.sendEmail === true) {
+        try {
+          await emailGiftCard(id, { ...data, code, last4: last4(code) });
+        } catch (err) {
+          emailError = err.message;
+        }
+      }
+      return res.status(200).json({ id, code, last4: last4(code), ...(emailError ? { emailError } : {}) });
+    }
+    const id = typeof body.id === "string" && /^[a-f0-9]{40}$/.test(body.id) ? body.id : "";
+    if (!id) return res.status(400).json({ error: "Missing gift card." });
+    const ref = db.collection("giftCards").doc(id);
+    if (body.op === "setEnabled") {
+      await db.runTransaction(async tx => {
+        const snap = await tx.get(ref);
+        if (!snap.exists) throw new Error("Gift card not found.");
+        const card = snap.data();
+        const enabled = body.enabled === true;
+        tx.update(ref, { enabled, history: withHistory(card, { type: enabled ? "enabled" : "disabled", minor: 0, actor, at: now }), updatedAt: now });
+      });
+      return res.status(200).json({ ok: true });
+    }
+    if (body.op === "adjust") {
+      const delta = Math.trunc(Number(body.deltaMinor));
+      const reason = String(body.reason || "").trim().slice(0, 300);
+      if (!Number.isFinite(delta) || !delta || Math.abs(delta) > 1000000) return res.status(400).json({ error: "Enter an amount to add or remove." });
+      if (!reason) return res.status(400).json({ error: "Add a reason for the change." });
+      let balanceMinor = 0;
+      await db.runTransaction(async tx => {
+        const snap = await tx.get(ref);
+        if (!snap.exists) throw new Error("Gift card not found.");
+        const card = snap.data();
+        balanceMinor = Math.max(0, Math.floor(Number(card.balanceMinor) || 0) + delta);
+        tx.update(ref, { balanceMinor, history: withHistory(card, { type: "adjusted", minor: delta, reason, actor, at: now }), updatedAt: now });
+      });
+      return res.status(200).json({ ok: true, balanceMinor });
+    }
+    if (body.op === "resend") {
+      const snap = await ref.get();
+      if (!snap.exists) return res.status(404).json({ error: "Gift card not found." });
+      const to = String(body.to || "").trim().toLowerCase();
+      await emailGiftCard(id, snap.data(), { to });
+      return res.status(200).json({ ok: true });
+    }
+    return res.status(400).json({ error: "Unknown gift card action." });
+  } catch (err) {
+    console.error("giftCardAdmin failed:", err);
+    return res.status(400).json({ error: err.message });
+  }
+}
+
 async function handleWebhookHealth(req, res) {
   if (!await requireAdmin(req, res)) return;
   try {
@@ -2091,6 +2193,12 @@ async function markStripeOrderPaid(orderId, session, opts = {}) {
         discountRef = db.collection("discounts").doc(order.appliedDiscount.id);
         discountDoc = await transaction.get(discountRef);
       }
+      const giftCards = sandbox ? new Map() : await readGiftCards(transaction, db, order.giftCardRedemptions);
+      // A gift card that can no longer pay its part keeps the order unpaid (like a stock conflict).
+      if (!sandbox && !settleGiftCards(transaction, orderRef, orderId, order, giftCards, "Stripe", now)) {
+        transaction.update(orderRef, stripeTransaction);
+        return;
+      }
 
       // Single-use token securing digital download links in emails.
       const downloadToken = crypto.randomBytes(32).toString("hex");
@@ -2196,8 +2304,18 @@ async function applyOrderRefund(orderId, { provider, refundId = null, amountMino
     const shouldReverseDiscount = !sandboxPaid && order.appliedDiscount?.id && order.discountUsageReversedAt == null;
     const discountRef = shouldReverseDiscount ? db.collection("discounts").doc(order.appliedDiscount.id) : null;
     const discountDoc = discountRef ? await transaction.get(discountRef) : null;
+    // A full refund also gives back what gift cards paid, once.
+    const shouldRestoreGiftCards = !!order.giftCardsDebitedAt && !order.giftCardsRestoredAt && (order.giftCardRedemptions || []).length > 0;
+    const giftCards = shouldRestoreGiftCards ? await readGiftCards(transaction, db, order.giftCardRedemptions) : new Map();
+    // Gift cards this order bought stop working once their purchase is refunded.
+    const issuedCards = !order.giftCardsVoidedAt ? await readGiftCards(transaction, db, order.giftCardsIssued) : new Map();
 
     if (shouldRestock) writeStock(transaction, db, itemList, books, 1, now);
+    if (shouldRestoreGiftCards) writeGiftCardChange(transaction, db, orderId, order.giftCardRedemptions, giftCards, 1, now);
+    for (const [cardId, card] of issuedCards) {
+      if (card.enabled === false) continue;
+      transaction.update(db.collection("giftCards").doc(cardId), { enabled: false, history: withHistory(card, { type: "disabled", minor: 0, orderId, reason: "Purchase refunded", at: now }), updatedAt: now });
+    }
     if (discountRef && discountDoc?.exists) {
       transaction.update(discountRef, { usageCount: Math.max(0, (Number(discountDoc.data().usageCount) || 0) - 1), updatedAt: now });
     }
@@ -2225,10 +2343,12 @@ async function applyOrderRefund(orderId, { provider, refundId = null, amountMino
         restockedItems: itemList.map(item => ({ id: item.id, variantId: item.variantId || null, quantity: Number(item.quantity) || 0 })),
       } : {}),
       ...(discountRef ? { discountUsageReversedAt: now } : {}),
+      ...(shouldRestoreGiftCards ? { giftCardsRestoredAt: now } : {}),
+      ...(issuedCards.size ? { giftCardsVoidedAt: now } : {}),
       updatedAt: now,
       activity: [...(order.activity || []), {
         type: "event",
-        message: `${label} refund ${done ? "completed" : "started"}${amountText}${shouldRestock ? "; inventory restocked" : ""}${note ? ` — ${note}` : ""}.`,
+        message: `${label} refund ${done ? "completed" : "started"}${amountText}${shouldRestock ? "; inventory restocked" : ""}${shouldRestoreGiftCards ? `; ${(order.giftCardRedemptions || []).reduce((sum, r) => sum + (Number(r.minor) || 0), 0) / 100} CAD put back on gift cards` : ""}${note ? ` — ${note}` : ""}.`,
         createdAt: now,
         actor,
       }],
@@ -2420,6 +2540,7 @@ async function handleCancelOrder(req, res) {
       console.warn(`cancelOrder ${orderId}: could not stop the Stripe payment:`, err.message);
     }
     await releaseStock(db, orderId, order.items || []);
+    await releaseGiftCards(db, orderId, order.giftCardRedemptions);
     return res.status(200).json({ cancelled: true, stopped });
   } catch (err) {
     return res.status(err.status || 500).json({ error: err.message, code: err.code });
@@ -3237,6 +3358,13 @@ const DEFAULT_NOTIFICATIONS = {
     signoff: "Warmly,\nThe Lyricalmyrical Team",
     enabled: true
   },
+  gift_card: {
+    subject: "You've received a {{amount}} gift card",
+    body: "Hi {{recipient_name}},\n\n{{sender_name}} sent you a {{amount}} gift card for Lyricalmyrical Books.\n\n{{message}}\n\nYour gift card code: {{code}}\n\nEnter it in the Gift card box at checkout. {{expires}}",
+    buttonText: "Shop now",
+    signoff: "Happy reading,\nThe Lyricalmyrical Team",
+    enabled: true
+  },
   delivery_update: {
     subject: "Delivery Update: Your order is {{status}}",
     body: "Hi {{customer_name}},\n\nYour package tracking status has been updated: {{status}}.\n\nCarrier: {{tracking_carrier}}\nTracking: {{tracking_number}}",
@@ -3413,6 +3541,58 @@ function compileEmailTemplate(templateId, settings, vars, additionalSection) {
 // ──────────────────────────────────────────────────────────────
 // 5b. Order Paid: Trigger notifications only AFTER successful payment
 // ──────────────────────────────────────────────────────────────
+// Emails one gift card's code to its recipient (or `to`). Records emailedAt on the card.
+async function emailGiftCard(cardId, card, { to = "", notificationSettings = null } = {}) {
+  const recipient = String(to || card.recipientEmail || card.purchaserEmail || "").trim();
+  if (!recipient || !/^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/.test(recipient)) throw new Error("This gift card has no email address to send to.");
+  const settings = notificationSettings || await loadNotificationSettings();
+  const compiled = compileEmailTemplate("gift_card", settings, {
+    recipient_name: card.recipientName || "there",
+    sender_name: card.senderName || "Someone",
+    amount: `CA$${(Number(card.initialMinor) / 100).toFixed(2)}`,
+    code: card.code,
+    message: card.message || "",
+    expires: card.expiresOn ? `It can be used until ${card.expiresOn}.` : "",
+    button_url: siteLink("/"),
+    shop_url: siteLink("/"),
+  });
+  await sendEmail({ to: recipient, subject: compiled.subject, html: compiled.html, secret: RESEND_API_KEY.value() });
+  const at = new Date().toISOString();
+  await db.collection("giftCards").doc(cardId).update({ emailedAt: at, history: withHistory(card, { type: "emailed", minor: 0, to: recipient, at }), updatedAt: at });
+}
+
+// A paid order with gift-card lines gets its cards once (giftCardsIssuedAt), then each is emailed.
+async function issueGiftCardsForOrder(orderId) {
+  const orderRef = db.collection("orders").doc(orderId);
+  let created = [];
+  await db.runTransaction(async tx => {
+    created = [];
+    const snap = await tx.get(orderRef);
+    if (!snap.exists) return;
+    const order = snap.data();
+    if (order.giftCardsIssuedAt || order.paymentStatus !== "paid") return;
+    const cards = cardsForOrder(orderId, order);
+    if (!cards.length) return;
+    const now = new Date().toISOString();
+    for (const card of cards) tx.create(db.collection("giftCards").doc(card.id), card.data);
+    tx.update(orderRef, {
+      giftCardsIssuedAt: now,
+      giftCardsIssued: cards.map(card => ({ id: card.id, last4: card.data.last4, minor: card.data.initialMinor, recipientEmail: card.data.recipientEmail, lineIndex: card.data.lineIndex })),
+      updatedAt: now,
+    });
+    created = cards;
+  });
+  const notificationSettings = await loadNotificationSettings();
+  if (notificationSettings.gift_card?.enabled === false) return;
+  for (const card of created) {
+    try {
+      await emailGiftCard(card.id, card.data, { notificationSettings });
+    } catch (err) {
+      console.error(`Gift card email failed for order ${orderId}:`, err.message);
+    }
+  }
+}
+
 exports.onOrderUpdated = onDocumentUpdated(
   { document: "orders/{orderId}", secrets: [RESEND_API_KEY, SHIPPO_API_TOKEN] },
   async event => {
@@ -3437,6 +3617,13 @@ exports.onOrderUpdated = onDocumentUpdated(
         await db.collection("abandoned-carts").doc(after.cartId).set({ recovered: true, recoveredAt: new Date().toISOString() }, { merge: true });
       } catch (err) {
         console.warn("Could not mark checkout cart recovered", err);
+      }
+    }
+    if (becamePaid && (after.items || []).some(item => item && item.giftCard === true)) {
+      try {
+        await issueGiftCardsForOrder(orderId);
+      } catch (err) {
+        console.error(`Could not issue gift cards for ${orderId}:`, err);
       }
     }
     if (becamePaid) {
@@ -3473,7 +3660,7 @@ exports.onOrderUpdated = onDocumentUpdated(
 
       // Compile digital items download section if any digital formats exist
       // Same digital rule as downloads, returns and labels ("Ebook", "Digital edition", digital: true).
-      const digitalItems = (order.items || []).filter(item => item && !isPhysicalItem(item));
+      const digitalItems = (order.items || []).filter(item => item && item.giftCard !== true && !isPhysicalItem(item));
 
       let downloadSection = "";
       if (digitalItems.length > 0) {
@@ -3668,7 +3855,10 @@ exports.onOrderUpdated = onDocumentUpdated(
 
     // 3. Order Cancelled (skip if the order is being refunded simultaneously — the refund email is more accurate)
     // A cancelled order frees any copies it was holding at checkout.
-    if (before.status !== "cancelled" && after.status === "cancelled") await releaseStock(db, orderId, after.items || []);
+    if (before.status !== "cancelled" && after.status === "cancelled") {
+      await releaseStock(db, orderId, after.items || []);
+      await releaseGiftCards(db, orderId, after.giftCardRedemptions);
+    }
     const becameCancelled = before.status !== "cancelled" && after.status === "cancelled"
       && after.paymentStatus !== "refunded" && after.paymentStatus !== "refund_pending"
       // "You will not be charged" is only true for an order that was never paid.
@@ -4051,17 +4241,24 @@ exports.getShippoRates = onBrowserRequest(
       // Same parcel weight as the charge path (resolveShipping): physical items only,
       // catalog weights read as grams ("450 g", "0.5 kg", bare numbers = grams).
       let totalWeightLb = 0;
-      items.forEach((item, index) => {
+      for (const [index, item] of items.entries()) {
         const bookDoc = bookDocs[index];
-        if (!bookDoc.exists) return;
+        if (!bookDoc.exists) continue;
         const book = bookDoc.data();
         const variant = item.variantId ? (book.variants || []).find(v => v.id === item.variantId) || null : null;
         const line = { format: catalogFormat(book, variant), digital: catalogDigital(book, variant), isDigital: catalogDigital(book, variant) };
-        if (!isPhysicalItem(line)) return;
+        if (!isPhysicalItem(line)) continue;
         const qty = Math.max(1, Math.min(99, Math.floor(Number(item.quantity) || 1)));
-        const grams = Number(itemWeightGrams(book, variant));
+        let grams = Number(itemWeightGrams(book, variant));
+        // A box set without its own weight weighs what its books weigh (as priceOrder does).
+        const parts = bundleComponents(book);
+        if (!(grams > 0) && parts.length) {
+          const partDocs = await Promise.all(parts.map(part => db.collection("books").doc(part.id).get()));
+          const partWeights = partDocs.map(doc => (doc.exists ? itemWeightGrams(doc.data(), null) : null));
+          if (partWeights.every(w => w != null)) grams = partWeights.reduce((sum, w, i) => sum + w * parts[i].quantity, 0);
+        }
         totalWeightLb += (Number.isFinite(grams) && grams > 0 ? grams / 453.592 : 1.5) * qty;
-      });
+      }
       if (totalWeightLb === 0) {
         res.status(200).json({ rates: [], useRegularRates: true });
         return;
@@ -4563,6 +4760,42 @@ exports.validateDiscountCode = onBrowserRequest(async (req, res) => {
   if (req.method !== "POST") {
     res.status(405).send("Method Not Allowed");
     return;
+  }
+
+  // Checkout's automatic offers (no code): the conditions checkout needs to show the same saving
+  // the server will charge. Customer lists and usage counts stay private.
+  if (req.body?.action === "automaticDiscounts") {
+    try {
+      const offers = await loadAutomaticDiscounts();
+      res.status(200).json({ discounts: offers.map(d => ({
+        id: d.id, title: String(d.title || ""), type: d.type, value: d.value ?? null,
+        minOrderAmount: d.minOrderAmount ?? null, minQuantity: d.minQuantity ?? null, maxDiscountAmount: d.maxDiscountAmount ?? null,
+        appliesTo: d.appliesTo ?? "all", selectedCategories: d.selectedCategories ?? [], selectedProducts: d.selectedProducts ?? [],
+        buyQuantity: d.buyQuantity ?? null, getQuantity: d.getQuantity ?? null, getDiscountValue: d.getDiscountValue ?? null, tiers: d.tiers ?? null,
+        giftBookId: d.giftBookId ?? null, giftVariantId: d.giftVariantId ?? null,
+        // Offers limited to some customers may not apply to this shopper: checkout re-prices on the server.
+        restricted: !!(String(d.allowedCustomerEmails || "").trim() || String(d.allowedEmailDomains || "").trim() || d.onePerCustomer),
+      })) });
+    } catch (err) {
+      console.error("automaticDiscounts failed:", err);
+      res.status(200).json({ discounts: [] });
+    }
+    return;
+  }
+
+  // Checkout's "Gift card" box: the card's balance, by code. Rate limited like discount codes.
+  if (req.body?.action === "giftCardBalance") {
+    if (!(await hitLimit(db, "discount", req, LIMITS.discount))) {
+      res.status(429).json({ error: "Too many attempts. Please wait a few minutes and try again." });
+      return;
+    }
+    const id = giftCardId(req.body.code);
+    if (!id) return res.status(400).json({ error: GIFT_CARD_MESSAGES.not_found, code: "gift_card_not_found" });
+    const snap = await db.collection("giftCards").doc(id).get();
+    const card = snap.exists ? snap.data() : null;
+    const problem = giftCardProblem(card, { testMode: await shopTestMode() });
+    if (problem) return res.status(400).json({ error: GIFT_CARD_MESSAGES[problem], code: `gift_card_${problem}` });
+    return res.status(200).json({ last4: card.last4 || last4(req.body.code), balanceMinor: availableMinor(card, "", Date.now()), currency: "CAD", expiresOn: card.expiresOn || null });
   }
 
   const { code } = req.body;
@@ -5204,7 +5437,10 @@ async function completeOrderWithoutCard(orderId, message, { reserve = true } = {
   // A free order checks the 30-minute stock hold like any checkout. A manual payment the owner
   // confirms days later is money already received: it is recorded even if the books have
   // since sold (the stock write below flags oversold for the owner).
-  if (reserve && initial.exists && initial.data().paymentStatus !== "paid") await reserveStock(db, orderId, initial.data().items || [], Date.now(), holdOwner(initial.data()));
+  if (reserve && initial.exists && initial.data().paymentStatus !== "paid") {
+    const pending = initial.data();
+    await reserveCheckout(orderId, pending.items || [], pending, pending.giftCardRedemptions, (await shopTestMode()));
+  }
 
   await db.runTransaction(async transaction => {
     paidTotal = null; // a retried attempt must not keep the last attempt's value
@@ -5219,6 +5455,8 @@ async function completeOrderWithoutCard(orderId, message, { reserve = true } = {
     const discountRef = order.appliedDiscount?.id && order.discountUsageCountedAt == null
       ? db.collection("discounts").doc(order.appliedDiscount.id) : null;
     const discountDoc = discountRef ? await transaction.get(discountRef) : null;
+    const giftCards = await readGiftCards(transaction, db, order.giftCardRedemptions);
+    if (!settleGiftCards(transaction, orderRef, orderId, order, giftCards, "Checkout", new Date().toISOString())) return;
 
     const downloadToken = crypto.randomBytes(32).toString("hex");
 
@@ -5256,7 +5494,8 @@ async function completeOrderWithoutCard(orderId, message, { reserve = true } = {
       revenue: admin.firestore.FieldValue.increment(paidTotal),
     }, { merge: true });
   }
-
+  // false when nothing was marked paid (a gift card could no longer cover its part).
+  return paidTotal !== null || (await orderRef.get()).data()?.paymentStatus === "paid";
 }
 
 exports.markOrderPaid = onBrowserRequest(
