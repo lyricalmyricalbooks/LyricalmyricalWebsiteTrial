@@ -9,7 +9,7 @@ import { SHORTCUTS, type ShortcutAction } from "./shortcuts";
 
 export type StudioTab = "sections" | "style" | "text" | "menus" | "pages" | "media" | "themes";
 export type StudioActionId =
-  | "save" | "publish" | "discard" | "history" | "check" | "preview-tab" | "undo" | "redo"
+  | "save" | "publish" | "discard" | "history" | "schedule" | "check" | "preview-tab" | "undo" | "redo"
   | "device-desktop" | "device-tablet" | "device-mobile" | "mode-toggle" | "autofit-page" | "add-section";
 
 export type SearchTarget =
@@ -106,6 +106,7 @@ const ACTIONS: { id: StudioActionId; title: string; keywords: string }[] = [
   { id: "publish", title: "Publish to the live shop", keywords: "go live release push shoppers" },
   { id: "discard", title: "Discard draft", keywords: "throw away reset revert to live" },
   { id: "history", title: "Version history", keywords: "restore previous older versions checkpoint save compare differences pin undo published" },
+  { id: "schedule", title: "Schedule publishing or a campaign", keywords: "schedule later timer date time campaign sale seasonal switch back automatically launch" },
   { id: "check", title: "Studio Health (check before publishing)", keywords: "review accessibility problems warnings contrast alt text tap targets broken links speed seo pre-publish check" },
   { id: "preview-tab", title: "Preview in new tab", keywords: "full screen window open" },
   { id: "undo", title: "Undo", keywords: "step back ctrl z" },

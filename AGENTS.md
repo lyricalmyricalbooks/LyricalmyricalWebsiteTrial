@@ -212,6 +212,12 @@ the storefront reads them only through `features/site/themePreview.ts` + `public
 shared design, keeps it noindex and out of analytics (`trackingGuard`, `useSiteData`), and always shows
 `ThemePreviewBanner`. Deploy `firestore.rules` with the frontend for share links to work.
 
+**Scheduling & campaigns (3.5):** Studio › Theme actions › **Schedule publishing…** (`studio/StudioSchedule.tsx`,
+`studio/themeSchedule.ts`) writes admin-only `themeSchedule/{id}`; `functions/themeSchedule.js` (run inside
+`unpaidPaymentSweep`, every 15 minutes) publishes due entries into `settings/website.design` and switches campaigns back
+at their end unless a later Publish happened. Never put scheduled designs in the public settings document, and never
+apply schedules in the browser. Times are entered in Toronto time and stored as UTC ISO.
+
 **Media library (2.4).** Studio › **Media** (`studio/StudioMedia.tsx`) lists admin-only `media/{id}` records; library
 uploads (`uploadMediaImage`) store WebP copies at 480/960/1600 px under `assets/media/<id>/`. Picking a picture for a
 section/block field writes its URL plus a public `${field}__media` record (Theme settings images get the URL only, but

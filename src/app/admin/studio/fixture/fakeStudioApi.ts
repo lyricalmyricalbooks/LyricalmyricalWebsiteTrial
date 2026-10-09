@@ -15,6 +15,8 @@ export type StudioFixture = {
   watchers?: ((remote: any) => void)[];
   /** Studio › Themes share links (previewTokens). `previewDenied` acts as if their rules weren't deployed. */
   previewLinks?: any[]; previewDenied?: boolean;
+  /** Scheduled publishes and campaigns (themeSchedule) and the scheduler's last run. */
+  schedule?: any[]; schedulerLastRunAt?: string | null;
   remoteSave?: (draft: any, options?: { publish?: boolean }) => void;
 };
 
@@ -79,6 +81,16 @@ export function installFakeStudioApi(api: Record<string, any>, fixture: StudioFi
       if (fixture.previewDenied) throw Object.assign(new Error("Missing or insufficient permissions."), { code: "permission-denied" });
       return (fixture.previewLinks || []).map(({ design: _d, ...rest }) => rest);
     },
+    listThemeSchedule: async () => (fixture.schedule || []).map(({ design: _d, ...rest }) => clone(rest)),
+    addThemeSchedule: async (entry: any) => {
+      record("addThemeSchedule", { kind: entry.kind, name: entry.name, startAt: entry.startAt, endAt: entry.endAt ?? null });
+      const saved = { ...clone(entry), id: `sch${(fixture.schedule || []).length + 1}`, status: "scheduled", createdAt: new Date().toISOString() };
+      fixture.schedule = [saved, ...(fixture.schedule || [])];
+      return saved;
+    },
+    cancelThemeSchedule: async (id: string) => { record("cancelThemeSchedule", id); fixture.schedule = (fixture.schedule || []).map(e => (e.id === id ? { ...e, status: "cancelled" } : e)); },
+    endCampaignNow: async (id: string) => { record("endCampaignNow", id); fixture.schedule = (fixture.schedule || []).map(e => (e.id === id ? { ...e, endAt: new Date().toISOString() } : e)); },
+    getSchedulerStatus: async () => (fixture.schedulerLastRunAt ? { lastRunAt: fixture.schedulerLastRunAt } : null),
     revokePreviewLink: async (token: string) => { record("revokePreviewLink", token); fixture.previewLinks = (fixture.previewLinks || []).filter(l => l.token !== token); },
     saveThemeVersion: async (kind: string, label: string, design: any) => {
       record("saveThemeVersion", kind, label);

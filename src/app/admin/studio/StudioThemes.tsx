@@ -49,6 +49,7 @@ type Props = {
   onDuplicate: (t: SavedTheme) => void;
   onDownload: (t: SavedTheme) => void;
   onDelete: (t: SavedTheme) => void;
+  onSchedule?: (t: SavedTheme) => void;
   onApplyPreset: (preset: any) => void;
   links: PreviewLinkApi;
   askConfirm: (opts: { title: string; message: string; confirmLabel?: string }) => Promise<boolean>;
@@ -151,6 +152,7 @@ export function StudioThemes(p: Props) {
                   <ActionMenu label={`More actions for ${t.name}`} actions={[
                     { label: "Share a preview link", onSelect: () => setShare({ name: t.name, design: t.design }) },
                     { label: "Publish…", onSelect: () => p.onPublish(t) },
+                    ...(p.onSchedule ? [{ label: "Schedule…", onSelect: () => p.onSchedule!(t) }] : []),
                     { label: "Rename", onSelect: () => p.onRename(t) },
                     { label: "Duplicate", onSelect: () => p.onDuplicate(t) },
                     { label: "Download as a file", onSelect: () => p.onDownload(t) },

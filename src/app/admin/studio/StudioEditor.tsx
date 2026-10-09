@@ -5,7 +5,7 @@ import { canInlineFormat } from "./richText";
 import { applyContextAction, applySpacing, contextCapabilities, GAP_KEYS, PADDING_KEYS, spacingKey } from "./canvasTools";
 import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState } from "react";
 import {
-  ArrowLeft, ChevronDown, ChevronUp, Clipboard, Copy, Eye, EyeOff, ExternalLink, History, Monitor, Plus, Redo2, Search, ShieldCheck, Smartphone,
+  ArrowLeft, ChevronDown, Clock, ChevronUp, Clipboard, Copy, Eye, EyeOff, ExternalLink, History, Monitor, Plus, Redo2, Search, ShieldCheck, Smartphone,
   Download, Pencil, Tablet, Trash2, Undo2, Upload, X,
 } from "lucide-react";
 import { adminApi } from "../api";
@@ -68,6 +68,7 @@ import { MediaPickerDialog, StudioMediaPanel, useMediaLibrary } from "./StudioMe
 import { StudioHistory, versionName, type ThemeVersion } from "./StudioHistory";
 import { StudioHealth } from "./StudioHealth";
 import { StudioThemes } from "./StudioThemes";
+import { StudioSchedule } from "./StudioSchedule";
 import { POLICY_KEYS, policySlug } from "../../features/site/policyPages";
 import { auditDocument, summarise, type HealthFinding } from "./healthAudit";
 import { categoryOptions } from "./pickers";
@@ -389,6 +390,8 @@ export function StudioEditor({ settings, onExit, onPersisted, appearance = "ligh
   const [historyPreview, setHistoryPreview] = useState<ThemeVersion | null>(null);
   // Studio › Themes › Preview: a whole theme shown in the canvas without touching the draft.
   const [themePreview, setThemePreview] = useState<{ id: string; label: string; design: any } | null>(null);
+  // Theme actions › Schedule publishing (3.5); a saved theme can be pre-selected from Themes.
+  const [schedule, setSchedule] = useState<{ themeId: string | null } | null>(null);
   const [confirmAction, setConfirmAction] = useState<"publish" | "discard" | null>(null);
   const [checksOpen, setChecksOpen] = useState(false);
   const [copiedSection, setCopiedSection] = useState<Section | null>(null);
@@ -1319,6 +1322,7 @@ export function StudioEditor({ settings, onExit, onPersisted, appearance = "ligh
       case "publish": if ((unpublished || dirtyDraft) && busy === null) setConfirmAction("publish"); else say("ok", "Nothing to publish — the live shop already matches this draft."); break;
       case "discard": if (unpublished && busy === null) setConfirmAction("discard"); else say("ok", "No draft changes to discard."); break;
       case "history": setHistoryOpen(true); loadVersions(); break;
+      case "schedule": setSchedule({ themeId: null }); break;
       case "check": setChecksOpen(true); break;
       case "preview-tab": openPreviewTab(); break;
       case "undo": setHist(undo); break;
@@ -1724,7 +1728,7 @@ export function StudioEditor({ settings, onExit, onPersisted, appearance = "ligh
                 onSaveCurrent={saveCurrentAsTheme} onImport={file => importTheme(file)}
                 onLoad={t => { setThemePreview(null); applySavedTheme(t); }} onPublish={publishSavedTheme}
                 onRename={renameTheme} onDuplicate={t => persistThemes(duplicateSavedTheme(savedThemes, t.id), "Theme duplicated.")}
-                onDownload={exportTheme}
+                onDownload={exportTheme} onSchedule={t => setSchedule({ themeId: t.id })}
                 onDelete={t => { void askConfirm({ title: "Delete saved theme?", message: `“${t.name}” will be removed from My themes. This can't be undone.`, confirmLabel: "Delete theme" }).then(ok => { if (ok) persistThemes(removeSavedTheme(savedThemes, t.id), "Theme deleted."); }); }}
                 onApplyPreset={preset => { setThemePreview(null); applyLibraryTheme(preset); }}
                 links={{ create: (d, name, days) => adminApi.createPreviewLink(d, name, days), list: () => adminApi.listPreviewLinks(), revoke: token => adminApi.revokePreviewLink(token) }}
@@ -1809,6 +1813,7 @@ export function StudioEditor({ settings, onExit, onPersisted, appearance = "ligh
         <div className="studio-tools-menu"><span>Theme actions</span><ActionMenu label="Theme actions" actions={[
           { label: "Preview in new tab", icon: <ExternalLink size={14} />, onSelect: openPreviewTab },
           { label: "Version history", icon: <History size={14} />, onSelect: () => { setHistoryOpen(true); loadVersions(); } },
+          { label: "Schedule publishing…", icon: <Clock size={14} />, onSelect: () => setSchedule({ themeId: null }) },
           { label: "Studio Health", icon: <ShieldCheck size={14} />, onSelect: () => setChecksOpen(true) },
           { label: "Show Studio tips", onSelect: () => setTipsNonce(n => n + 1) },
           ...(unpublished && busy === null && !inlineEditing ? [{ label: "Discard saved draft…", tone: "danger" as const, onSelect: () => setConfirmAction("discard") }] : []),
@@ -1923,7 +1928,7 @@ export function StudioEditor({ settings, onExit, onPersisted, appearance = "ligh
             <ShieldCheck size={14} aria-hidden /> Studio Health on {template.label} ({REGION_DEVICE_LABELS[device].toLowerCase()}): {publishHealth.text}
             {(publishHealth.issues > 0 || publishHealth.tips > 0) && <button type="button" className="studio-link-button" onClick={() => { setConfirmAction(null); setChecksOpen(true); }}>Review</button>}
           </p>}
-          <div className="flex justify-end gap-2"><button className={btn} onClick={() => setConfirmAction(null)}>Cancel</button><button className={confirmAction === "publish" ? btnPrimary : `${btn} border-red-300 text-red-700`} onClick={() => { const action = confirmAction; setConfirmAction(null); action === "publish" ? publish() : discard(); }}>{confirmAction === "publish" ? "Publish now" : "Discard draft"}</button></div>
+          <div className="flex justify-end gap-2"><button className={btn} onClick={() => setConfirmAction(null)}>Cancel</button>{confirmAction === "publish" && <button className={btn} onClick={() => { setConfirmAction(null); setSchedule({ themeId: null }); }}>Schedule instead…</button>}<button className={confirmAction === "publish" ? btnPrimary : `${btn} border-red-300 text-red-700`} onClick={() => { const action = confirmAction; setConfirmAction(null); action === "publish" ? publish() : discard(); }}>{confirmAction === "publish" ? "Publish now" : "Discard draft"}</button></div>
         </div>
       </Dialog>
       <Dialog open={!!conflict} onClose={() => resolveConflict("cancel")} title="Saved in another tab or device"
@@ -1943,6 +1948,10 @@ export function StudioEditor({ settings, onExit, onPersisted, appearance = "ligh
       <StudioHealth open={checksOpen} onClose={() => setChecksOpen(false)} run={runHealth}
         pageLabel={showGlobal ? `Every page · ${groupLabel(globalGroup)}` : template.label} deviceLabel={REGION_DEVICE_LABELS[device].toLowerCase()}
         designResults={checksOpen ? [...designChecks(design), designSize(design)] : []} onShow={showFinding} onFix={fixFinding} />
+      <StudioSchedule open={!!schedule} onClose={() => setSchedule(null)} draft={design} savedThemes={savedThemes} initialThemeId={schedule?.themeId}
+        api={{ list: () => adminApi.listThemeSchedule() as any, add: entry => adminApi.addThemeSchedule(entry), cancel: id => adminApi.cancelThemeSchedule(id),
+          endNow: id => adminApi.endCampaignNow(id), status: () => adminApi.getSchedulerStatus() }}
+        askConfirm={askConfirm} say={(kind, text) => say(kind, text)} />
       {/* Last, so a question asked from inside another dialog (History, Media…) opens on top of it. */}
       {confirmNode}
       {promptNode}

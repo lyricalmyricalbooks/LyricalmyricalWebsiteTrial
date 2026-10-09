@@ -746,18 +746,37 @@ export const adminApi = {
     await deleteDoc(doc(db, "previewTokens", token));
   },
 
-  // Schedule a design to go live at a future time. The storefront applies it
-  // client-side once the time passes, unless a later Publish replaced it (scheduledDesign.mjs).
-  schedulePublish: (design: any, at: string) => {
-    const docRef = doc(db, "settings", "website");
-    // mergeFields replaces the whole scheduled design (a deep merge would keep stale keys).
-    const payload = { scheduledPublish: JSON.parse(JSON.stringify({ at, design })) };
-    return setDoc(docRef, payload, { mergeFields: ["scheduledPublish"] });
+  // ── Scheduled publishing & campaigns (Studio 3.5): themeSchedule/{id}, run by the Functions scheduler ──
+  /** Every schedule entry, newest start first, without their designs. */
+  listThemeSchedule: async () => {
+    const snap = await getDocs(collection(db, "themeSchedule"));
+    return snap.docs.map((d: any) => { const { design: _d, revertDesign: _r, ...rest } = d.data(); return { id: d.id, ...rest }; })
+      .sort((a: any, b: any) => String(b.startAt || "").localeCompare(String(a.startAt || "")));
   },
-
-  cancelScheduledPublish: () => {
-    const docRef = doc(db, "settings", "website");
-    return setDoc(docRef, { scheduledPublish: deleteField() }, { merge: true });
+  addThemeSchedule: async (entry: { kind: "publish" | "campaign"; name: string; startAt: string; endAt?: string | null; design: any }) => {
+    const clean = { kind: entry.kind, name: String(entry.name || "").trim().slice(0, 80) || "Scheduled design", status: "scheduled",
+      startAt: entry.startAt, endAt: entry.kind === "campaign" ? entry.endAt || null : null, createdAt: new Date().toISOString(),
+      design: JSON.parse(JSON.stringify(entry.design ?? {})) };
+    const ref = await addDoc(collection(db, "themeSchedule"), clean);
+    return { id: ref.id, ...clean };
+  },
+  /** Cancels an entry that hasn't started. */
+  cancelThemeSchedule: async (id: string) => {
+    await runTransaction(db, async (tx: any) => {
+      const ref = doc(db, "themeSchedule", id);
+      const snap = await tx.get(ref);
+      if (!snap.exists() || snap.data().status !== "scheduled") throw new Error("It has already started or finished.");
+      tx.update(ref, { status: "cancelled", endedAt: new Date().toISOString() });
+    });
+  },
+  /** Ends a running campaign at the scheduler's next check (within 15 minutes). */
+  endCampaignNow: async (id: string) => {
+    await updateDoc(doc(db, "themeSchedule", id), { endAt: new Date().toISOString() });
+  },
+  /** When the Functions scheduler last ran (themes/scheduler.lastRunAt). */
+  getSchedulerStatus: async () => {
+    const snap = await getDoc(doc(db, "themes", "scheduler"));
+    return snap.exists() ? (snap.data() as any) : null;
   },
 
   getDefaultSettings: defaultSettings,

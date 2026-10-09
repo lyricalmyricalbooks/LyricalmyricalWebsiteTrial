@@ -282,8 +282,8 @@ frontend**; until then Media shows "isn't switched on yet" and fields keep URL +
 **Studio repairs (0.2):** every Studio image upload uses `uploadStudioImage` (`studio/mediaUpload.ts`) — never write
 uploads outside a Storage folder `storage.rules` lets the admin write (`admin/storagePaths.test.ts`). Linked shared
 blocks resolve centrally in `SectionList`; each section renders inside `SectionBoundary`. Phone/tablet widths come
-only from `features/site/breakpoints.ts` (phone ≤767px, tablet ≤1023px). Scheduled designs follow
-`features/site/scheduledDesign.mjs`. Save draft overwrites `theme-versions/draft-latest`; Publish adds a version.
+only from `features/site/breakpoints.ts` (phone ≤767px, tablet ≤1023px). Scheduled designs and campaigns
+are published by the server (`functions/themeSchedule.js`, 3.5). Save draft overwrites `theme-versions/draft-latest`; Publish adds a version.
 
 **Private drafts (0.4):** Studio's unpublished draft is in admin-only `themes/workspace` (`draft`, `rev`) and
 My themes in `savedThemes/{id}`; never add draft or theme data back to public `settings/website`. All Studio
@@ -519,6 +519,12 @@ preview). Share links are `previewTokens/{token}` (admin writes; public `get` by
 the storefront reads them only through `features/site/themePreview.ts` + `publicApi.getThemePreview`, never caches the
 shared design, keeps it noindex and out of analytics (`trackingGuard`, `useSiteData`), and always shows
 `ThemePreviewBanner`. Deploy `firestore.rules` with the frontend for share links to work.
+
+**Scheduling & campaigns (3.5):** Studio › Theme actions › **Schedule publishing…** (`studio/StudioSchedule.tsx`,
+`studio/themeSchedule.ts`) writes admin-only `themeSchedule/{id}`; `functions/themeSchedule.js` (run inside
+`unpaidPaymentSweep`, every 15 minutes) publishes due entries into `settings/website.design` and switches campaigns back
+at their end unless a later Publish happened. Never put scheduled designs in the public settings document, and never
+apply schedules in the browser. Times are entered in Toronto time and stored as UTC ISO.
 
 **Colour schemes (2.5):** Studio › Theme settings › **Colour schemes** (`StudioColorSchemes.tsx`, pure edits in
 `studio/colorSchemeOps.ts`) edits `design.colorSchemes` — ten roles (background, surface, text, muted, accent, onAccent,

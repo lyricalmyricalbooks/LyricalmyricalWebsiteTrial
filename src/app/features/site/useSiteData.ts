@@ -2,7 +2,6 @@ import { useLocation } from "react-router";
 import { consentAllows, CONSENT_EVENT } from "../../lib/consent";
 import { isLiveBook } from "./liveBook";
 import { resolveSurfaceDesign } from "./surfaceDesign";
-import { dueScheduledDesign } from "./scheduledDesign.mjs";
 import { useEffect, useMemo, useState } from "react";
 import { publicApi } from "../../lib/publicApi";
 import { funnelApi } from "../../lib/commerce";
@@ -88,10 +87,7 @@ export function useSiteData() {
           safeSettings.design = (window as any).__studioPreviewDesign || safeSettings.design;
         }
 
-        // Scheduled publishing: once the scheduled time passes, shoppers see
-        // the scheduled design (preview keeps showing the editor's draft).
-        const scheduled = isPreview ? null : dueScheduledDesign(safeSettings);
-        if (scheduled) safeSettings.design = scheduled;
+        // Scheduled publishing and campaigns are published into `design` by the server (Studio 3.5); nothing to apply here.
         // Share preview: this visitor sees the shared, unpublished design instead (never cached, never counted).
         const shared = isPreview ? null : await sharedPreview;
         if (cancelled) return;

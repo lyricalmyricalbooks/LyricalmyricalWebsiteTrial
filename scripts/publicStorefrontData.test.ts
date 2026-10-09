@@ -23,9 +23,10 @@ it('uses stable document and field order so API ordering cannot cause redundant 
  expect(publishedFingerprint({ ...data, books: [...data.books].reverse(), settings: { draftDesign: data.settings.draftDesign, design: data.settings.design } })).toBe(hash);
 });
 
-it('changes when the scheduled Studio design activates, but ignores edits to a future design', () => {
+it('ignores a leftover scheduledPublish field and changes when the server publishes a scheduled design (Studio 3.5)', () => {
  const data = source(); const before = publishedFingerprint(data, '2026-10-06T00:00:00Z');
  Object.assign(data.settings, { scheduledPublish: { at: '2026-10-07T00:00:00Z', design: { categories: [{ name: 'Scheduled zines' }] } } });
- expect(publishedFingerprint(data, '2026-10-06T00:00:00Z')).toBe(before);
+ expect(publishedFingerprint(data, '2026-10-08T00:00:00Z')).toBe(before);
+ data.settings.design = { categories: [{ name: 'Scheduled zines' }] };
  expect(publishedFingerprint(data, '2026-10-08T00:00:00Z')).not.toBe(before);
 });

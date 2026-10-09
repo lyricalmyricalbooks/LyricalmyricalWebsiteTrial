@@ -36,6 +36,7 @@ export const publicApi = {
     const merged: any = { ...defaultSettings(), ...(snap.exists() ? snap.data() : {}) };
     delete merged.draftDesign;
     delete merged.savedThemes;
+    delete merged.scheduledPublish; // older client-side schedules; the server scheduler publishes now (Studio 3.5)
     if (merged.design) merged.design = withRisoNoirDefault(merged.design);
     return merged;
   },

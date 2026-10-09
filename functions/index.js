@@ -5584,6 +5584,9 @@ exports.markOrderPaid = onBrowserRequest(
 exports.unpaidPaymentSweep = onSchedule(
   { schedule: "every 15 minutes", secrets: [STRIPE_SECRET_KEY, RESEND_API_KEY] },
   async () => {
+    // Studio 3.5: scheduled theme publishes and campaigns ride on this sweep (own try/catch: never blocks payments).
+    try { await require("./themeSchedule").runThemeSchedule(db); }
+    catch (err) { console.error("unpaidPaymentSweep: theme schedule failed:", err.message); }
     const { suspectOrders, alertHtml } = require("./paymentSweep");
     // Newest unpaid orders first, within the 7-day window the sweep checks. Without an order
     // the 300 returned were an arbitrary slice, so new orders could be skipped for good.
