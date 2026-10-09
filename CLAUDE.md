@@ -140,7 +140,14 @@ npm run logs
   90 days and given-up entries older than 30 are pruned. Admin: Settings › Notifications › **Waiting to send**
   (Retry now / Stop via `sendTestEmail` actions `emailQueue`/`retryEmail`/`cancelEmail`, summary only). Don't queue
   sends that already retry themselves (webhook-missed alert, abandoned cart, back-in-stock, daily digest).
-  Templates: unknown `{{placeholders}}` send as blank, the gift-card `{{code}}` line is re-added if removed
+  Each try is bounded (nodemailer 15–20 s timeouts, Resend raced at 20 s with an idempotency key `<queueId>:<from>`),
+  the sweep runs the queue after the payment checks with a 30 s budget (`timeoutSeconds: 300`), and a delivered entry is
+  marked `status: "sent"` before it is deleted, so a failed cleanup never resends. Entries carry `orderId`/`giftCardId`
+  and `toLower`: `staleOrderEmailReason` drops an order email whose order was refunded/cancelled/paid since, a disabled
+  gift card's code is never sent, a retried gift card stamps `emailedAt`, and privacy export/erase include the queue
+  and that address's `emailLog` rows. Stop refuses (409) while a send holds the lease. `currentRows` (newest row per
+  `outboxId`) feeds Needs attention and the admin alerts.
+  Templates: unknown `{{placeholders}}` send as blank, `{{items_table}}` only fills the body, the gift-card `{{code}}` line is re-added if removed
   (`REQUIRED_PLACEHOLDERS`, mirrored in `admin/emailTemplateChecks.ts`), buttons need an http(s) link. Send test uses
   the editor's unsaved words and branding.
 - **Email delivery log:** every `sendEmail` attempt (sent or failed, with a plain-English reason from

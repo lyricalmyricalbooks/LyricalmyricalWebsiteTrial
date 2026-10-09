@@ -5,7 +5,7 @@ import { functionFetch } from "../lib/functionsBase";
 import toast from "react-hot-toast";
 import { risoButton, risoLayout } from "./emailTheme";
 import { GmailSendingCard } from "./GmailSendingCard";
-import { emailLogBadge, emailLogDetail, needsAttention } from "./emailLogDisplay";
+import { currentRows, emailLogBadge, emailLogDetail, needsAttention } from "./emailLogDisplay";
 import { fillSample, insertAt, PLACEHOLDERS, templateProblems, withRequiredPlaceholders, type TemplateFields } from "./emailTemplateChecks";
 import { adminApi } from "./api";
 import {
@@ -245,6 +245,8 @@ export function NotificationEditor() {
   // Where a placeholder chip inserts: the field the admin last clicked or typed in, at the caret.
   const [cursor, setCursor] = useState<{ field: "subject" | "body" | "signoff"; start: number | null; end: number | null }>({ field: "body", start: null, end: null });
   const [confirm, confirmNode] = useConfirm();
+  // A caret remembered on one email must not decide where a chip lands on another.
+  useEffect(() => { setCursor({ field: "body", start: null, end: null }); }, [activeTab]);
 
   useEffect(() => {
     loadSettings();
@@ -470,14 +472,18 @@ export function NotificationEditor() {
     setCursor({ field, start: e.currentTarget.selectionStart, end: e.currentTarget.selectionEnd });
   const addPlaceholder = (name: string) => {
     const token = `{{${name}}}`;
-    const field = cursor.field;
-    const next = insertAt(currentTemplate[field] || "", token, cursor.start, cursor.end);
+    // The order table is HTML: it only goes in the body (at the caret if the body was last used).
+    const field = name === "items_table" ? "body" : cursor.field;
+    const at = field === cursor.field ? cursor : { start: null, end: null };
+    const next = insertAt(currentTemplate[field] || "", token, at.start, at.end);
     handleFieldChange(field, next.value);
     setCursor({ field, start: next.caret, end: next.caret });
     toast.success(`Added ${token} to the ${field === "body" ? "body copy" : field === "subject" ? "subject line" : "sign-off"}.`);
   };
-  const shownDeliveries = (deliveries || []).filter((r) => deliveryFilter === "all" || needsAttention(r));
-  const attentionCount = (deliveries || []).filter(needsAttention).length;
+  // Needs attention looks at each email's newest row: one a retry later delivered drops out.
+  const attentionRows = currentRows(deliveries || []).filter(needsAttention);
+  const shownDeliveries = deliveryFilter === "all" ? (deliveries || []) : attentionRows;
+  const attentionCount = attentionRows.length;
 
   return (
     <div className="rp-stack">

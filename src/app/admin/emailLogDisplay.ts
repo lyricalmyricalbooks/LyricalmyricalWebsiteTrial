@@ -35,3 +35,13 @@ export function needsAttention(entry: LogEntry): boolean {
   return ["failed", "bounced", "complained", "queued"].includes(entry.status || "");
 }
 
+/**
+ * The rows that still describe something: for an email the retry queue handled, only its newest
+ * row (rows are newest first) — an email sent on try 3 no longer counts as failed or waiting.
+ */
+export function currentRows<T extends LogEntry>(rows: T[]): T[] {
+  const newest = new Map<string, T>();
+  for (const row of rows) if (row?.outboxId && !newest.has(row.outboxId)) newest.set(row.outboxId, row);
+  return rows.filter(row => !row?.outboxId || newest.get(row.outboxId) === row);
+}
+

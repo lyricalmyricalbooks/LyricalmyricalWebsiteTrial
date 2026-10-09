@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { emailLogBadge, emailLogDetail, needsAttention } from "./emailLogDisplay";
+import { currentRows, emailLogBadge, emailLogDetail, needsAttention } from "./emailLogDisplay";
 
 describe("Recent deliveries rows", () => {
   it("shows a Gmail→backup switch as a warning, not a failure or a plain success", () => {
@@ -25,5 +25,13 @@ describe("retry queue rows", () => {
   });
   it("counts failures and waiting emails as needing attention", () => {
     expect(["failed", "queued", "sent", "fallback", "cancelled"].map(status => needsAttention({ status }))).toEqual([true, true, false, false, false]);
+  });
+});
+
+describe("current rows", () => {
+  it("keeps only the newest row of each retried email, so a later success clears it", () => {
+    const rows = [{ id: "s", status: "sent", outboxId: "o1" }, { id: "q2", status: "queued", outboxId: "o1" }, { id: "q", status: "queued", outboxId: "o1" }, { id: "x", status: "failed" }];
+    expect(currentRows(rows).map(r => r.id)).toEqual(["s", "x"]);
+    expect(currentRows(rows).filter(needsAttention).map(r => r.id)).toEqual(["x"]);
   });
 });

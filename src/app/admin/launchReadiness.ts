@@ -85,11 +85,12 @@ export function launchReadiness({ settings, books, shippingProfiles, emailLog, o
 
   // Email
   // A "fallback" row only says Gmail missed and the backup sender was tried; the outcome is its own row.
-  const lastEmail = (emailLog || []).find(e => e?.status !== "fallback");
+  // "cancelled" = the owner stopped a queued email: it says nothing about the sending setup.
+  const lastEmail = (emailLog || []).find(e => e?.status !== "fallback" && e?.status !== "cancelled");
   items.push(!lastEmail
     ? { id: "email", label: "No emails sent yet", detail: "Send a test from Notifications, then verify receipt in the destination inbox.", status: "warn", tab: "notifications", action: "Open Notifications" }
-    : lastEmail.status === "failed"
-      ? { id: "email", label: "The last email failed to send", detail: String(lastEmail.error || "See Recent deliveries for the reason."), status: "block", tab: "notifications", action: "Open Notifications" }
+    : lastEmail.status === "failed" || lastEmail.status === "queued"
+      ? { id: "email", label: lastEmail.status === "queued" ? "The last email could not be sent and is waiting to retry" : "The last email failed to send", detail: String(lastEmail.error || "See Recent deliveries for the reason."), status: "block", tab: "notifications", action: "Open Notifications" }
       // Resend's test sender only delivers to the Resend account owner: customers get nothing.
       : String(lastEmail.from || "").toLowerCase() === "onboarding@resend.dev"
         ? { id: "email", label: "Emails only reach you, not customers", detail: "The last email went out from Resend's test address, which only delivers to your own inbox. Add the Gmail app password (Notifications › Gmail sending) or verify your domain in Resend.", status: "block", tab: "notifications", action: "Open Notifications" }
