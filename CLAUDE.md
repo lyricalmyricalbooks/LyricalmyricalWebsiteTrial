@@ -131,6 +131,18 @@ npm run logs
 - `onOrderPaid` / `onOrderShipped` — Firestore triggers that send customer/admin
   emails (Resend).
 - `abandonedCartSweep` — scheduled recovery email after ~1h.
+- **Email retry queue:** `sendEmail({ …, queue: "<kind>" })` parks an email both senders refused in server-only
+  `emailOutbox` (rules deny every browser; holds the HTML, so gift codes/download links never reach the client) and
+  throws with `err.queued`. `runEmailOutbox` (inside `unpaidPaymentSweep`) retries due entries under a transactional
+  lease on a 15 min → 12 h schedule (8 tries, `functions/emailOutbox.js`), then gives up (`status: "failed"`). Order
+  emails (`sendOrderEmailOnce`) keep their `email-claims` claim while queued so a re-run trigger never duplicates.
+  Recipients/subjects are validated (no CR/LF; a bad address is permanent, never queued); `emailLog` rows older than
+  90 days and given-up entries older than 30 are pruned. Admin: Settings › Notifications › **Waiting to send**
+  (Retry now / Stop via `sendTestEmail` actions `emailQueue`/`retryEmail`/`cancelEmail`, summary only). Don't queue
+  sends that already retry themselves (webhook-missed alert, abandoned cart, back-in-stock, daily digest).
+  Templates: unknown `{{placeholders}}` send as blank, the gift-card `{{code}}` line is re-added if removed
+  (`REQUIRED_PLACEHOLDERS`, mirrored in `admin/emailTemplateChecks.ts`), buttons need an http(s) link. Send test uses
+  the editor's unsaved words and branding.
 - **Email delivery log:** every `sendEmail` attempt (sent or failed, with a plain-English reason from
   `functions/emailErrors.js`) is written to the admin-only `emailLog` collection and listed in
   Settings › Notifications › **Recent deliveries**. Customer and shop-copy sends are attempted
