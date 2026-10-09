@@ -595,6 +595,11 @@ If tokens change there, update `riso.css` to match.
   SaveBar. `shellParts.tsx` — GlobalSearch, ActivityLogDialog. `nav.ts` — nav config.
 - `src/app/lib/useFocusTrap.ts` — shared by admin dialogs and the storefront cart drawer.
 
+**Admin address bar:** the page on screen lives in the hash (`admin/adminRoute.ts`, pure + tested): `#orders/<id>`,
+`#settings/payments`, `#customers`, `#gift-cards/<id>`, `#designer?…` (Studio). `Dashboard.tsx` reads it at boot and on
+Back/Forward, writes it on every page change (switching orders replaces, new pages push) and names the browser tab.
+Back/Forward never close the book editor or Studio (the address is put back). Add a new admin page to `ADMIN_TABS`.
+
 **Migrated (built from these components):** shell, Login, Reviews, Activity Logs,
 Orders list + detail, Overview, Books catalog, Discounts, Settings › General,
 Payments, Shipping (profiles/zones/rates + dialogs), Notifications (+ Inventory sync). `Dashboard.tsx` renders migrated pages

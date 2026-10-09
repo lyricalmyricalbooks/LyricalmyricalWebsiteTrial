@@ -1,4 +1,4 @@
-import { useState, useEffect, lazy, Suspense } from "react";
+import { useState, useEffect, useRef, lazy, Suspense } from "react";
 import { motion, AnimatePresence } from "motion/react";
 import {
   BookOpen, Settings, LayoutDashboard, LogOut, Plus, History, Tag, BadgePercent,
@@ -25,12 +25,13 @@ import { scrubSavedSecrets } from "./privateKeys";
 import toast from "react-hot-toast";
 import {
   AppShell, Sidebar, Topbar, PageHeader, Breadcrumbs, PrimaryButton, SecondaryButton,
-  IconButton, Dialog, ToastProvider, Toggle, SyncChip, useOnline, LoadingState, type NavEntry,
+  IconButton, Dialog, ToastProvider, Toggle, SyncChip, useOnline, LoadingState, useConfirm, type NavEntry,
 } from "./riso/components";
 import { GlobalSearch, ActivityLogDialog } from "./riso/shellParts";
 import { WhatsNew } from "./WhatsNew";
 import { parseStudioLocation, type StudioLocation } from "../lib/studioLocation";
 import { NAV, PAGE_COPY } from "./riso/nav";
+import { adminDocumentTitle, hashForRoute, routeFromHash, sameSection } from "./adminRoute";
 
 // Studio is large and only opened from Settings › Design, so it loads in its own chunk.
 const StudioEditor = lazy(() => import("./studio/StudioWorkspace").then(m => ({ default: m.StudioWorkspace })));
@@ -41,52 +42,84 @@ const openSite = () => {
   window.open(window.location.origin + basePath + "/", "_blank", "noopener");
 };
 
+// The page in the address bar when the admin first opens (reload, Back, a copied or emailed link).
+function readBootRoute() {
+  const hash = window.location.hash;
+  const studio = parseStudioLocation(hash);
+  if (studio) return { tab: "settings", settingsTab: "designer", studio };
+  return { ...(routeFromHash(hash) || { tab: "overview" }), studio: null as StudioLocation | null };
+}
+
 export function Dashboard() {
   const online = useOnline();
-  console.log("Dashboard rendering...");
-  const [activeTab, setActiveTab] = useState("overview");
+  const [boot] = useState(readBootRoute);
+  const [activeTab, setActiveTab] = useState(boot.tab);
   const [user, setUser] = useState<any>(null);
   const [loading, setLoading] = useState(true);
   const [editingBook, setEditingBook] = useState<any | null>(null);
   const [showEditor, setShowEditor] = useState(false);
-  const [studioLocation, setStudioLocation] = useState<(StudioLocation & { key: number }) | null>(null);
-  const [selectedOrder, setSelectedOrder] = useState<any | null>(null);
-  const [openGiftCard, setOpenGiftCard] = useState<string | null>(null);
-  // Email links: /admin#orders opens Orders, /admin#orders/<id> opens that order.
+  const [studioLocation, setStudioLocation] = useState<(StudioLocation & { key: number }) | null>(boot.studio ? { ...boot.studio, key: 1 } : null);
+  const [selectedOrder, setSelectedOrder] = useState<any | null>(boot.orderId ? { id: boot.orderId } : null);
+  const [openGiftCard, setOpenGiftCard] = useState<string | null>(boot.giftCardId || null);
+  const [settingsTab, setSettingsTab] = useState(boot.settingsTab || "general");
+  // The hash this page last read or wrote, so its own address changes are not applied twice.
+  const lastHash = useRef(window.location.hash);
+  // Back/Forward must not close the book editor or Studio underneath unsaved work.
+  const takeoverOpen = useRef(false);
+  takeoverOpen.current = showEditor || (activeTab === "settings" && settingsTab === "designer");
+  // The admin page lives in the address bar: /admin#orders/<id>, /admin#settings/payments, /admin#designer?….
+  // Reload, Back/Forward and links from emails, What's new and the book editor all open the page they name.
   useEffect(() => {
     if (!user) return;
     const openFromHash = () => {
-      // Studio links: /admin#designer?t=productPage&b=<book>&tab=style opens the Design studio there.
-      const studio = parseStudioLocation(window.location.hash);
+      const hash = window.location.hash;
+      if (hash === lastHash.current) return;
+      const studio = parseStudioLocation(hash);
+      if (takeoverOpen.current && !studio) {
+        // Put the address back rather than closing an editor that may hold unsaved changes.
+        history.pushState(null, "", window.location.pathname + window.location.search + lastHash.current);
+        return;
+      }
+      lastHash.current = hash;
       if (studio) {
         setShowEditor(false);
         setStudioLocation({ ...studio, key: Date.now() });
         setActiveTab("settings");
         setSettingsTab("designer");
-        history.replaceState(null, "", window.location.pathname + window.location.search);
         return;
       }
-      // /admin#gift-cards/<id> (links from an order) opens that gift card.
-      const card = window.location.hash.match(/^#gift-cards(?:\/([^/?#]+))?/);
-      if (card) {
-        setShowEditor(false);
-        setSelectedOrder(null);
-        setActiveTab("giftCards");
-        setOpenGiftCard(card[1] ? decodeURIComponent(card[1]) : null);
-        history.replaceState(null, "", window.location.pathname + window.location.search);
-        return;
-      }
-      const match = window.location.hash.match(/^#orders(?:\/([^/?#]+))?/);
-      if (!match) return;
+      const route = routeFromHash(hash);
+      if (!route) return;
       setShowEditor(false);
-      setActiveTab("orders");
-      setSelectedOrder(match[1] ? { id: decodeURIComponent(match[1]) } : null);
-      history.replaceState(null, "", window.location.pathname + window.location.search);
+      setActiveTab(route.tab);
+      if (route.settingsTab) setSettingsTab(route.settingsTab);
+      setSelectedOrder(route.orderId ? { id: route.orderId } : null);
+      setOpenGiftCard(route.giftCardId || null);
     };
     openFromHash();
     window.addEventListener("hashchange", openFromHash);
-    return () => window.removeEventListener("hashchange", openFromHash);
+    window.addEventListener("popstate", openFromHash);
+    return () => {
+      window.removeEventListener("hashchange", openFromHash);
+      window.removeEventListener("popstate", openFromHash);
+    };
   }, [user]);
+
+  // Write the page on screen back to the address bar. A new page adds a Back step; switching
+  // between orders, or tidying a link that already opened this page, replaces it.
+  useEffect(() => {
+    if (!user) return;
+    const next = hashForRoute({ tab: activeTab, settingsTab, orderId: activeTab === "orders" ? selectedOrder?.id : undefined });
+    const current = window.location.hash;
+    if (current === next) { lastHash.current = next; return; }
+    const currentRoute = routeFromHash(current);
+    const replace = !current || sameSection(current, next)
+      || (currentRoute ? hashForRoute(currentRoute) === next : !parseStudioLocation(current) || next === "#designer");
+    const url = window.location.pathname + window.location.search + next;
+    if (replace) history.replaceState(null, "", url);
+    else history.pushState(null, "", url);
+    lastHash.current = next;
+  }, [user, activeTab, settingsTab, selectedOrder?.id]);
 
   // Orders waiting on the publisher, shown as a badge on the Orders nav item.
   const [ordersBadge, setOrdersBadge] = useState(0);
@@ -114,7 +147,6 @@ export function Dashboard() {
   }, [user, selectedOrder === null]);
   // The list the order was opened from, for Previous / Next order.
   const [stats, setStats] = useState<any>(null);
-  const [settingsTab, setSettingsTab] = useState("general");
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [settings, setSettings] = useState<any>(null);
   const [originalSettings, setOriginalSettings] = useState<any>(null);
@@ -141,7 +173,6 @@ export function Dashboard() {
     // Debug bypass
     const params = new URLSearchParams(window.location.search);
     if (params.get('debug') === 'true') {
-      console.log("DEBUG MODE: Bypassing auth");
       setUser({
         displayName: "Debug Admin",
         email: "lyricalmyricalbooks@gmail.com",
@@ -154,7 +185,6 @@ export function Dashboard() {
     }
 
     const unsubscribe = adminApi.onAuthStateChange((u) => {
-      console.log("Auth state change:", u?.email);
       setUser(u);
       setLoading(false);
       if (u) {
@@ -166,8 +196,12 @@ export function Dashboard() {
   }, []);
 
   const [ucSaving, setUcSaving] = useState(false);
+  const [confirm, confirmNode] = useConfirm();
   async function toggleUnderConstruction(on: boolean) {
-    if (!window.confirm(on ? "Hide the shop behind the “under construction” wall now?" : "Take the wall down and open the shop?")) return;
+    const ok = await confirm(on
+      ? { title: "Close the shop for now?", message: "Shoppers will see the “under construction” wall instead of your books until you turn it off. You can keep working in the admin.", confirmLabel: "Show the wall" }
+      : { title: "Open the shop?", message: "The “under construction” wall comes down and shoppers can browse and buy again straight away.", confirmLabel: "Open the shop" });
+    if (!ok) return;
     setUcSaving(true);
     try {
       await adminApi.setUnderConstruction(on);
@@ -176,17 +210,15 @@ export function Dashboard() {
       setOriginalSettings((p: any) => p && ({ ...p, design: patch(p.design), draftDesign: patch(p.draftDesign) }));
     } catch (e) {
       console.error(e);
-      window.alert("Couldn't change the under construction wall. Please try again.");
+      toast.error("Couldn't change the under construction wall — nothing was changed. Please try again.");
     } finally {
       setUcSaving(false);
     }
   }
 
   async function loadSettings() {
-    console.log("Loading settings...");
     try {
       const data = await adminApi.getSettings();
-      console.log("Settings loaded:", data);
       setSettings(JSON.parse(JSON.stringify(data)));
       setOriginalSettings(data);
     } catch (err) {
@@ -231,6 +263,18 @@ export function Dashboard() {
       console.error(err);
     }
   }
+
+  // Name the browser tab after the page, so several admin tabs (and Back's history list) are told apart.
+  const isSettingsPage = activeTab === "settings" || activeTab === "shipping" || activeTab === "payments";
+  const settingsChild = activeTab === "shipping" || activeTab === "payments" ? activeTab : settingsTab;
+  const pageTitle = isSettingsPage
+    ? NAV.find((n) => n.id === "settings")?.children?.find((c) => c.id === settingsChild)?.label || "Settings"
+    : (PAGE_COPY[activeTab] || PAGE_COPY.overview).title;
+  useEffect(() => {
+    const previous = document.title;
+    document.title = adminDocumentTitle(pageTitle);
+    return () => { document.title = previous; };
+  }, [pageTitle]);
 
   if (loading) {
     return (
@@ -286,7 +330,7 @@ export function Dashboard() {
   const navChild = activeTab === "shipping" || activeTab === "payments" ? activeTab : settingsTab;
   const copy = PAGE_COPY[activeTab] || PAGE_COPY.overview;
   const childLabel = NAV.find((n) => n.id === "settings")?.children?.find((c) => c.id === navChild)?.label;
-  const trail: Array<{ label: string; onClick?: () => void }> = [{ label: "Storefront", onClick: () => goTo("overview") }];
+  const trail: Array<{ label: string; onClick?: () => void }> = [{ label: "Admin", onClick: () => goTo("overview") }];
   if (selectedOrder && activeTab !== "orders") {
     trail.push({ label: "Orders", onClick: () => setSelectedOrder(null) }, { label: "Order detail" });
   } else if (navActive === "settings") {
@@ -294,6 +338,7 @@ export function Dashboard() {
   } else {
     trail.push({ label: copy.title });
   }
+  const shopClosed = !!(settings?.design?.showUnderConstruction || settings?.maintenanceMode);
   const initial = (user.displayName?.[0] || user.email?.[0] || "A").toUpperCase();
 
   const avatar = (
@@ -398,9 +443,9 @@ export function Dashboard() {
             </IconButton>
             <GlobalSearch destinations={destinations} onOpenBook={handleEditBook} />
             <div className="rp-topbar-actions">
-              <span className="rp-status-pill rp-hide-md" role="status">
+              <span className="rp-status-pill rp-hide-md" role="status" data-tone={shopClosed ? "warning" : undefined}>
                 <span className="rp-status-dot" aria-hidden />
-                {settings?.maintenanceMode ? "Storefront in maintenance" : "Storefront live"}
+                {settings?.design?.showUnderConstruction ? "Shop behind construction wall" : settings?.maintenanceMode ? "Storefront in maintenance" : "Storefront live"}
               </span>
               <Toggle
                 label={settings?.design?.showUnderConstruction ? "Under construction: ON" : "Under construction"}
@@ -447,9 +492,6 @@ export function Dashboard() {
           breadcrumbs={<Breadcrumbs trail={trail} />}
           title={selectedOrder && activeTab !== "orders" ? "Order detail" : navActive === "settings" && childLabel ? childLabel : copy.title}
           description={selectedOrder && activeTab !== "orders" ? "Payment, fulfillment, and tracking for this order." : copy.description}
-          actions={
-            <SecondaryButton icon={<History size={16} aria-hidden />} onClick={() => setShowLogs(true)}>Activity Logs</SecondaryButton>
-          }
         />
         <AdminAlerts
           alerts={alerts}
@@ -465,7 +507,6 @@ export function Dashboard() {
               key={activeTab + (selectedOrder ? "-detail" : "") + settingsTab}
               initial={{ opacity: 0, y: 6 }}
               animate={{ opacity: 1, y: 0 }}
-              exit={{ opacity: 0 }}
               transition={{ duration: 0.18, ease: "easeOut" }}
             >
               {content}
@@ -481,9 +522,11 @@ export function Dashboard() {
           <li>Orders stay unpaid until the Stripe webhook confirms payment — never mark paid by hand unless you are reconciling a confirmed charge.</li>
           <li>Theme changes are saved as a draft first; publish when you are ready for customers to see them.</li>
           <li>Press Escape to close any dialog; focus returns to where you were.</li>
+          <li>The address bar keeps your place: reload, use the browser's Back and Forward buttons, or bookmark and share a page or order link.</li>
         </ul>
       </Dialog>
 
+      {confirmNode}
       <ActivityLogDialog open={showLogs} onClose={() => setShowLogs(false)} appearance={appearance} />
 
       {/* Book Editor Takeover */}

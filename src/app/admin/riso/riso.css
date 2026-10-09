@@ -272,6 +272,7 @@
   font-size: var(--rp-text-xs); font-weight: 600; white-space: nowrap;
 }
 .rp-status-dot { width: 8px; height: 8px; border-radius: 50%; background: currentColor; }
+.rp-status-pill[data-tone="warning"] { background: var(--rp-warning-tint); color: var(--rp-warning); }
 .rp .rp-menu-only { display: none; }
 
 /* Mobile drawer */
