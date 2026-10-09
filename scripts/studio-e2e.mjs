@@ -200,6 +200,35 @@ await check("a section's Style, Layout and Visibility tabs save its look", deskt
   if (await page.getByRole("button", { name: "Reset Solid colour" }).count()) throw new Error("Reset did not clear the colour");
 });
 
+await check("right-click a section to move it to another page, and Undo brings it back", desktop, async page => {
+  await page.getByRole("button", { name: "Add section" }).first().click();
+  await page.getByRole("button", { name: /^Newsletter/ }).first().click();
+  await expectText(page, "Home · 1 section");
+  await page.locator(".studio-outline .studio-tree-row").first().click({ button: "right" });
+  await page.getByRole("button", { name: "Move to another page…" }).click();
+  const dialog = page.getByRole("dialog", { name: /Move section to another page/ });
+  await dialog.getByLabel("Page").selectOption({ label: "About" });
+  await dialog.getByRole("button", { name: "Move", exact: true }).click();
+  await expectText(page, "Home · 0 sections");
+  await page.getByRole("button", { name: "Undo", exact: true }).click();
+  await expectText(page, "Home · 1 section");
+});
+
+await check("pick several sections and hide them together", desktop, async page => {
+  for (let i = 0; i < 2; i++) {
+    await page.getByRole("button", { name: "Add section" }).first().click();
+    await page.getByRole("button", { name: /^Newsletter/ }).first().click();
+  }
+  await expectText(page, "Home · 2 sections");
+  const labels = page.locator(".studio-outline .studio-tree-row > .studio-tree-label");
+  await labels.nth(0).click({ modifiers: [mod] });
+  await labels.nth(1).click({ modifiers: [mod] });
+  const bar = page.getByRole("toolbar", { name: "Selected sections" });
+  await bar.getByText("2 selected").waitFor({ timeout: 5000 });
+  await bar.getByRole("button", { name: "Hide" }).click();
+  await page.waitForFunction(() => document.querySelectorAll(".studio-outline .studio-tree-row[data-hidden=true]").length === 2);
+});
+
 await check("page-only overrides are listed and can follow all pages", desktop, async page => {
   await page.getByRole("button", { name: "Theme settings" }).click();
   await page.getByRole("button", { name: "Page to edit" }).click();

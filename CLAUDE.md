@@ -295,6 +295,10 @@ appears there automatically once it carries `data-studio-target` / `regionProps`
 inside `<header>`, footer parts inside `<footer>` and pop-overs in a `role="dialog"`. A new click-to-edit target needs a
 name in `studio/targetLabels.ts` (its test fails otherwise). A new pop-over Studio should open goes in `STUDIO_OVERLAYS`
 and listens with `useStudioOverlay`.
+Section rows have a right-click menu (copy/paste section, copy/paste style, move to another page, save for reuse) and
+Ctrl/⌘-click multi-select with a bulk bar; blocks move between sections of the same kind (row button, or drag in the
+preview). Use `moveSectionTo` / `moveBlockTo` / `updateSectionsById` (`studio/studioWorkflow.ts`) for any new move or
+bulk edit — never splice section arrays by hand.
 
 Studio is a Shopify-style theme editor under `/admin`. **Read
 `docs/THEME_EDITOR.md` before changing it** — it has the architecture map, the

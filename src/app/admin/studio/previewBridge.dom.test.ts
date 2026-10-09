@@ -70,3 +70,16 @@ describe("preview bridge page structure", () => {
     expect(sent.some(m => m.type === "STRUCTURE")).toBe(false);
   });
 });
+
+describe("preview bridge block drag between sections", () => {
+  it("reports a block dropped into another section", () => {
+    document.body.insertAdjacentHTML("beforeend", `
+      <section data-fm-section="s1"><div data-fm-block="k1">one</div></section>
+      <section data-fm-section="s2"><div data-fm-block="k2">two</div></section>`);
+    const dt = { setData() {}, effectAllowed: "", dropEffect: "" };
+    const fire = (type: string, el: Element) => { const ev: any = new Event(type, { bubbles: true, cancelable: true }); ev.dataTransfer = dt; el.dispatchEvent(ev); };
+    fire("dragstart", document.querySelector("[data-fm-block=k1]")!);
+    fire("drop", document.querySelector("[data-fm-block=k2]")!);
+    expect(sent.find(m => m.type === "BLOCK_MOVE_TO")).toMatchObject({ fromSectionId: "s1", blockId: "k1", toSectionId: "s2", beforeId: "k2" });
+  });
+});

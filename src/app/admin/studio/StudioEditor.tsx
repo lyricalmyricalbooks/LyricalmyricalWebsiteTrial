@@ -44,9 +44,11 @@ import { StudioInspector } from "./StudioInspector";
 import { StudioSearch } from "./StudioSearch.tsx";
 import { buildStudioIndex, type SearchEntry } from "./studioSearch";
 import { autoFitSections, autoFitRegions } from "./autoMobile";
-import { applyCanvasAction, applyPageStyle, buildPreviewState, deliverPreviewState, findSectionOwner, PAGE_STYLE_GROUPS, PREVIEW_CHANNEL, previewRoute, withDraftPage } from "./studioWorkflow";
+import { applyCanvasAction, applyPageStyle, buildPreviewState, deliverPreviewState, findSectionOwner, moveBlockTo, moveSectionTo, PAGE_STYLE_GROUPS, PREVIEW_CHANNEL, previewRoute, sectionEntries, updateSectionsById, withDraftPage } from "./studioWorkflow";
+import { sectionStyleFields, SPACING_CARD_KEYS } from "./sectionStyleSchema";
+import type { OutlineActions } from "./StudioOutline";
 import { useStudioPersistence } from "./useStudioPersistence";
-import { ActionMenu, Dialog, SecondaryButton, useConfirm, usePrompt } from "../riso/components";
+import { ActionMenu, Dialog, PrimaryButton, SecondaryButton, useConfirm, usePrompt } from "../riso/components";
 import { applyInlineText, INLINE_STYLE_KEYS } from "./inlineText";
 import { filterSettingGroups } from "./studioNavigation";
 import { designChecks as buildDesignChecks, designSize } from "./studioChecks";
@@ -394,6 +396,11 @@ export function StudioEditor({ settings, onExit, onPersisted, appearance = "ligh
   const [confirmAction, setConfirmAction] = useState<"publish" | "discard" | null>(null);
   const [checksOpen, setChecksOpen] = useState(false);
   const [copiedSection, setCopiedSection] = useState<Section | null>(null);
+  // A section's look (Style / Layout / Visibility settings) copied from the outline, to paste onto others.
+  const [copiedStyle, setCopiedStyle] = useState<Record<string, any> | null>(null);
+  // "Move to…" dialog: sections to another page, or a block to another section.
+  const [moveDialog, setMoveDialog] = useState<null | { kind: "sections"; ids: string[] } | { kind: "block"; sectionId: string; blockId: string }>(null);
+  const [moveDest, setMoveDest] = useState("");
   const [findOpen, setFindOpen] = useState(false);
   const [shortcutsOpen, setShortcutsOpen] = useState(false);
   const [openPage, setOpenPage] = useState<{ slug: string; nonce: number } | null>(null);
@@ -816,6 +823,11 @@ export function StudioEditor({ settings, onExit, onPersisted, appearance = "ligh
       if (d.type === "SECTION_MOVE" && d.sectionId && d.beforeId) {
         change(current => applyCanvasAction(current, d, getBlocksKey));
       }
+      if (d.type === "BLOCK_MOVE_TO" && typeof d.fromSectionId === "string" && typeof d.toSectionId === "string" && typeof d.blockId === "string") {
+        const result = moveBlockTo(designRef.current, { fromSectionId: d.fromSectionId, blockId: d.blockId, toSectionId: d.toSectionId, beforeId: typeof d.beforeId === "string" ? d.beforeId : null }, getBlocksKey);
+        if (result.error) say("err", result.error);
+        else { change(() => result.design, { label: "Move block to another section" }); setSelectedId(d.toSectionId); setBlockId(d.blockId); }
+      }
       if (d.type === "BLOCK_MOVE" && d.sectionId && d.blockId && d.beforeId) {
         change(current => applyCanvasAction(current, d, getBlocksKey));
       }
@@ -963,6 +975,67 @@ export function StudioEditor({ settings, onExit, onPersisted, appearance = "ligh
     if (name === null) return;
     const preset = { id: `preset-${Date.now()}`, name: name.trim() || sectionTitle(section).label, section: JSON.parse(JSON.stringify(section)) };
     setStyle("sectionPresets", [...(design.sectionPresets || []), preset]); say("ok", "Section saved. Add it to any page from Add section › Your saved sections.");
+  };
+  const surfaceLabel = (surface: string) => surface === "globalSections" ? "Every page (shared sections)" : templates.find(t => t.id === surface)?.label || surface;
+  const STYLE_KEYS = useMemo(() => [...sectionStyleFields().map(f => f.key), ...SPACING_CARD_KEYS], []);
+  // Where a block may move: other sections of the same kind, on any page.
+  const blockDestinations = (sectionId: string) => {
+    const from = findSectionOwner(design, sectionId);
+    if (!from) return [];
+    return sectionEntries(design).flatMap(entry => entry.sections
+      .filter(s => s.id !== sectionId && s.type === from.section.type)
+      .map(s => ({ value: s.id, label: `${surfaceLabel(entry.surface)} › ${sectionTitle(s).label}` })));
+  };
+  const outlineActions: OutlineActions = {
+    copy: id => { const sec = sections.find(x => x.id === id); if (!sec) return; setCopiedSection(JSON.parse(JSON.stringify(sec))); say("ok", "Section copied. Use Paste copied section below, on this page or another."); },
+    canPaste: Boolean(copiedSection),
+    paste: afterId => {
+      if (!copiedSection) return;
+      const copy = duplicateSection([copiedSection], copiedSection.id).list[1];
+      setList(l => insertSection(l, copy, l.findIndex(x => x.id === afterId) + 1), { label: "Paste section" });
+      setSelectedId(copy.id); setBlockId(null);
+    },
+    copyStyle: id => {
+      const sec = sections.find(x => x.id === id); if (!sec) return;
+      setCopiedStyle(Object.fromEntries(STYLE_KEYS.filter(k => sec.settings[k] !== undefined).map(k => [k, JSON.parse(JSON.stringify(sec.settings[k]))])));
+      say("ok", "Style copied. Choose Paste style on another section, or on several picked sections.");
+    },
+    canPasteStyle: Boolean(copiedStyle),
+    pasteStyle: ids => {
+      if (!copiedStyle) return;
+      change(d => updateSectionsById(d, ids, sec => {
+        const settings = { ...sec.settings };
+        for (const k of STYLE_KEYS) delete settings[k];
+        return { ...sec, settings: { ...settings, ...JSON.parse(JSON.stringify(copiedStyle)) } };
+      }), { label: ids.length > 1 ? `Paste style onto ${ids.length} sections` : "Paste style" });
+      say("ok", ids.length > 1 ? `Style pasted onto ${ids.length} sections.` : "Style pasted.", { label: "Undo", run: () => setHist(undo) });
+    },
+    moveToPage: ids => { setMoveDest(""); setMoveDialog({ kind: "sections", ids }); },
+    saveForReuse: id => { const sec = sections.find(x => x.id === id); if (sec) void saveSection(sec); },
+    setVisible: (ids, visible) => change(d => updateSectionsById(d, ids, sec => ({ ...sec, visible })),
+      { label: `${visible ? "Show" : "Hide"} ${ids.length} section${ids.length === 1 ? "" : "s"}` }),
+    remove: ids => {
+      change(d => updateSectionsById(d, ids, () => null), { label: `Delete ${ids.length} section${ids.length === 1 ? "" : "s"}` });
+      if (selectedId && ids.includes(selectedId)) { setSelectedId(null); setBlockId(null); }
+      say("ok", `Deleted ${ids.length} section${ids.length === 1 ? "" : "s"}.`, { label: "Undo", run: () => setHist(undo) });
+    },
+    moveBlock: (sectionId, blockId) => { setMoveDest(""); setMoveDialog({ kind: "block", sectionId, blockId }); },
+  };
+  const confirmMove = () => {
+    const dialog = moveDialog; if (!dialog || !moveDest) return;
+    setMoveDialog(null);
+    if (dialog.kind === "sections") {
+      change(d => dialog.ids.reduce((acc, id) => moveSectionTo(acc, id, moveDest), d),
+        { label: `Move ${dialog.ids.length === 1 ? "section" : `${dialog.ids.length} sections`} to ${surfaceLabel(moveDest)}` });
+      if (selectedId && dialog.ids.includes(selectedId)) { setSelectedId(null); setBlockId(null); }
+      say("ok", `Moved to ${surfaceLabel(moveDest)}.`, { label: "Undo", run: () => setHist(undo) });
+      return;
+    }
+    const result = moveBlockTo(designRef.current, { fromSectionId: dialog.sectionId, blockId: dialog.blockId, toSectionId: moveDest }, getBlocksKey);
+    if (result.error) { say("err", result.error); return; }
+    change(() => result.design, { label: "Move block to another section" });
+    setSelectedId(moveDest); setBlockId(dialog.blockId);
+    say("ok", "Block moved.", { label: "Undo", run: () => setHist(undo) });
   };
   const addPreset = (preset: any) => {
     const source = preset.section;
@@ -1131,7 +1204,7 @@ export function StudioEditor({ settings, onExit, onPersisted, appearance = "ligh
               sections={sections} selectedId={selectedId} blockId={blockId}
               hoveredId={hoverKey?.startsWith("s:") ? hoverKey.slice(2) : null}
               onHover={id => postPreview({ type: "HOVER_NODE", key: id ? `s:${id}` : null })}
-              onRename={renameSection}
+              onRename={renameSection} actions={outlineActions}
               onSelect={(id, block) => { setSelectedId(id); setBlockId(block || null); setMobilePanel("settings"); highlight(id, true, block || null); }}
               onReorder={list => setList(() => list)} onPatch={(id, patch) => setList(list => patchSectionSettings(list, id, patch))}
               onAdd={setAdding} onDuplicate={dupSection} onDelete={delSection}
@@ -1462,6 +1535,23 @@ export function StudioEditor({ settings, onExit, onPersisted, appearance = "ligh
 
       {confirmNode}
       {promptNode}
+      <Dialog open={!!moveDialog} onClose={() => setMoveDialog(null)}
+        title={moveDialog?.kind === "block" ? "Move block to another section" : `Move ${moveDialog?.kind === "sections" && moveDialog.ids.length > 1 ? `${moveDialog.ids.length} sections` : "section"} to another page`}
+        description={moveDialog?.kind === "block" ? "Blocks can move to another section of the same kind, on any page." : "The section leaves this page and goes to the end of the page you pick. Undo brings it back."}
+        footer={<><SecondaryButton onClick={() => setMoveDialog(null)}>Cancel</SecondaryButton><PrimaryButton disabled={!moveDest} onClick={confirmMove}>Move</PrimaryButton></>}>
+        {moveDialog && (() => {
+          const options = moveDialog.kind === "block" ? blockDestinations(moveDialog.sectionId)
+            : [{ value: "globalSections", label: surfaceLabel("globalSections") }, ...templates.map(t => ({ value: t.id, label: t.label }))]
+              .filter(o => o.value !== (showGlobal ? "globalSections" : template.id));
+          return options.length ? <div className="rp-field">
+            <label className="rp-label" htmlFor="studio-move-dest">{moveDialog.kind === "block" ? "Section" : "Page"}</label>
+            <select id="studio-move-dest" className="rp-input" value={moveDest} onChange={e => setMoveDest(e.target.value)}>
+              <option value="">Choose…</option>
+              {options.map(o => <option key={o.value} value={o.value}>{o.label}</option>)}
+            </select>
+          </div> : <p className="studio-hint">There's no other section of this kind yet. Add one first, then move the block into it.</p>;
+        })()}
+      </Dialog>
       <Dialog open={shortcutsOpen} onClose={() => setShortcutsOpen(false)} title="Keyboard shortcuts" description="Plain-key shortcuts work when you aren't typing in a field.">
         <div className="studio-shortcuts">
           {[...new Set(SHORTCUTS.map(x => x.group))].map(group => <section key={group}>

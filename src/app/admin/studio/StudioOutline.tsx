@@ -1,5 +1,5 @@
-import { useEffect, useRef, useState } from "react";
-import { ChevronDown, Copy, Eye, EyeOff, GripVertical, Plus, Trash2 } from "lucide-react";
+import { useEffect, useRef, useState, type MouseEvent } from "react";
+import { ArrowRightLeft, Check, ChevronDown, Copy, Eye, EyeOff, GripVertical, Plus, Trash2 } from "lucide-react";
 import { SortableList, SortableRow } from "../dndSortable";
 import { getBlocksKey, getBlockFields, getSectionMeta } from "../ThemeEditorExtensions";
 import { IconButton, SecondaryButton } from "../riso/components";
@@ -7,13 +7,23 @@ import { addChildBlock, mapBlock, newId, type Section, type StudioBlock } from "
 import { outlineMatches } from "./studioNavigation";
 import { updateBlocks } from "./studioWorkflow";
 
+/** Extra list tools the editor provides (menus, copy/paste, moving, bulk actions). */
+export type OutlineActions = {
+  copy: (id: string) => void; paste: (afterId: string) => void; canPaste: boolean;
+  copyStyle: (id: string) => void; pasteStyle: (ids: string[]) => void; canPasteStyle: boolean;
+  moveToPage: (ids: string[]) => void; saveForReuse: (id: string) => void;
+  setVisible: (ids: string[], visible: boolean) => void; remove: (ids: string[]) => void;
+  moveBlock: (sectionId: string, blockId: string) => void;
+};
+
 export function blockLabel(block: any, index: number, fallback = "Block") {
   return String(block.title || block.question || block.heading || block.author || block.alt || block.text || `${fallback} ${index + 1}`);
 }
 
-function NestedBlocks({ blocks, section, depth, selectedId, blockId, label, onSelect, onChange }: {
+function NestedBlocks({ blocks, section, depth, selectedId, blockId, label, onSelect, onChange, onMoveBlock }: {
   blocks: StudioBlock[]; section: Section; depth: number; selectedId: string | null; blockId: string | null;
   label: string; onSelect: (sectionId: string, blockId?: string) => void; onChange: (next: StudioBlock[]) => void;
+  onMoveBlock?: (sectionId: string, blockId: string) => void;
 }) {
   if (depth >= 3) return null;
   return <div className="studio-blocks" data-depth={depth}>
@@ -26,8 +36,9 @@ function NestedBlocks({ blocks, section, depth, selectedId, blockId, label, onSe
               {blockLabel(block, i, label)}<small>{block.sharedBlockId ? "Linked shared block" : block.type || "content"}{block.children?.length ? ` · ${block.children.length} children` : ""}</small>
             </button>
             <IconButton label={block.hidden ? "Show block" : "Hide block"} onClick={() => onChange(mapBlock(blocks, block.id, b => ({ ...b, hidden: !b.hidden })))}>{block.hidden ? <EyeOff size={13} /> : <Eye size={13} />}</IconButton>
+            {onMoveBlock && <IconButton label={`Move ${blockLabel(block, i, label)} to another section`} onClick={() => onMoveBlock(section.id, block.id)}><ArrowRightLeft size={13} /></IconButton>}
           </div>
-          {block.children?.length ? <NestedBlocks blocks={block.children} section={section} depth={depth + 1} selectedId={selectedId} blockId={blockId} label={label} onSelect={onSelect}
+          {block.children?.length ? <NestedBlocks blocks={block.children} section={section} depth={depth + 1} selectedId={selectedId} blockId={blockId} label={label} onSelect={onSelect} onMoveBlock={onMoveBlock}
             onChange={children => onChange(mapBlock(blocks, block.id, b => ({ ...b, children })))} /> : null}
           {depth < 2 && block.type === "group" && <button className="studio-insert" onClick={() => {
             const child = { id: newId(), type: "text", title: "New nested block", body: "" };
@@ -39,7 +50,7 @@ function NestedBlocks({ blocks, section, depth, selectedId, blockId, label, onSe
   </div>;
 }
 
-export function StudioOutline({ sections, selectedId, blockId, onSelect, onReorder, onPatch, onAdd, onDuplicate, onDelete, onToggle, hoveredId, onHover, onRename }: {
+export function StudioOutline({ sections, selectedId, blockId, onSelect, onReorder, onPatch, onAdd, onDuplicate, onDelete, onToggle, hoveredId, onHover, onRename, actions }: {
   sections: Section[]; selectedId: string | null; blockId: string | null;
   onSelect: (sectionId: string, blockId?: string) => void;
   onReorder: (sections: Section[]) => void; onPatch: (id: string, patch: any) => void;
@@ -48,7 +59,25 @@ export function StudioOutline({ sections, selectedId, blockId, onSelect, onReord
   /** Section the pointer is over in the preview, and hover reporting back to it. */
   hoveredId?: string | null; onHover?: (sectionId: string | null) => void;
   onRename?: (id: string) => void;
+  actions?: OutlineActions;
 }) {
+  // Sections picked for bulk actions (Ctrl/⌘-click, Shift-click for a range, or "Select" in a row's menu).
+  const [picked, setPicked] = useState<string[]>([]);
+  const lastPick = useRef<string | null>(null);
+  useEffect(() => { setPicked(p => p.filter(id => sections.some(s => s.id === id))); }, [sections]);
+  const pick = (id: string, range: boolean) => setPicked(prev => {
+    if (range && lastPick.current) {
+      const a = sections.findIndex(s => s.id === lastPick.current), b = sections.findIndex(s => s.id === id);
+      if (a >= 0 && b >= 0) { const span = sections.slice(Math.min(a, b), Math.max(a, b) + 1).map(s => s.id); return [...new Set([...prev, ...span])]; }
+    }
+    lastPick.current = id;
+    return prev.includes(id) ? prev.filter(x => x !== id) : [...prev, id];
+  });
+  const menus = useRef(new Map<string, HTMLDetailsElement>());
+  const openMenu = (id: string, e: MouseEvent) => {
+    const menu = menus.current.get(id); if (!menu) return;
+    e.preventDefault(); menu.open = true; menu.querySelector<HTMLButtonElement>("div button")?.focus();
+  };
   const [query, setQuery] = useState("");
   const searching = Boolean(query.trim());
   const matches = sections.filter(s => outlineMatches(s, query, getSectionMeta(s.type)?.label));
@@ -71,7 +100,17 @@ export function StudioOutline({ sections, selectedId, blockId, onSelect, onReord
       </div>
       {searching && <><p className="studio-hint">Matching sections include their blocks. Clear search to reorder the full page.</p><button className="studio-reset" onClick={() => setQuery("")}>Clear search</button></>}
     </div>
-    <p className="studio-hint">Drag a handle to reorder. Select a section or expand it to edit individual blocks.</p>
+    {actions && picked.length > 0 && <div className="studio-bulk-bar" role="toolbar" aria-label="Selected sections">
+      <strong>{picked.length} selected</strong>
+      <button onClick={() => actions.setVisible(picked, false)}>Hide</button>
+      <button onClick={() => actions.setVisible(picked, true)}>Show</button>
+      {actions.canPasteStyle && <button onClick={() => actions.pasteStyle(picked)}>Paste style</button>}
+      <button onClick={() => actions.moveToPage(picked)}>Move to page…</button>
+      <button onClick={() => { actions.remove(picked); setPicked([]); }}>Delete</button>
+      <button onClick={() => setPicked(sections.map(s => s.id))}>Select all</button>
+      <button onClick={() => setPicked([])}>Clear</button>
+    </div>}
+    <p className="studio-hint">Drag a handle to reorder. Right-click a section for more actions; Ctrl/⌘-click to pick several.</p>
     {sections.length >= 25 && <p role="status" className="studio-hint">{sections.length} sections — consider fewer sections for a faster page.</p>}
     {!searching && insert(0)}
     <SortableList items={sections} getId={s => s.id} onReorder={next => { if (!searching) onReorder(next); }}>
@@ -87,17 +126,23 @@ export function StudioOutline({ sections, selectedId, blockId, onSelect, onReord
           <SortableRow id={section.id} className="studio-tree-section">
             {({ handleProps }) => <>
               <div className="studio-tree-row" data-selected={selectedId === section.id && !blockId} data-hidden={section.visible === false}
-                data-hovered={hoveredId === section.id} onMouseEnter={() => onHover?.(section.id)} onMouseLeave={() => onHover?.(null)}>
+                data-picked={picked.includes(section.id) || undefined}
+                data-hovered={hoveredId === section.id} onMouseEnter={() => onHover?.(section.id)} onMouseLeave={() => onHover?.(null)}
+                onContextMenu={e => openMenu(section.id, e)}>
                 <button {...(searching ? {} : handleProps)} disabled={searching} className="studio-grip" aria-label={`Reorder ${meta?.label || section.type}`}><GripVertical size={15} /></button>
                 {supportsBlocks && <button className="studio-expand" aria-label={`Expand ${meta?.label}`} aria-expanded={open} onClick={() => setExpanded(prev => {
                   const next = new Set(prev); next.has(section.id) ? next.delete(section.id) : next.add(section.id); return next;
                 })}><ChevronDown size={14} style={{ transform: open ? undefined : "rotate(-90deg)" }} /></button>}
-                <button className="studio-tree-label" aria-current={selectedId === section.id && !blockId} onClick={() => onSelect(section.id)}>
-                  <strong>{index + 1}. {(section as any).label || meta?.label || section.type}</strong>
+                <button className="studio-tree-label" aria-current={selectedId === section.id && !blockId} aria-pressed={actions ? picked.includes(section.id) : undefined}
+                  onClick={e => { if (actions && (e.ctrlKey || e.metaKey || e.shiftKey)) { e.preventDefault(); pick(section.id, e.shiftKey); return; } setPicked([]); onSelect(section.id); }}>
+                  <strong>{picked.includes(section.id) && <Check size={12} className="studio-picked-mark" aria-hidden="true" />}{index + 1}. {(section as any).label || meta?.label || section.type}</strong>
                   <small>{section.visible === false ? "Hidden · " : ""}{(section as any).label ? `${meta?.label || section.type} · ` : ""}{section.settings.title || section.settings.heading || (supportsBlocks ? `${blocks.length} blocks` : "Section")}</small>
                 </button>
                 <IconButton label={section.visible === false ? "Show section" : "Hide section"} onClick={() => onToggle(section.id)}>{section.visible === false ? <EyeOff size={14} /> : <Eye size={14} />}</IconButton>
-                <details className="studio-row-menu"><summary aria-label={`Actions for ${meta?.label}`}>···</summary><div>
+                <details className="studio-row-menu" ref={el => { if (el) menus.current.set(section.id, el); else menus.current.delete(section.id); }}
+                  onKeyDown={e => { if (e.key === "Escape") (e.currentTarget as HTMLDetailsElement).open = false; }}
+                  onClick={e => { if ((e.target as HTMLElement).closest("div button")) (e.currentTarget as HTMLDetailsElement).open = false; }}>
+                  <summary aria-label={`Actions for ${(section as any).label || meta?.label}`}>···</summary><div>
                   {!searching && <>
                     <button disabled={index === 0} onClick={() => {
                       const next = [...sections]; [next[index - 1], next[index]] = [next[index], next[index - 1]]; onReorder(next);
@@ -108,11 +153,20 @@ export function StudioOutline({ sections, selectedId, blockId, onSelect, onReord
                   </>}
                   {onRename && <button onClick={() => onRename(section.id)}>Rename</button>}
                   <button onClick={() => onDuplicate(section.id)}><Copy size={13} /> Duplicate</button>
+                  {actions && <>
+                    <button onClick={() => actions.copy(section.id)}>Copy section</button>
+                    {actions.canPaste && <button onClick={() => actions.paste(section.id)}>Paste copied section below</button>}
+                    <button onClick={() => actions.copyStyle(section.id)}>Copy style</button>
+                    {actions.canPasteStyle && <button onClick={() => actions.pasteStyle([section.id])}>Paste style</button>}
+                    <button onClick={() => actions.moveToPage([section.id])}><ArrowRightLeft size={13} /> Move to another page…</button>
+                    <button onClick={() => actions.saveForReuse(section.id)}>Save for reuse</button>
+                    <button onClick={() => pick(section.id, false)}>{picked.includes(section.id) ? "Unselect" : "Select for bulk actions"}</button>
+                  </>}
                   <button onClick={() => onDelete(section.id)}><Trash2 size={13} /> Remove</button>
                 </div></details>
               </div>
               {supportsBlocks && open && <div>
-                <NestedBlocks blocks={blocks} section={section} depth={0} selectedId={selectedId} blockId={blockId} label={meta?.blockLabel || "Block"} onSelect={onSelect} onChange={next => patchBlocks(() => next)} />
+                <NestedBlocks blocks={blocks} section={section} depth={0} selectedId={selectedId} blockId={blockId} label={meta?.blockLabel || "Block"} onSelect={onSelect} onChange={next => patchBlocks(() => next)} onMoveBlock={actions?.moveBlock} />
                 <SecondaryButton onClick={() => {
                   const block = { ...JSON.parse(JSON.stringify(meta?.blockDefaults || {})), id: newId() };
                   patchBlocks(list => [...list, block]); onSelect(section.id, block.id);

@@ -52,10 +52,10 @@ export const PREVIEW_BRIDGE_SOURCE = String.raw`(function(){
   document.addEventListener('dragstart',function(e){if(mode!=='edit')return;if(editing||spacingSession||closest(e.target,'[contenteditable]')){e.preventDefault();return;}var section=closest(e.target,SEC),b=closest(e.target,BLK);if(!section)return;
     dragSection=sid(section);if(b){draggingBlock=bid(b);e.dataTransfer.setData('text/plain',draggingBlock);}else{dragging=dragSection;e.dataTransfer.setData('text/plain',dragging);}e.dataTransfer.effectAllowed='move';},true);
   document.addEventListener('dragover',function(e){if(mode!=='edit')return;var section=closest(e.target,SEC),b=closest(e.target,BLK);
-    if(draggingBlock&&b&&bid(b)!==draggingBlock&&sid(section)===dragSection){e.preventDefault();e.dataTransfer.dropEffect='move';place(hover,b,'Drop block here');return;}
+    if(draggingBlock&&b&&bid(b)!==draggingBlock&&section){e.preventDefault();e.dataTransfer.dropEffect='move';place(hover,b,sid(section)===dragSection?'Drop block here':'Move block into this section');return;}
     if(dragging&&section&&sid(section)!==dragging){e.preventDefault();e.dataTransfer.dropEffect='move';place(hover,section,'Drop section here');}},true);
   document.addEventListener('drop',function(e){var section=closest(e.target,SEC),b=closest(e.target,BLK);
-    if(draggingBlock&&b&&bid(b)!==draggingBlock&&sid(section)===dragSection){e.preventDefault();send({type:'BLOCK_MOVE',sectionId:dragSection,blockId:draggingBlock,beforeId:bid(b)});}
+    if(draggingBlock&&b&&bid(b)!==draggingBlock&&section){e.preventDefault();if(sid(section)===dragSection)send({type:'BLOCK_MOVE',sectionId:dragSection,blockId:draggingBlock,beforeId:bid(b)});else send({type:'BLOCK_MOVE_TO',fromSectionId:dragSection,blockId:draggingBlock,toSectionId:sid(section),beforeId:bid(b)});}
     else if(dragging){var before=section&&sid(section);if(before&&before!==dragging){e.preventDefault();send({type:'SECTION_MOVE',sectionId:dragging,beforeId:before});}}
     dragging=null;draggingBlock=null;dragSection=null;},true);
   document.addEventListener('dragend',function(){dragging=null;draggingBlock=null;dragSection=null;place(hover,null);},true);
