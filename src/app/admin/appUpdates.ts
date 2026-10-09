@@ -10,6 +10,16 @@ export type AppUpdate = {
 // Newest first. Every PR adds an entry; links open the affected admin workspace.
 export const APP_UPDATES: AppUpdate[] = [
   {
+    id: "commerce-gift-cards-bundles-offers", date: "2026-10-09", title: "Gift cards, box sets, automatic offers, paid extras and sale dates",
+    summary: "Five new ways to sell. Gift cards: make a book a gift card (Books › edit › Details › Product type) with amounts like CA$25 or CA$50. Shoppers can send one to a friend, the code is emailed after payment, and it can be spent at checkout through a new Gift card box. You can also issue, disable, top up or resend cards on the new Gift cards page. Box sets: sell several books together at their own price; each set sold takes the books from stock. Automatic offers: discounts that apply without a code, including a free gift with purchase. Only one discount applies per order, and a code a shopper types replaces automatic offers. Paid extras: add a signed copy, personal inscription or gift wrap to a book for a small charge; packing lists show them in bold. Sale dates: a sale price can start and end on its own. Checkout prices all of this on the server. These need the updated Functions and Firestore rules deployed; they have been tested with local checks only, not live payments.",
+    links: [
+      { label: "Open Gift cards", tab: "giftCards" },
+      { label: "Create an automatic offer", tab: "discounts" },
+      { label: "Add extras or a box set to a book", tab: "catalog" },
+      { label: "Edit the gift card email", tab: "settings", settingsTab: "notifications" },
+    ],
+  },
+  {
     id: "overview-front-page", date: "2026-10-09", title: "A livelier Overview that tells you how the shop is doing",
     summary: "Overview now opens like a newspaper front page. A headline sums up the period in one sentence (for example \"CA$1,530 taken, up 10% on the 30 days before\"), with the best-selling title underneath and the revenue or traffic chart in a bright panel. Beside it, a black \"Today's run sheet\" counts what needs you right now — orders to ship, reviews to moderate, titles to reprint, sold-out books — each with a button straight to the fix. The other figures sit in one ruled strip below, with green and red change badges. Ready to sell?, Newest orders and the Dig deeper tabs work as before.",
     links: [{ label: "Open Overview", tab: "overview" }],

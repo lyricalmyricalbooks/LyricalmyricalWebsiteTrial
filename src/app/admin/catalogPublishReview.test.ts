@@ -12,3 +12,16 @@ test("audiobooks and digital editions need no weight; edition weights count", ()
   expect(weightFlag({ ...complete, weight: "", variants: [{ id: "p", name: "Paperback", price: 20, weight: "250g" }, { id: "e", name: "E-book (EPUB)", price: 9 }] })).toBe(false);
   expect(weightFlag({ ...complete, weight: "", variants: [{ id: "p", name: "Paperback", price: 20 }] })).toBe(true);
 });
+
+test("reviews gift cards and box sets for what applies to them", () => {
+  const keys = (b: any) => catalogPublishIssues(b).map((i) => i.key);
+  const giftCard = { title: "Gift card", productType: "giftCard", description: "Give a book lover the choice.", photos: [{ url: "https://x/y.jpg" }], variants: [{ id: "25", name: "CA$25", price: 25, digital: true }] };
+  expect(keys(giftCard)).not.toEqual(expect.arrayContaining(["credits"]));
+  expect(keys(giftCard)).not.toContain("edition");
+  expect(keys(giftCard)).not.toContain("weight");
+  expect(keys(giftCard)).not.toContain("interior");
+  expect(keys({ ...giftCard, variants: [] })).toContain("giftcard-amounts");
+  const boxSet = { title: "Trilogy", description: "Three books.", retailPrice: 60, bundleItems: [{ bookId: "a", quantity: 1 }] };
+  expect(keys(boxSet)).not.toContain("weight");
+  expect(keys(boxSet)).not.toContain("edition");
+});

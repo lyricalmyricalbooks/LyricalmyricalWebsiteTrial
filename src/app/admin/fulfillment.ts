@@ -30,7 +30,8 @@ export function addressIssues(o: any): string[] {
    : o.addressError || "Postal verification failed. Confirm the address with the customer.");
  return issues;
 }
-export const isDigitalItem = (i: any) => i?.digital === true || i?.isDigital === true || /digital|e-book|ebook|epub|pdf|audiobook/.test(String(i.format || "").toLowerCase());
+// Gift cards are emailed (never packed or shipped), like e-books.
+export const isDigitalItem = (i: any) => i?.digital === true || i?.isDigital === true || i?.giftCard === true || i?.productType === "giftCard" || /digital|e-book|ebook|epub|pdf|audiobook/.test(String(i?.format || "").toLowerCase());
 export const physicalItems = (o: any) => (o.items || []).filter((i: any) => !isDigitalItem(i));
 export const fulfillmentMethod = (o: any) => ["pickup", "local_delivery"].includes(o.fulfillmentSelection?.method) ? o.fulfillmentSelection.method : "shipping";
 export function queueOf(o: any): string {
@@ -41,6 +42,8 @@ export function queueOf(o: any): string {
  if (o.customerRequest?.status === "open") return "Needs attention";
  // A payment that didn't match the order total (amount or currency) was not accepted: review it.
  if (o.paymentMismatch && !o.paymentMismatch.resolvedAt && o.paymentStatus !== "paid") return "Needs attention";
+ // A payment arrived but a gift card could no longer cover its part: the order was not marked paid.
+ if (o.giftCardConflict && !o.giftCardConflict.resolvedAt && o.paymentStatus !== "paid") return "Needs attention";
  if (o.paymentStatus !== "paid") return "Unpaid";
  if (o.items?.length && !physicalItems(o).length) return "Completed";
  const method = fulfillmentMethod(o);
@@ -119,13 +122,26 @@ export function suggestedParcelWeightLb(o: any): string {
  if (!grams) return "1.5";
  return Math.max(0.1, (grams + PACKAGING_GRAMS) / 453.592).toFixed(1);
 }
+// Copies to pull from the shelves for these orders. A box set counts the books inside it
+// (each set × each book's quantity), so the pick list matches what actually goes in the parcel.
 export function buildPickList(orders: any[]) {
  const items = new Map<string, any>();
+ const add = (line: any, quantity: number) => {
+  const key = JSON.stringify([line.id || line.bookId || line.title, line.variantId || line.variant || ""]);
+  const entry = items.get(key) || { ...line, addOns: undefined, components: undefined, promoGift: undefined, quantity: 0, addOnCounts: {} as Record<string, number> };
+  entry.quantity += quantity;
+  // Merged lines keep a tally of their add-ons ("Signed copy" × 2) instead of the first line's choice.
+  for (const a of Array.isArray(line.addOns) ? line.addOns : []) if (a?.label) entry.addOnCounts[a.label] = (entry.addOnCounts[a.label] || 0) + quantity;
+  items.set(key, entry);
+ };
  for (const o of orders) for (const i of physicalItems(o)) {
-  const key = JSON.stringify([i.id || i.bookId || i.title, i.variantId || i.variant || "", i.sku || ""]);
-  const existing = items.get(key);
-  if (existing) existing.quantity += Number(i.quantity || 0);
-  else items.set(key, { ...i, quantity: Number(i.quantity || 0) });
+  const sets = Number(i.quantity || 0);
+  if (Array.isArray(i.components) && i.components.length) {
+   for (const part of i.components) {
+    if (!part) continue;
+    add({ id: part.id, variantId: part.variantId || "", title: part.title || part.id, variantName: part.variantName || "", sku: part.sku || "" }, sets * Math.max(1, Number(part.quantity) || 1));
+   }
+  } else add(i, sets);
  }
  return [...items.values()];
 }

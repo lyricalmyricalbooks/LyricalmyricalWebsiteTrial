@@ -52,6 +52,10 @@ collections, and deployment. Don't duplicate that here. Quick orientation:
   `unpaid`. Never mark a Stripe order paid, adjust its inventory, or count its discount from
   client code or another Stripe recovery path. Preserve existing PayPal, manual/offline and free-order contracts.
 - **Tracked inventory reservations:** acquire expiring server-only holds transactionally before creating a payment and revalidate them at settlement; reservation-store failures fail closed. Release on payment/cancel and surface any already-captured payment that can no longer reserve stock for admin reconciliation.
+- **Gift-card balances move only with a confirmed payment.** `priceOrder` (functions/index.js) prices every
+  checkout path; gift cards are held with stock (`reserveCheckout`) and debited only inside the paid transaction
+  (`settleGiftCards`), credited back once by a full refund. Never write `giftCards/*` from the browser
+  (CLAUDE.md › Gift cards, box sets, automatic discounts, add-ons and scheduled sales).
 - **Never trust client-computed totals** for the authoritative charge. Prices,
   shipping, tax, and discounts that determine what a customer is charged must be
   computed/validated server-side via the Stripe session. The client may *display*
