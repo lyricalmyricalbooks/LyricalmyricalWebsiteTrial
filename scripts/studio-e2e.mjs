@@ -427,8 +427,8 @@ await check("a new colour scheme reaches a section in the preview, and deleting 
     return el && getComputedStyle(el).getPropertyValue("--bg-color").trim() === "#ffdde1";
   }, id, { timeout: 10000 });
   await page.getByRole("button", { name: "Save draft" }).click();
-  await page.waitForFunction(() => window.__studioFixture.calls.some(c => c.method === "updateSettings"));
-  const saved = (await calls(page)).filter(c => c.method === "updateSettings").pop().args[0].design;
+  await page.waitForFunction(() => window.__studioFixture.calls.some(c => c.method === "saveDesign"));
+  const saved = (await calls(page)).filter(c => c.method === "saveDesign").pop().args[0].design;
   if (!saved.colorSchemes?.some(s => s.id === id && s.name === "Zine pink" && s.v === 2)) throw new Error("saved draft is missing the new scheme");
   if (saved.heroPage.sections.find(s => s.type === "NewsletterSection")?.settings?.colorSchemeId !== id) throw new Error("the section did not save its scheme");
   // Deleting a scheme in use asks first; the section then falls back to the theme colours.
