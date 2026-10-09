@@ -1,5 +1,5 @@
 // @vitest-environment jsdom
-import { afterEach, beforeEach, describe, expect, it } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { auditDocument, contrastRatio, ownerOf, parseColor, summarise } from "./healthAudit";
 
 // jsdom has no layout: every element gets a box from data-w / data-h (default 120×40).
@@ -94,7 +94,7 @@ describe("Studio Health page audit", () => {
   });
 
   it("folds repeats of the same problem in one part, counting them", () => {
-    const findings = page('<section data-fm-section="s1"><img src="1.jpg"><img src="2.jpg"><img src="3.jpg"></section>');
+    const findings = page('<section data-fm-section="s1"><img src="1.jpg" width="10" height="10"><img src="2.jpg" width="10" height="10"><img src="3.jpg" width="10" height="10"></section>');
     expect(findings).toHaveLength(1);
     expect(findings[0].count).toBe(3);
     expect(summarise(findings)).toMatchObject({ issues: 3, tips: 0 });
@@ -104,5 +104,18 @@ describe("Studio Health page audit", () => {
     document.body.innerHTML = '<div data-studio-target="style:header|copy:Header" data-studio-label="Masthead"><span id="x">Hi</span></div><div data-store-region="cartTitle" data-studio-label="Bag heading"><b id="y">Bag</b></div>';
     expect(ownerOf(document.getElementById("x"))).toMatchObject({ key: "t:style:header|copy:Header|Masthead", label: "Masthead" });
     expect(ownerOf(document.getElementById("y"))).toMatchObject({ key: "r:cartTitle", region: "cartTitle" });
+  });
+
+  it("speed tips: pictures that may make the page jump, a lazy main picture, and heavy pages", () => {
+    const resource = (name: string, size: number) => ({ name, encodedBodySize: size, transferSize: size });
+    const spy = vi.spyOn(window.performance, "getEntriesByName").mockImplementation((name: string) => [resource(name, 1_100_000)] as any);
+    const findings = page(`
+      <section data-fm-section="hero"><img src="big.jpg" alt="Cover" loading="lazy" data-w="900" data-h="500"></section>
+      <section data-fm-section="s2"><img src="a.jpg" alt="A" width="300" height="200"><img src="b.jpg" alt="B" width="300" height="200"></section>
+      <section data-fm-section="s3"><div style="aspect-ratio:3/4"><img src="c.jpg" alt="C"></div><img src="d.jpg" alt="D" style="object-fit:cover"></section>`);
+    spy.mockRestore();
+    expect(findings.find(f => f.id.startsWith("lcp:"))).toMatchObject({ owner: { key: "s:hero" } });
+    expect(findings.filter(f => f.id.startsWith("jump:")).map(f => f.owner?.key)).toEqual(["s:hero"]);
+    expect(findings.find(f => f.id.startsWith("weight:"))!.title).toMatch(/add up to 5\.\d MB/);
   });
 });

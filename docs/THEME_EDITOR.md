@@ -549,6 +549,19 @@ the image; existing images are not migrated into the library.
   sitemap/fingerprint read only the published design. Deploy `firestore.rules` and Functions with the frontend.
 
 **Phase 4 — Performance (continuous).**
+- [x] Editor structural sharing. `features/site/designEqual.ts` `designEqual` (same saved JSON, ignoring key order; no
+  serialising; short-circuits on shared subtrees) backs `studioModel.sameDesign` and `designModel.same`.
+  `normalizeDesign`, `normalizeBlocks` and `compactDesign` return the very same objects for parts that are already normal,
+  so an edit replaces only what it touched; after Save/Publish the saved object itself (not a JSON copy) is kept as "saved".
+  Find anything's index is built only while it's open; Theme settings / Text & labels "changed" counts only while those
+  tabs are open; local recovery is written at idle time. `studio/studioPerf.bench.ts` (`pnpm exec vitest bench`): one edit
+  on the live design 0.85–0.94 ms → 0.20–0.25 ms; on a 592 KB design 14.8 ms (p99 55 ms) → 0.69 ms (p99 1.7 ms).
+- [x] Storefront: sections from the third on (`LAZY_FROM_INDEX`) use CSS `content-visibility: auto` (`data-draw-later`)
+  unless Style › Layout & spacing › **Draw sections lower on the page only when shoppers scroll near them** (`lazySections`)
+  is off; never in the Studio preview, the header/footer/pop-up groups or `StickyAddToBagSection`. The DOM stays complete.
+  `components/sectionPerformance.test.tsx` guards it and caps every section at 600 elements / 24 levels with sample books.
+- [x] Studio Health speed tips: pictures that may make the page jump (no size and not in a fixed-shape frame), a lazily
+  loaded main picture in the first screenful, total picture weight over 3 MB, and the browser's LCP when exposed.
 
 ## Shopify-parity roadmap (history)
 

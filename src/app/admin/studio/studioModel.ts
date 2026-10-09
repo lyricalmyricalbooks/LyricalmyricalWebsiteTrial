@@ -5,6 +5,7 @@
 import { compactDesign } from "../../features/site/designModel";
 import { MAX_BLOCK_DEPTH, normalizeBlocks, resolveSharedBlocks, type SharedBlock, type StudioBlock } from "../../features/site/sharedBlocks";
 import { SECTION_GROUP_KEYS, type SectionGroupKey } from "../../features/site/sectionGroups";
+import { designEqual } from "../../features/site/designEqual";
 export { MAX_BLOCK_DEPTH, normalizeBlocks, resolveSharedBlocks, type SharedBlock, type StudioBlock };
 
 /** `label` is the owner's own name for a section in Studio; shoppers never see it. */
@@ -89,28 +90,40 @@ export function getPath(obj: any, path: string, fallback?: any) {
 export function normalizeDesign(incoming: any, defaults: any = {}) {
   const inc = incoming || {};
   const merged = { ...defaults, ...inc };
+  // Already-normal parts are kept as the very same objects, so an edit only replaces what it touched and
+  // sameDesign can skip everything else (Phase 4 structural sharing).
   const normalized: any = {
     ...merged,
-    heroPage: {
+    heroPage: Array.isArray(inc.heroPage?.sections) ? inc.heroPage : {
       sections: inc.heroPage?.sections || inc.heroPage?.homepageSections || inc.homepageSections || [],
       ...(inc.heroPage || {}),
     },
-    storefront: {
+    storefront: Array.isArray(inc.storefront?.sections) ? inc.storefront : {
       sections: inc.storefront?.sections || inc.storefront?.homepageSections || [],
       ...(inc.storefront || {}),
     },
   };
-  const identify = (sections: any[]) => sections.map((section, index) => {
+  const identifySection = (section: any, index: number) => {
     const id = section.id || `legacy-section-${index}`;
-    const settings = { ...(section.settings || {}) };
+    const original = section.settings || {};
+    let settings = original;
     for (const key of ["items", "slides", "blocks"]) {
-      if (Array.isArray(settings[key])) settings[key] = normalizeBlocks(settings[key], `${id}-${key}`);
+      if (!Array.isArray(original[key])) continue;
+      const blocks = normalizeBlocks(original[key], `${id}-${key}`);
+      if (blocks !== original[key]) { if (settings === original) settings = { ...original }; settings[key] = blocks; }
     }
-    return { ...section, id, settings };
-  });
+    return section.id && section.settings && settings === original ? section : { ...section, id, settings: settings === original ? { ...original } : settings };
+  };
+  const identify = (sections: any[]) => {
+    const out = sections.map(identifySection);
+    return out.every((s, i) => s === sections[i]) ? sections : out;
+  };
   for (const key of SECTION_GROUP_KEYS) if (Array.isArray(normalized[key])) normalized[key] = identify(normalized[key]);
   for (const key of Object.keys(normalized)) {
-    if (Array.isArray(normalized[key]?.sections)) normalized[key] = { ...normalized[key], sections: identify(normalized[key].sections) };
+    const list = normalized[key]?.sections;
+    if (!Array.isArray(list)) continue;
+    const next = identify(list);
+    if (next !== list) normalized[key] = { ...normalized[key], sections: next };
   }
   // Drop page values that can never show (shop structure, nested pages) or that equal what the
   // page inherits anyway — the shop looks identical, and Studio's values are the ones that go live.
@@ -236,4 +249,5 @@ export function redo<T>(h: History<T>): History<T> {
 export const undoLabel = (h: History<any>) => h.past.length ? (h.pastLabels?.[h.pastLabels.length - 1] || "Edit") : "";
 export const redoLabel = (h: History<any>) => h.future.length ? (h.futureLabels?.[0] || "Edit") : "";
 
-export const sameDesign = (a: any, b: any) => JSON.stringify(a ?? null) === JSON.stringify(b ?? null);
+/** Same saved design? Structural (no serialising), short-circuits on shared subtrees (features/site/designEqual.ts). */
+export const sameDesign = (a: any, b: any) => designEqual(a, b);

@@ -8,6 +8,7 @@
 //  - `copy` and `regions` merge per entry (page entries win, the rest come from all pages);
 //  - a surface never carries another surface inside it;
 //  - "All pages" edits set the root and clear the matching page overrides.
+import { designEqual } from "./designEqual";
 
 /** Page surfaces that can carry their own overrides (custom pages add `page:<slug>`). */
 export const STATIC_SURFACES = ["heroPage", "storefront", "productPage", "collectionPage", "cartPage", "page", "page404", "wishlistPage", "accountPage", "trackingPage"];
@@ -43,7 +44,7 @@ export function surfaceChain(surface: string): string[] {
   return [surface];
 }
 
-const same = (a: any, b: any) => JSON.stringify(a ?? null) === JSON.stringify(b ?? null);
+const same = (a: any, b: any) => designEqual(a, b);
 
 /** The value a surface would show for `key` if it had no override of its own. */
 export function inheritedValue(design: any, surface: string, key: string) {
@@ -73,27 +74,32 @@ export function compactDesign(design: any): { design: any; report: CompactionRep
     if (!plain(obj)) continue;
     const parentDesign = layerDesign(design, ...surfaceChain(surface).slice(0, -1).map(id => design[id]));
     const kept: Record<string, any> = {};
+    let dropped = false;
     for (const [key, value] of Object.entries(obj)) {
-      if (isSurfaceKey(key)) { report.nested.push(`${surface}.${key}`); continue; }
+      if (isSurfaceKey(key)) { report.nested.push(`${surface}.${key}`); dropped = true; continue; }
       if (ROOT_ONLY_KEYS.has(key)) {
         if (!same(value, design[key])) report.structure.push({ surface, key });
         else report.duplicates++;
+        dropped = true;
         continue;
       }
       if (MERGED_MAPS.has(key) && plain(value)) {
         const inherited = plain(parentDesign[key]) ? parentDesign[key] : {};
-        const entries = Object.entries(value).filter(([leaf, v]) => {
+        const all = Object.entries(value);
+        const entries = all.filter(([leaf, v]) => {
           const dup = leaf in inherited && same(v, inherited[leaf]);
           if (dup) report.duplicates++;
           return !dup;
         });
-        if (entries.length) kept[key] = Object.fromEntries(entries);
+        if (entries.length === all.length && entries.length) kept[key] = value;
+        else { dropped = true; if (entries.length) kept[key] = Object.fromEntries(entries); }
         continue;
       }
-      if (key !== "sections" && key in parentDesign && same(value, parentDesign[key])) { report.duplicates++; continue; }
+      if (key !== "sections" && key in parentDesign && same(value, parentDesign[key])) { report.duplicates++; dropped = true; continue; }
       kept[key] = value;
     }
-    next[surface] = kept;
+    // Nothing removed: keep the very same surface object (structural sharing between edits).
+    next[surface] = dropped ? kept : obj;
   }
   return { design: next, report };
 }

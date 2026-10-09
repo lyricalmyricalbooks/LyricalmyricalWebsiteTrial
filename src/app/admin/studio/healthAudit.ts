@@ -186,6 +186,9 @@ export function auditDocument(doc: Document, win: Window = doc.defaultView as Wi
 
   // Pictures: descriptions, size on screen vs file, and file weight.
   const dpr = win.devicePixelRatio || 1;
+  const viewport = win.innerHeight || 800;
+  let totalImageBytes = 0;
+  let firstScreen: { img: Element; area: number } | null = null;
   for (const img of Array.from(body.querySelectorAll("img")).filter(i => !skip(i))) {
     if (!shown(img)) continue;
     const owner = ownerOf(img);
@@ -213,6 +216,39 @@ export function auditDocument(doc: Document, win: Window = doc.defaultView as Wi
         title: `A heavy picture (${Math.round(bytes / 1024)} KB)`,
         detail: "Large files slow the page on phones. Pick it from the Media library, which stores smaller copies, or save it smaller before uploading." });
     }
+    totalImageBytes += bytes;
+    // Layout jumps (CLS): without width/height (or a CSS aspect ratio) the page shifts when the picture arrives.
+    // Pictures that fill a frame of their own (absolutely placed, object-fit, or a parent with a set shape) can't jump.
+    const ics = style(img);
+    const parentRatio = img.parentElement ? style(img.parentElement).aspectRatio : "";
+    const framed = ics.position === "absolute" || ics.position === "fixed" || (ics.objectFit && ics.objectFit !== "fill")
+      || (ics.aspectRatio && ics.aspectRatio !== "auto") || (parentRatio && parentRatio !== "auto");
+    if (!img.hasAttribute("width") && !img.hasAttribute("height") && !framed) {
+      add("jump", { category: "performance", severity: "tip", owner, element: img,
+        title: "A picture may make the page jump while loading",
+        detail: "It has no size set, so text below moves when it arrives. Pick it from the Media library (it records the size), or use a section that sets the picture's shape." });
+    }
+    // The main picture (LCP): the largest one in the first screenful should load straight away, not lazily.
+    const r = img.getBoundingClientRect();
+    if (r.top < viewport && r.bottom > 0 && r.width * r.height > (firstScreen?.area || 0)) firstScreen = { img, area: r.width * r.height };
+  }
+  if (firstScreen && firstScreen.img.getAttribute("loading") === "lazy" && firstScreen.area > 40_000) {
+    add("lcp", { category: "performance", severity: "tip", owner: ownerOf(firstScreen.img), element: firstScreen.img,
+      title: "The main picture at the top loads late",
+      detail: "The biggest picture people see first is set to load lazily, which delays the page's main picture. Put it in the page's first section (the first section's pictures load straight away)." });
+  }
+  if (totalImageBytes > 3_000_000) {
+    add("weight", { category: "performance", severity: "tip", owner: null,
+      title: `Pictures on this page add up to ${(totalImageBytes / 1_000_000).toFixed(1)} MB`,
+      detail: "That's a lot to download on a phone connection. Use the Media library's smaller copies, or fewer large pictures." });
+  }
+  // The browser's own measure of when the main content appeared, when it's available (Chrome); the preview is slower
+  // than the live shop because Studio runs alongside it, so this is only a hint.
+  const lcp = (win.performance?.getEntriesByType?.("largest-contentful-paint") || []).slice(-1)[0] as any;
+  if (lcp && lcp.startTime > 2500) {
+    add("lcpTime", { category: "performance", severity: "tip", owner: lcp.element ? ownerOf(lcp.element) : null, element: lcp.element || null,
+      title: `The main content took ${(lcp.startTime / 1000).toFixed(1)} s to appear in the preview`,
+      detail: "Google aims for under 2.5 s. Smaller pictures near the top and fewer fonts help most. (The preview is slower than the live shop, so treat this as a hint.)" });
   }
 
   // Links and buttons: a name for screen readers, somewhere to go, and pages that exist.

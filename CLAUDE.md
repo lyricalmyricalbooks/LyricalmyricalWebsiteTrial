@@ -526,6 +526,12 @@ shared design, keeps it noindex and out of analytics (`trackingGuard`, `useSiteD
 at their end unless a later Publish happened. Never put scheduled designs in the public settings document, and never
 apply schedules in the browser. Times are entered in Toronto time and stored as UTC ISO.
 
+**Performance (Phase 4):** compare designs with `designEqual` (`features/site/designEqual.ts`), never `JSON.stringify`, and
+keep normalisers identity-preserving (return the same object when nothing changes) so edits share structure. Heavy Studio
+derivations (Find index, "changed" counts) are computed only while their panel is open. Storefront sections from the third
+on use `content-visibility: auto` (`lazySections`, default on; not in preview, groups or fixed bars) — a new section with
+a fixed-position bar belongs in `LAZY_EXCLUDED_TYPES`. `components/sectionPerformance.test.tsx` caps section DOM size.
+
 **Colour schemes (2.5):** Studio › Theme settings › **Colour schemes** (`StudioColorSchemes.tsx`, pure edits in
 `studio/colorSchemeOps.ts`) edits `design.colorSchemes` — ten roles (background, surface, text, muted, accent, onAccent,
 border, buttonBg, buttonText, link) with a live swatch and WCAG badges. `features/site/colorSchemes.ts` `schemeCss()`
