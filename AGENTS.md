@@ -145,6 +145,14 @@ Menus › Shop categories or create-and-assign one in a book's Categories & tags
 tab; the book workflow must update the live storefront and Studio draft together
 without replacing unrelated design fields.
 New book cards must carry the `fm-card-*` classes (`cardClasses.test.tsx`).
+**Media library (2.4).** Studio › **Media** (`studio/StudioMedia.tsx`) lists admin-only `media/{id}` records; library
+uploads (`uploadMediaImage`) store WebP copies at 480/960/1600 px under `assets/media/<id>/`. Picking a picture for a
+section/block field writes its URL plus a public `${field}__media` record (Theme settings images get the URL only, but
+their uploads still land in the library); render section images with `components/ResponsiveImage.tsx`
+(srcset only when the record's `src` matches; plain URLs unchanged). Replace/where-used/filters live in the pure
+`studio/mediaLibrary.ts`; Delete refuses a picture still in use, including in My themes or Version history. Deploy Firestore (`media`) and Storage rules with the
+frontend; until then Media explains the library is off and image fields keep URL + plain upload.
+
 Studio's **Find anything** (Ctrl/Cmd+K, `studioSearch.ts`) indexes `STYLE_GROUPS`/`COPY_SCHEMA` automatically — a new control needs a
 plain-English label so shop owners can find it. Selection commands come from `contextCommands` (add one there plus a case in
 `runContext` in `StudioEditor.tsx`); `>` searches commands only. Studio drafts are only ever saved through `admin/themeStore.ts`

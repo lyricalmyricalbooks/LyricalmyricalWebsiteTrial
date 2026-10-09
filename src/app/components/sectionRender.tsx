@@ -9,6 +9,7 @@ import { findScheme, schemeList } from "../features/site/colorSchemes";
 import { resolveSectionSharedBlocks } from "../features/site/sharedBlocks";
 import { UP_TO } from "../features/site/breakpoints";
 import { SectionDesignContext } from "./sectionCopy";
+import { SectionPriorityContext, sectionHasPriority } from "./ResponsiveImage";
 import {
   boxShadowValue,
   cornerRadiusValue,
@@ -228,7 +229,7 @@ export function SectionList({
   return (
     <SectionDesignContext.Provider value={design || null}>
     <div className="flex flex-col">
-      {list.map((section: any) => {
+      {list.map((section: any, index: number) => {
         const SectionComponent = (Sections as any)[section.type];
         if (!SectionComponent) return null;
 
@@ -283,13 +284,15 @@ export function SectionList({
             <ShapeDivider style={s.shapeDividerTop} position="top" color={s.shapeDividerTopColor} />
             <SectionReveal animation={s.animation} enableAnimations={enableAnimations}>
               <SectionBoundary sectionId={section.id} type={section.type}>
-                <SectionComponent
-                  settings={s}
-                  books={books}
-                  onCtaClick={onCtaClick}
-                  onProductClick={onProductClick}
-                  enableAnimations={enableAnimations}
-                />
+                <SectionPriorityContext.Provider value={sectionHasPriority(dataSection, index)}>
+                  <SectionComponent
+                    settings={s}
+                    books={books}
+                    onCtaClick={onCtaClick}
+                    onProductClick={onProductClick}
+                    enableAnimations={enableAnimations}
+                  />
+                </SectionPriorityContext.Provider>
               </SectionBoundary>
             </SectionReveal>
             <ShapeDivider style={s.shapeDividerBottom} position="bottom" color={s.shapeDividerBottomColor} />

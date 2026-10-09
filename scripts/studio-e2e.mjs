@@ -401,6 +401,40 @@ await check("a Studio link opens the right page and tool", desktop, async page =
   if (pressed !== "true") throw new Error("the link did not open Theme settings");
 }, "#designer?b=paper-weather&tab=style");
 
+await check("Media lists a library image and opens its details", desktop, async page => {
+  await page.getByRole("button", { name: "Media", exact: true }).click();
+  const card = page.locator("[data-media-id='m-riso-print']");
+  await card.waitFor({ timeout: 10000 });
+  const thumbLoaded = await card.locator("img").evaluate(img => img.complete && img.naturalWidth > 0);
+  if (!thumbLoaded) throw new Error("the fixture image thumbnail did not load");
+  await page.getByRole("button", { name: /^No description/ }).click();
+  await card.waitFor({ timeout: 5000 });
+  await card.click();
+  await expectText(page, "Where it's used");
+  await expectText(page, "Not used anywhere yet");
+  await page.getByRole("table", { name: "Sizes shoppers download" }).waitFor({ timeout: 5000 });
+  await page.getByLabel("Description (alt text)").fill("Red dot on yellow paper");
+  await page.getByRole("button", { name: "Save description" }).click();
+  await page.waitForFunction(() => window.__studioFixture.calls.some(c => c.method === "saveMedia" && c.args[0].alt === "Red dot on yellow paper"));
+});
+
+await check("an image field picks from the library; the preview gets srcset", desktop, async page => {
+  await expectText(page, "Preview connected", 30000);
+  await page.getByRole("button", { name: "Add section" }).first().click();
+  await page.getByRole("button", { name: /^Image Banner/ }).first().click();
+  await page.locator("[data-media-choose='imageUrl']").click();
+  const dialog = page.getByRole("dialog", { name: /Choose an image/ });
+  await dialog.locator("[data-media-id='m-riso-print']").click();
+  await dialog.waitFor({ state: "detached", timeout: 5000 });
+  const frame = page.frameLocator("iframe").first();
+  await frame.locator("img[srcset*='480w']").first().waitFor({ state: "attached", timeout: 15000 });
+});
+
+await check("Media explains a library whose rules aren't deployed", desktop, async page => {
+  await page.getByRole("button", { name: "Media", exact: true }).click();
+  await expectText(page, "The media library isn't switched on yet");
+}, "?media=denied");
+
 await check("a new colour scheme reaches a section in the preview, and deleting it warns", desktop, async page => {
   await expectText(page, "Preview connected", 30000);
   await page.getByRole("button", { name: "Theme settings", exact: true }).first().click();
