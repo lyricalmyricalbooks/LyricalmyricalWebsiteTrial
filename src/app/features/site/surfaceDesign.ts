@@ -21,6 +21,7 @@ export function resolveSurfaceDesign(design: any, pathname: string) {
 }
 
 /** MainSite owns home, catalog and routed collections; their tokens must follow the active canvas. */
+// Alternate collection templates (Studio 2.8) bring their own sections only; collection pages style from the default.
 export function resolveMainDesign(design: any, catalog: boolean, collection: boolean) {
   const base = design || {};
   const primary = collection || catalog ? base.storefront : base.heroPage;
@@ -28,8 +29,8 @@ export function resolveMainDesign(design: any, catalog: boolean, collection: boo
   return layerDesign(base, primary, local);
 }
 
-/** Product controls inherit catalog defaults, then retain the product canvas overrides. */
-export function resolveProductDesign(design: any) {
+/** Product controls inherit catalog defaults, then retain the product canvas overrides (and an alternate's, 2.8). */
+export function resolveProductDesign(design: any, productSurface = "productPage") {
   const base = design || {};
-  return layerDesign(base, base.storefront, base.productPage);
+  return layerDesign(base, base.storefront, base.productPage, productSurface !== "productPage" ? base[productSurface] : null);
 }

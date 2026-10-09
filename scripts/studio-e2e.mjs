@@ -593,6 +593,26 @@ await check("a section title on book pages connects to a custom book field", des
   if (sec?.settings?.title?.$dyn !== "book.custom.series") throw new Error(`not connected: ${JSON.stringify(sec?.settings?.title)}`);
 }, "#designer?t=productPage");
 
+await check("a new book page template gets its own sections and is listed in the page picker", desktop, async page => {
+  await expectText(page, "Preview connected", 30000);
+  const card = page.locator("[data-studio-panel=template]");
+  await card.getByRole("button", { name: "New template from this one" }).click();
+  await page.getByRole("dialog").getByLabel("Name (e.g. Poetry)").fill("Poetry");
+  await page.getByRole("dialog").getByRole("button", { name: "Create template" }).click();
+  await card.getByLabel("Book page template to edit").waitFor({ timeout: 5000 });
+  if ((await card.getByLabel("Book page template to edit").inputValue()) !== "productPage~poetry") throw new Error("did not switch to the new template");
+  await page.getByRole("button", { name: "Add section" }).first().click();
+  await page.locator("[data-library-type=PromoStripSection] .studio-library-card").click();
+  const frame = page.frameLocator("iframe").first();
+  await frame.getByText("New releases every month").first().waitFor({ timeout: 10000 });
+  await page.getByRole("button", { name: "Save draft" }).click();
+  await page.waitForFunction(() => window.__studioFixture.calls.some(c => c.method === "saveDesign"));
+  const design = (await calls(page)).find(c => c.method === "saveDesign").args[0].design;
+  if (!design.alternateTemplates?.productPage?.some(t => t.id === "poetry")) throw new Error("template not registered");
+  if (!design["productPage~poetry"]?.sections?.some(s => s.type === "PromoStripSection")) throw new Error("section not on the template");
+  if (design.productPage?.sections?.some(s => s.type === "PromoStripSection")) throw new Error("section leaked onto the default template");
+}, "#designer?t=productPage");
+
 await check("phone-sized editor loads without errors", { width: 390, height: 844 }, async page => {
   await page.waitForTimeout(1500);
   const overflow = await page.evaluate(() => document.documentElement.scrollWidth - window.innerWidth);

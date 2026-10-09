@@ -11,7 +11,7 @@ import {
 import { adminApi } from "../api";
 import { uploadStudioImage } from "./mediaUpload";
 import {
-  SECTION_REGISTRY, SectionFieldEditor, buildPageTemplates,
+  SECTION_REGISTRY, SectionFieldEditor, buildPageTemplates, type PageTemplateMeta,
   getBlockFields, getBlocksKey, getSectionFields, getSectionMeta, DEFAULT_COLOR_SCHEMES,
 } from "../ThemeEditorExtensions";
 import { CATEGORIES } from "../../features/site/constants";
@@ -76,6 +76,8 @@ import { auth } from "../../../lib/firebase";
 import type { StudioLocation } from "../../lib/studioLocation";
 import { LinkPicker, StudioPickerProvider } from "./StudioPickers";
 import { StudioSectionLibrary } from "./StudioSectionLibrary";
+import { StudioTemplateCard } from "./StudioTemplateCard";
+import { ALT_BASE_LABELS, ALT_BASES, alternatesFor, altSurface, createAlternate, deleteAlternate, isAltSurface, parseAltSurface, renameAlternate, type AltBase } from "../../features/site/templateAlternates";
 import { DynamicSourcesContext } from "./StudioConnect";
 import type { BookFieldDef } from "../../features/site/bookFields";
 import { hasTokens, isDynamic } from "../../features/site/dynamicSources";
@@ -90,7 +92,7 @@ type ThemeVersion = { id: string; kind: "draft" | "published"; label: string; cr
 
 function describeChanges(from: any, to: any): string[] {
   const out: string[] = [];
-  const surfaces = STATIC_SURFACES;
+  const surfaces = [...STATIC_SURFACES, ...Object.keys({ ...(from || {}), ...(to || {}) }).filter(isAltSurface)];
   for (const id of surfaces) {
     const a = (from?.[id]?.sections || []).length, b = (to?.[id]?.sections || []).length;
     if (a !== b) out.push(`${id}: ${a} → ${b} sections`);
@@ -425,8 +427,15 @@ export function StudioEditor({ settings, onExit, onPersisted, appearance = "ligh
   const designRef = useRef(design);
   designRef.current = design;
 
-  const templates = useMemo(() => buildPageTemplates(pages, { includeDrafts: true }), [pages]);
+  // Alternate book/collection templates (Studio 2.8) join the page list as "Book page · Poetry".
+  const altTemplates = useMemo((): PageTemplateMeta[] => ALT_BASES.flatMap(base => alternatesFor(design, base).map(t => ({
+    id: altSurface(base, t.id), label: `${ALT_BASE_LABELS[base]} · ${t.name}`,
+    description: `The “${t.name}” ${ALT_BASE_LABELS[base].toLowerCase()} template.`, previewMode: (base === "productPage" ? "product" : "collection") as any,
+  }))), [design.alternateTemplates]); // eslint-disable-line react-hooks/exhaustive-deps
+  const templates = useMemo(() => [...buildPageTemplates(pages, { includeDrafts: true }), ...altTemplates], [pages, altTemplates]);
   const template = templates.find((t) => t.id === templateId) || templates[0];
+  // Collection alternates bring sections only (their page styles follow the default collection page).
+  useEffect(() => { if (parseAltSurface(template.id)?.base === "collectionPage") setStyleScope("all"); }, [template.id]);
   const target: SectionTarget = showGlobal ? { kind: "global", group: globalGroup } : { kind: "template", id: template.id };
   const sections = getSections(design, target);
   const selected = sections.find((s) => s.id === selectedId) || null;
@@ -437,7 +446,7 @@ export function StudioEditor({ settings, onExit, onPersisted, appearance = "ligh
   }, [selected, blockId]);
   const colorSchemes = design.colorSchemes?.length ? design.colorSchemes : DEFAULT_COLOR_SCHEMES;
   const surfaceIds = useMemo(
-    () => [...STATIC_SURFACES, ...templates.filter((t) => t.pageSlug).map((t) => t.id)],
+    () => [...STATIC_SURFACES, ...templates.filter((t) => t.pageSlug || isAltSurface(t.id)).map((t) => t.id)],
     [templates],
   );
   const dirtyDraft = useMemo(() => !sameDesign(design, savedDraft), [design, savedDraft]);
@@ -633,15 +642,21 @@ export function StudioEditor({ settings, onExit, onPersisted, appearance = "ligh
     const withQ = (p: string) => `${base}${p}${p.includes("?") ? "&" : "?"}preview=true`;
     switch (template.id) {
       case "storefront": return withQ("/?catalog=true");
-      case "productPage": return withQ(`/books/${productSlug || ""}`);
-      case "collectionPage": return withQ(`/collections/${collectionSlug}`);
+      // "template=default" keeps the default layout even for a book or category that uses an alternate.
+      case "productPage": return withQ(`/books/${productSlug || ""}?template=default`);
+      case "collectionPage": return withQ(`/collections/${collectionSlug}?template=default`);
       case "cartPage": return withQ("/checkout");
       case "page404": return withQ("/studio-missing-page");
       case "wishlistPage": return withQ("/wishlist");
       case "accountPage": return withQ("/account");
       case "trackingPage": return withQ("/track");
       case "page": return withQ(`/page/${pages.find((p) => p.status === "published")?.slug || ""}`);
-      default: return withQ(template.pageSlug ? `/page/${template.pageSlug}` : "/");
+      default: {
+        const alt = parseAltSurface(template.id);
+        if (alt?.base === "productPage") return withQ(`/books/${productSlug || ""}?template=${alt.id}`);
+        if (alt?.base === "collectionPage") return withQ(`/collections/${collectionSlug}?template=${alt.id}`);
+        return withQ(template.pageSlug ? `/page/${template.pageSlug}` : "/");
+      }
     }
   }, [template.id, template.pageSlug, productSlug, collectionSlug, pages]);
 
@@ -1105,6 +1120,25 @@ export function StudioEditor({ settings, onExit, onPersisted, appearance = "ligh
     setSelectedId(moveDest); setBlockId(dialog.blockId);
     say("ok", "Block moved.", { label: "Undo", run: () => setHist(undo) });
   };
+  // ── alternate templates (2.8) ──
+  const createTemplateAsk = async (base: AltBase, from: string) => {
+    const name = await askText({ title: `New ${ALT_BASE_LABELS[base].toLowerCase()} template`, label: "Name (e.g. Poetry)", defaultValue: "", confirmLabel: "Create template" });
+    if (name === null || !name.trim()) return;
+    const made = createAlternate(designRef.current, base, name, from);
+    change(() => made.design, { label: `Create template “${name.trim()}”` });
+    setShowGlobal(false); setTemplateId(altSurface(base, made.id)); setSelectedId(null); setBlockId(null);
+    say("ok", `Template “${name.trim()}” created from ${from === base ? "the default" : "that template"}. ${base === "productPage" ? "Pick it for books in Books › edit › Categories & tags." : "Pick it for categories in Navigation › Shop categories."}`);
+  };
+  const renameTemplateAsk = async (base: AltBase, id: string, current: string) => {
+    const name = await askText({ title: "Rename template", label: "Name", defaultValue: current, confirmLabel: "Rename" });
+    if (name === null || !name.trim()) return;
+    change(d => renameAlternate(d, base, id, name), { label: "Rename template" });
+  };
+  const deleteTemplateNow = (base: AltBase, id: string, name: string) => {
+    change(d => deleteAlternate(d, base, id), { label: `Delete template “${name}”` });
+    setTemplateId(base); setSelectedId(null); setBlockId(null);
+    say("ok", `Template “${name}” deleted. Anything that used it shows the default layout.`, { label: "Undo", run: () => setHist(undo) });
+  };
   /** Add section › "Add it there instead": add a section to the group or page it is made for, and go there. */
   const addSectionBestPlace = (type: string) => {
     const meta = getSectionMeta(type);
@@ -1335,6 +1369,12 @@ export function StudioEditor({ settings, onExit, onPersisted, appearance = "ligh
                 onRenameShared={renameSharedAsk} onDeleteShared={deleteSharedNow}
                 onClose={() => setAdding(null)} />
             )}
+            {leftTab === "sections" && adding === null && !showGlobal && (
+              <StudioTemplateCard design={design} templateId={template.id} books={books} previewBookSlug={productSlug}
+                onSwitch={id => { setTemplateId(id); setSelectedId(null); setBlockId(null); }}
+                onPreviewBook={setProductSlug}
+                onCreate={createTemplateAsk} onRename={renameTemplateAsk} onDelete={deleteTemplateNow} />
+            )}
             {leftTab === "sections" && adding === null && template.id === "heroPage" && (
               <div className="m-3 p-3 rounded-lg border border-neutral-200 bg-white text-xs space-y-2">
                 <label className="flex items-center justify-between gap-3 font-bold text-sm">
@@ -1393,7 +1433,7 @@ export function StudioEditor({ settings, onExit, onPersisted, appearance = "ligh
             </StudioStructure>}
             {leftTab === "style" && <div className="studio-settings-search">
               <input className="studio-search" aria-label="Search style settings" placeholder="Search colors, fonts, spacing…" value={styleSearch} onChange={e => { setStyleSearch(e.target.value); if (e.target.value) setStyleFocus(null); }} />
-              <label>Editing scope<select aria-label="Style scope" value={styleScope} onChange={e => setStyleScope(e.target.value as any)}><option value="all">All pages</option><option value="page">This page only: {template.label}</option></select></label>
+              <label>Editing scope<select aria-label="Style scope" value={styleScope} onChange={e => setStyleScope(e.target.value as any)}><option value="all">All pages</option><option value="page" disabled={parseAltSurface(template.id)?.base === "collectionPage"}>This page only: {template.label}</option></select></label>
               {styleSearch && <button className={btn} onClick={() => setStyleSearch("")}>Clear search</button>}
             </div>}
             {leftTab === "style" && !styleSearch.trim() && !styleCategory && !styleFocus && !showGlobal && (

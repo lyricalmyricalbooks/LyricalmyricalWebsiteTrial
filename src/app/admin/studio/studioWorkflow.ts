@@ -244,8 +244,11 @@ export function previewRoute(href: string, base: string) {
   if (!url.pathname.startsWith(prefix)) return null;
   const path = url.pathname.slice(prefix.length).replace(/\/$/, "");
   if (!path) return { templateId: url.searchParams.get("catalog") === "true" ? "storefront" : "heroPage" };
-  if (path.startsWith("books/")) return { templateId: "productPage", product: decodeURIComponent(path.slice(6)) };
-  if (path.startsWith("collections/")) return { templateId: "collectionPage", collection: decodeURIComponent(path.slice(12)) };
+  // `?template=<id>` is how Studio previews an alternate template (2.8); "default" (or none) is the default one.
+  const alt = url.searchParams.get("template");
+  const withAlt = (base: string) => (alt && alt !== "default" && /^[a-z0-9][a-z0-9-]{0,39}$/.test(alt) ? `${base}~${alt}` : base);
+  if (path.startsWith("books/")) return { templateId: withAlt("productPage"), product: decodeURIComponent(path.slice(6)) };
+  if (path.startsWith("collections/")) return { templateId: withAlt("collectionPage"), collection: decodeURIComponent(path.slice(12)) };
   if (path.startsWith("page/")) return { templateId: `page:${decodeURIComponent(path.slice(5))}` };
   if (path === "checkout") return { templateId: "cartPage" };
   if (path === "wishlist") return { templateId: "wishlistPage" };

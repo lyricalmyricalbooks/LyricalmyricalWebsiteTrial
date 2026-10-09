@@ -11,10 +11,12 @@
 
 /** Page surfaces that can carry their own overrides (custom pages add `page:<slug>`). */
 export const STATIC_SURFACES = ["heroPage", "storefront", "productPage", "collectionPage", "cartPage", "page", "page404", "wishlistPage", "accountPage", "trackingPage"];
-export const isSurfaceKey = (key: string) => STATIC_SURFACES.includes(key) || key.startsWith("page:");
+/** Alternate book/collection templates (Studio 2.8, features/site/templateAlternates.ts). */
+const ALT_SURFACE = /^(productPage|collectionPage)~[a-z0-9][a-z0-9-]{0,39}$/;
+export const isSurfaceKey = (key: string) => STATIC_SURFACES.includes(key) || key.startsWith("page:") || ALT_SURFACE.test(key);
 
 /** Shop structure that is the same on every page — a page surface can never override it. */
-export const ROOT_ONLY_KEYS = new Set(["menus", "categories", "navOrder", "secondaryNavKeys", "footerBadges", "sectionPresets", "sharedBlocks", "globalSections", "headerSections", "overlaySections"]);
+export const ROOT_ONLY_KEYS = new Set(["menus", "categories", "navOrder", "secondaryNavKeys", "footerBadges", "sectionPresets", "sharedBlocks", "globalSections", "headerSections", "overlaySections", "alternateTemplates"]);
 /** Maps whose entries merge one by one (page entry wins), instead of replacing the whole map. */
 export const MERGED_MAPS = new Set(["copy", "regions"]);
 
@@ -35,6 +37,7 @@ export function layerDesign(base: any, ...surfaces: any[]) {
 
 /** The surfaces a page inherits from, most general first (root is implied). */
 export function surfaceChain(surface: string): string[] {
+  if (ALT_SURFACE.test(surface)) return ["storefront", surface.split("~")[0], surface];
   if (surface === "productPage" || surface === "collectionPage") return ["storefront", surface];
   if (surface.startsWith("page:")) return ["page", surface];
   return [surface];

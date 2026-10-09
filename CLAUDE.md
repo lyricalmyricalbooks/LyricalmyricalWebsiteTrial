@@ -479,6 +479,14 @@ setting value in Studio UI without `displayValue()`; code reading setting values
 Section › Visibility › **Hide when a connected detail is empty** (`hideWhenEmpty`). Studio's Content tab offers
 **Connect to a detail…** (`studio/StudioConnect.tsx`).
 
+**Alternate templates (2.8):** extra book/collection page layouts — list in root-only `design.alternateTemplates`, each on
+surface `productPage~<id>` / `collectionPage~<id>` (`features/site/templateAlternates.ts`; layered storefront → default →
+alternate by `designModel`). Books pick one with `book.templateId` (Books › edit › Categories & tags › **Book page
+template**), categories with `category.templateId` (Navigation › Shop categories › Edit). Studio: Page layout › template
+card (New template from this one / Rename / Delete); the preview URL carries `?template=<id>`. Collection alternates carry
+sections only. Use `bookTemplateSurface` / `categoryTemplateSurface` / `sectionsSurface` — never read `design.productPage`
+directly for a book's sections.
+
 **Colour schemes (2.5):** Studio › Theme settings › **Colour schemes** (`StudioColorSchemes.tsx`, pure edits in
 `studio/colorSchemeOps.ts`) edits `design.colorSchemes` — ten roles (background, surface, text, muted, accent, onAccent,
 border, buttonBg, buttonText, link) with a live swatch and WCAG badges. `features/site/colorSchemes.ts` `schemeCss()`

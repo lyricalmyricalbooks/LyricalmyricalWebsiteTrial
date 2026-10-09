@@ -31,6 +31,8 @@ const NOT_STYLE_CONTROLS = new Set([
   "fontSize", "data", "id", "trim", "logoUrl", "footerBadges", "sharedBlocks",
   // Section groups (Page layout › shared sections) and Announcement messages (their own Studio editor).
   "headerSections", "overlaySections", "announcements",
+  // Alternate book/collection templates (Page layout › template card: create / rename / delete).
+  "alternateTemplates",
 ]);
 
 function publicSources(dir: string, out: string[] = []): string[] {

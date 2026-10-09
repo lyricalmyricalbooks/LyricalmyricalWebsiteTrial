@@ -22,6 +22,12 @@ export function pickerOptions(input: {
   for (const c of input.collections) out.push({ id: `c:${c.slug}`, label: c.label, group: "Collections", hint: "Collection page", templateId: "collectionPage", collectionSlug: c.slug });
   for (const b of input.books) out.push({ id: `b:${b.slug}`, label: b.title, group: "Book pages", hint: "Book page", templateId: "productPage", productSlug: b.slug });
   if (!input.books.length && byId.has("productPage")) out.push({ id: "t:productPage", label: "Book page (add a published book to preview it)", group: "Book pages", templateId: "productPage" });
+  // Alternate templates (Studio 2.8): "productPage~poetry" / "collectionPage~photo-books".
+  for (const t of input.templates) {
+    const base = t.id.split("~")[0];
+    if (!t.id.includes("~") || (base !== "productPage" && base !== "collectionPage")) continue;
+    out.push({ id: `t:${t.id}`, label: t.label, group: base === "productPage" ? "Book pages" : "Collections", hint: "Template", templateId: t.id });
+  }
   if (byId.has("page")) out.push({ id: "t:page", label: "All custom pages (shared layout)", group: "Custom pages", templateId: "page" });
   for (const t of input.templates) if (t.pageSlug) out.push({ id: `t:${t.id}`, label: t.label, group: "Custom pages", templateId: t.id });
   out.push({ id: "global", label: "Header & footer sections (every page)", group: "Every page", templateId: "", global: true });

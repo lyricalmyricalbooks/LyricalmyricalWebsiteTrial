@@ -171,6 +171,14 @@ setting value in Studio UI without `displayValue()`; code reading setting values
 Section › Visibility › **Hide when a connected detail is empty** (`hideWhenEmpty`). Studio's Content tab offers
 **Connect to a detail…** (`studio/StudioConnect.tsx`).
 
+**Alternate templates (2.8):** extra book/collection page layouts — list in root-only `design.alternateTemplates`, each on
+surface `productPage~<id>` / `collectionPage~<id>` (`features/site/templateAlternates.ts`; layered storefront → default →
+alternate by `designModel`). Books pick one with `book.templateId` (Books › edit › Categories & tags › **Book page
+template**), categories with `category.templateId` (Navigation › Shop categories › Edit). Studio: Page layout › template
+card (New template from this one / Rename / Delete); the preview URL carries `?template=<id>`. Collection alternates carry
+sections only. Use `bookTemplateSurface` / `categoryTemplateSurface` / `sectionsSurface` — never read `design.productPage`
+directly for a book's sections.
+
 **Media library (2.4).** Studio › **Media** (`studio/StudioMedia.tsx`) lists admin-only `media/{id}` records; library
 uploads (`uploadMediaImage`) store WebP copies at 480/960/1600 px under `assets/media/<id>/`. Picking a picture for a
 section/block field writes its URL plus a public `${field}__media` record (Theme settings images get the URL only, but
