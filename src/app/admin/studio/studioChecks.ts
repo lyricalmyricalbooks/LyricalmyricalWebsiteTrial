@@ -1,4 +1,5 @@
 import { SECTION_GROUP_KEYS } from "../../features/site/sectionGroups";
+import { hasTokens, isDynamic } from "../../features/site/dynamicSources";
 type Field = { key: string; kind: string };
 
 /** Fields whose filled-in value counts as content. Picker kinds hold the same strings text fields did. */
@@ -23,7 +24,9 @@ export function designChecks(
       const url = content?.[field.key];
       if (!url || typeof url !== "string") continue;
       const altKey = [`${field.key}Alt`, `${field.key}AltText`, "alt", "imageAlt", "imageAltText"].find(key => content[key] != null);
-      images.push({ url, alt: altKey ? content[altKey] : "" });
+      const alt = altKey ? content[altKey] : "";
+      // A description connected to a book/category/page detail (Studio 2.7) counts as described.
+      images.push({ url, alt: typeof alt === "string" ? alt : isDynamic(alt) ? `‹${alt.$dyn}›` : "" });
     }
   };
   const collectBlocks = (sectionType: string, blocks: any[]) => (blocks || []).forEach(block => {
@@ -43,13 +46,13 @@ export function designChecks(
     const hasText = (text: string) => Boolean(text.replace(/<[^>]*>/g, " ").replace(/&nbsp;/gi, " ").trim());
     const hasContent = fields.some(field => {
       const value = section.settings?.[field.key];
-      return typeof value === "string" ? hasText(value) : Array.isArray(value)
+      return isDynamic(value) || hasTokens(value) ? true : typeof value === "string" ? hasText(value) : Array.isArray(value)
         ? value.some(item => typeof item === "string" ? hasText(item) : item && Object.values(item).some(v => typeof v === "string" && hasText(v)))
         : false;
     });
     const blockFields = schema.blockFields(section.type).filter(field => CONTENT_KINDS.includes(field.kind));
     const hasBlockContent = (blocks: any[]): boolean => (blocks || []).some(block =>
-      blockFields.some(field => typeof block[field.key] === "string" && hasText(block[field.key])) || hasBlockContent(block.children || []));
+      blockFields.some(field => isDynamic(block[field.key]) || (typeof block[field.key] === "string" && hasText(block[field.key]))) || hasBlockContent(block.children || []));
     const key = schema.blocksKey(section.type);
     const blocks = section.settings?.[key]?.length ? section.settings[key] : section.settings?.blocks || [];
     return !hasContent && !hasBlockContent(blocks);

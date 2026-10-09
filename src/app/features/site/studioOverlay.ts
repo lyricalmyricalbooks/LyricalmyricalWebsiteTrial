@@ -16,6 +16,9 @@ export function useStudioOverlay(name: StudioOverlay, setOpen: (open: boolean) =
       else if (overlay) latest.current(false);
     };
     window.addEventListener("fm:studio-open-overlay", on);
+    // A request that arrived before this pop-over mounted (the preview was still loading) still applies:
+    // the preview bridge remembers the last one in window.__studioOpenOverlay.
+    if ((window as any).__studioOpenOverlay === name) latest.current(true);
     return () => window.removeEventListener("fm:studio-open-overlay", on);
   }, [name]);
 }

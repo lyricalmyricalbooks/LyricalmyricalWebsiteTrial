@@ -1,4 +1,5 @@
 import { keepLiveStock } from "./bookStockMerge";
+import { BOOK_FIELDS_DOC, cleanBookFields, type BookFieldDef } from "../features/site/bookFields";
 import { newOrderAccessKey, rememberOrderAccess, savedOrderAccess, orderAccessHeaders } from "../lib/orderAccessClient";
 import { addressKey, addressIssues, packingKey, dispatchProblem, disputeOpen, queueOf, fulfillmentMethod, trackingFields } from "./fulfillment";
 import { restampPreorderItems } from "../features/site/preorder";
@@ -500,6 +501,18 @@ export const adminApi = {
   // Shopper read of settings/website: no admin-only lookups, never writes, and never keeps the
   // unpublished draft or My themes (older documents may still carry them) in shopper state or cache.
   getPublicSettings: publicApi.getPublicSettings,
+
+  // Custom book fields (Studio 2.7): definitions in the public, admin-written settings/bookFields doc.
+  getBookFields: async (): Promise<BookFieldDef[]> => {
+    const snap = await getDoc(doc(db, "settings", BOOK_FIELDS_DOC));
+    return cleanBookFields(snap.exists() ? (snap.data() as any).fields : []);
+  },
+  saveBookFields: async (fields: BookFieldDef[]): Promise<BookFieldDef[]> => {
+    const clean = cleanBookFields(fields);
+    await setDoc(doc(db, "settings", BOOK_FIELDS_DOC), { fields: clean, updatedAt: new Date().toISOString() });
+    await adminApi.recordAuditLog("catalog", `Updated book fields (${clean.length})`);
+    return clean;
+  },
 
   getSettings: async () => {
     const docRef = doc(db, "settings", "website");

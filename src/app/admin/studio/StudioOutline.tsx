@@ -1,3 +1,4 @@
+import { displayValue } from "../../features/site/dynamicSources";
 import { useEffect, useRef, useState, type MouseEvent } from "react";
 import { ArrowRightLeft, Check, ChevronDown, Copy, Eye, EyeOff, GripVertical, Plus, Trash2 } from "lucide-react";
 import { SortableList, SortableRow } from "../dndSortable";
@@ -17,7 +18,7 @@ export type OutlineActions = {
 };
 
 export function blockLabel(block: any, index: number, fallback = "Block") {
-  return String(block.title || block.question || block.heading || block.author || block.alt || block.text || `${fallback} ${index + 1}`);
+  return String(displayValue(block.title || block.question || block.heading || block.author || block.alt || block.text) || `${fallback} ${index + 1}`);
 }
 
 function NestedBlocks({ blocks, section, depth, selectedId, blockId, label, onSelect, onChange, onMoveBlock }: {
@@ -136,7 +137,7 @@ export function StudioOutline({ sections, selectedId, blockId, onSelect, onReord
                 <button className="studio-tree-label" aria-current={selectedId === section.id && !blockId} aria-pressed={actions ? picked.includes(section.id) : undefined}
                   onClick={e => { if (actions && (e.ctrlKey || e.metaKey || e.shiftKey)) { e.preventDefault(); pick(section.id, e.shiftKey); return; } setPicked([]); onSelect(section.id); }}>
                   <strong>{picked.includes(section.id) && <Check size={12} className="studio-picked-mark" aria-hidden="true" />}{index + 1}. {(section as any).label || meta?.label || section.type}</strong>
-                  <small>{section.visible === false ? "Hidden · " : ""}{(section as any).label ? `${meta?.label || section.type} · ` : ""}{section.settings.title || section.settings.heading || (supportsBlocks ? `${blocks.length} blocks` : "Section")}</small>
+                  <small>{section.visible === false ? "Hidden · " : ""}{(section as any).label ? `${meta?.label || section.type} · ` : ""}{displayValue(section.settings.title || section.settings.heading) || (supportsBlocks ? `${blocks.length} blocks` : "Section")}</small>
                 </button>
                 <IconButton label={section.visible === false ? "Show section" : "Hide section"} onClick={() => onToggle(section.id)}>{section.visible === false ? <EyeOff size={14} /> : <Eye size={14} />}</IconButton>
                 <details className="studio-row-menu" ref={el => { if (el) menus.current.set(section.id, el); else menus.current.delete(section.id); }}

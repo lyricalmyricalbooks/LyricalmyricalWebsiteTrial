@@ -16,9 +16,15 @@ export type StudioFixture = {
 const clone = <T,>(v: T): T => JSON.parse(JSON.stringify(v ?? null));
 
 export const FIXTURE_BOOKS = [
-  { id: "b1", slug: "night-pages", title: "Night Pages", author: "A. Writer", retailPrice: 32, stockLevel: 6, status: "published", categories: ["PUBLICATIONS"], photos: [] },
+  { id: "b1", slug: "night-pages", title: "Night Pages", author: "A. Writer", retailPrice: 32, stockLevel: 6, status: "published", categories: ["PUBLICATIONS"], photos: [], custom: { series: "The Night Series", series_number: "2" } },
   { id: "b2", slug: "paper-weather", title: "Paper Weather", author: "B. Poet", retailPrice: 24, salePrice: 18, isOnSale: true, stockLevel: 2, status: "published", categories: ["EPHEMERA"], photos: [] },
   { id: "b3", slug: "unreleased", title: "Unreleased Draft", retailPrice: 20, stockLevel: 0, status: "draft", photos: [] },
+];
+
+/** Books › Book fields (settings/bookFields), offered by Studio's "Connect to a detail". */
+export const FIXTURE_BOOK_FIELDS = [
+  { key: "series", label: "Series", kind: "text" },
+  { key: "series_number", label: "Number in series", kind: "number" },
 ];
 
 export const FIXTURE_PAGES = [
@@ -53,6 +59,7 @@ export function installFakeStudioApi(api: Record<string, any>, fixture: StudioFi
   const record = (method: string, ...args: any[]) => fixture.calls.push({ method, args: clone(args) });
   const fake: Record<string, (...args: any[]) => any> = {
     getPages: async () => clone(fixture.pages),
+    getBookFields: async () => clone(FIXTURE_BOOK_FIELDS),
     getCategoryBooks: async () => clone(fixture.books),
     listThemeVersions: async () => clone(fixture.versions),
     saveThemeVersion: async (kind: string, label: string, design: any) => {

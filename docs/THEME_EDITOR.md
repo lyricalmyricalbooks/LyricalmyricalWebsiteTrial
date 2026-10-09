@@ -412,7 +412,26 @@ assistant, personalization/A-B tests, author/series/event pages, multi-language 
       `newsletter/{email}` rules, nothing new to deploy) and never write from the Studio preview. Also fixed: clicking a
       section from the header or pop-up group in the preview now selects it. Tests: `sectionLibrary.test.ts`,
       `librarySections.test.tsx`, contract tests; e2e: try-on + add, + Section above, Promo strip "Add it there".
-- [ ] 2.7 Custom book fields + dynamic sources.
+- [x] 2.7 Custom book fields + dynamic sources. Deviation: field definitions live in the public, admin-written
+      `settings/bookFields` doc (`{ fields: BookFieldDef[] }`) instead of a new `catalogSchema/books` collection, so the
+      existing `settings/*` and `books/*` rules cover it and nothing new has to be deployed. Pure rules:
+      `features/site/bookFields.ts` (kinds text / long text / number / date / web address / picture, `fieldKeyFor`,
+      `cleanBookFields`, `cleanCustomValues`, `mergeCustomValues`; max 30 fields, 2,000 characters a value). Books › edit
+      › **More details** (`admin/BookCustomFields.tsx`) holds this book's answers (`book.custom`, saved with the book) and
+      **Book fields (shared by every book)** to add / rename / re-kind / remove fields (saved at once via
+      `adminApi.getBookFields` / `saveBookFields`; removing a field keeps saved answers). Dynamic sources:
+      `features/site/dynamicSources.ts` — a connected field saves `{ "$dyn": "book.custom.series" }`, and text may hold
+      `{{book.title}}`-style tokens. Sources: book title, subtitle, author, plain description, publisher, publication
+      date, page count, format, edition, ISBN, first photo, book page link, every custom field; category name,
+      description, picture, collection link; page title. `SectionList` runs `resolveDynamicSettings` with the page's
+      `SectionPageContext` (book from `BookDetail`, open category from `MainSite`, custom page from `PageView`) before the
+      renderer, so the 41 renderers are unchanged. Section › Visibility › **Hide when a connected detail is empty**
+      (`hideWhenEmpty`) leaves the section out where a connected detail is missing; the Studio preview never hides it
+      and shows `‹Book › Series›` placeholders instead. Studio: Content-tab text, picture and link fields get
+      **Connect to a detail…** (`studio/StudioConnect.tsx`; a connected field shows a chip with Disconnect); connected
+      text opens the inspector instead of inline editing; pre-publish checks count connections as content; outline
+      labels use `displayValue`. Tests: `dynamicSources.test.ts`, `dynamicSections.render.test.tsx`,
+      `StudioConnect.test.tsx`, `BookCustomFields.test.tsx`, `studioReliability.test.ts`; e2e: connect a title to Series.
 - [ ] 2.8 Alternate templates.
 - [ ] 2.9 Product information as blocks.
 

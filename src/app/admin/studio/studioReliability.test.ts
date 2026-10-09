@@ -60,6 +60,14 @@ describe("Studio editing reliability", () => {
     expect(checks.find(result => result.text.includes("description"))).toMatchObject({ tone: "warn" });
     expect(checks.filter(result => /not measured|not automatically measured/.test(result.text))).toHaveLength(2);
   });
+  it("counts connected fields as content and connected picture descriptions as described (2.7)", () => {
+    const checks = designChecks({ productPage: { sections: [
+      { id: "c", type: "HeroSection", settings: { title: { $dyn: "book.custom.series" } } },
+      { id: "i", type: "CompositionSection", settings: { items: [{ id: "img", type: "image", imageUrl: "/x.jpg", alt: { $dyn: "book.title" } }] } },
+    ] } }, checkSchema);
+    expect(checks[0]).toMatchObject({ tone: "ok" });
+    expect(checks.find(result => result.text.includes("description"))).toMatchObject({ tone: "ok" });
+  });
   it("flags sections with only empty rich text markup", () => {
     const checks = designChecks({ heroPage: { sections: [{ id: "empty", type: "HeroSection", settings: { title: "<p><br></p>" } }] } }, checkSchema);
     expect(checks[0]).toMatchObject({ tone: "warn" });

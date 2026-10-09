@@ -27,6 +27,7 @@ import { googleFontHref } from "../features/site/fonts";
 import { useCurrency } from "../CurrencyContext";
 import { isEmailAddress, subscribeNewsletter } from "../features/site/newsletterSignup";
 import { SectionList, GlobalSections, TemplateSections } from "./sectionRender";
+import { SectionPageContext } from "./sectionCopy";
 import { useWishlist, liveWishlistCount } from "../lib/wishlist";
 import { isLiveBook } from "../features/site/liveBook";
 import { displayPrice as cardDisplayPrice, showsSale } from "../features/site/displayPrice";
@@ -410,6 +411,8 @@ export default function MainSite({ setShowCatalog, showCatalog, setCurrentPage, 
   }, [legacyDesign?.showHero, showCatalog, setShowCatalog, isCatalogPreview]);
 
   const [activeCategory, setActiveCategory] = useState<any>(categories[0]);
+  // Connected section fields (Studio 2.7) read the open category.
+  const categoryContext = useMemo(() => ({ category: activeCategory && activeCategory !== "ALL" ? activeCategory : undefined }), [activeCategory]);
   const pickCategory = (cat: any) => {
     setActiveCategory(cat);
     setShowCatalog(true);
@@ -668,7 +671,9 @@ export default function MainSite({ setShowCatalog, showCatalog, setCurrentPage, 
         ) : (
         <main className="mx-auto w-full flex-1 px-6 py-12 md:py-20" style={{ maxWidth: isReferenceCatalog ? storefrontHeaderMaxWidth : storefrontMaxWidth }}>
           {/* Theme-editor sections authored for the storefront page template */}
-          <TemplateSections design={activeDesign} templateId={onCollectionRoute ? "collectionPage" : "storefront"} books={books} />
+          <SectionPageContext.Provider value={categoryContext}>
+            <TemplateSections design={activeDesign} templateId={onCollectionRoute ? "collectionPage" : "storefront"} books={books} />
+          </SectionPageContext.Provider>
 
           {/* Catalog heading + title count */}
           {(storefrontDesign?.catalogHeading || storefrontDesign?.showCatalogCount) && (

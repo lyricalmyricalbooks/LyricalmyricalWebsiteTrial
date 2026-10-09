@@ -18,6 +18,9 @@ describe("section style schema", () => {
   it("adds hiding on tablets", () => {
     expect(fields.find(f => f.key === "hideOnTablet")?.tab).toBe("visibility");
   });
+  it("adds hiding when a connected detail is empty (2.7)", () => {
+    expect(fields.find(f => f.key === "hideWhenEmpty")?.tab).toBe("visibility");
+  });
   it("offers the shop's colour schemes", () => {
     const f = fields.find(x => x.key === "colorSchemeId") as any;
     expect(f.options.map((o: any) => o.value)).toEqual(["", "s1"]);

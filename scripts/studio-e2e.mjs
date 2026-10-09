@@ -578,6 +578,21 @@ await check("a Promo strip goes under the header on every page with Add it there
   await frame.getByText("New releases every month").first().waitFor({ timeout: 10000 });
 });
 
+await check("a section title on book pages connects to a custom book field", desktop, async page => {
+  await expectText(page, "Preview connected", 30000);
+  await page.getByRole("button", { name: "Add section" }).first().click();
+  await page.locator("[data-library-type=TextContentSection] .studio-library-card").click();
+  await page.getByLabel("Connect Title to a detail", { exact: true }).selectOption({ label: "Series" });
+  await page.locator("[data-connected-field='book.custom.series']").getByText("Connected to Book › Series").waitFor({ timeout: 5000 });
+  const frame = page.frameLocator("iframe").first();
+  await frame.getByText("The Night Series").first().waitFor({ timeout: 10000 });
+  await page.getByRole("button", { name: "Save draft" }).click();
+  await page.waitForFunction(() => window.__studioFixture.calls.some(c => c.method === "saveDesign"));
+  const save = (await calls(page)).find(c => c.method === "saveDesign");
+  const sec = save.args[0].design.productPage.sections.find(s => s.type === "TextContentSection");
+  if (sec?.settings?.title?.$dyn !== "book.custom.series") throw new Error(`not connected: ${JSON.stringify(sec?.settings?.title)}`);
+}, "#designer?t=productPage");
+
 await check("phone-sized editor loads without errors", { width: 390, height: 844 }, async page => {
   await page.waitForTimeout(1500);
   const overflow = await page.evaluate(() => document.documentElement.scrollWidth - window.innerWidth);

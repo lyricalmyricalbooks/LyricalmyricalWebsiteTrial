@@ -6,6 +6,7 @@ import { useParams } from "react-router";
 import { useSiteData } from "./useSiteData";
 import { StorefrontThemeStyle } from "./StorefrontThemeStyle";
 import { TemplateSections, GlobalSections } from "../../components/sectionRender";
+import { SectionPageContext } from "../../components/sectionCopy";
 import { CurrentPageContext, PageContentSection } from "../../components/SectionComponents";
 import { policyPageFor } from "./policyPages";
 import { getCopy } from "./storeCopy";
@@ -140,7 +141,9 @@ export function PageView() {
       {pageStyle.titleFont && <link rel="stylesheet" href={googleFontHref(String(pageStyle.titleFont))} />}
 
       <CurrentPageContext.Provider value={{ title: shown.title, body: shown.body, pageStyle }}>
-        <TemplateSections design={settings?.design} templateId={surfaceId} books={books} />
+        <SectionPageContext.Provider value={{ page: shown }}>
+          <TemplateSections design={settings?.design} templateId={surfaceId} books={books} />
+        </SectionPageContext.Provider>
       </CurrentPageContext.Provider>
 
       {/* Content — the same "Page content" renderer Studio uses, with its

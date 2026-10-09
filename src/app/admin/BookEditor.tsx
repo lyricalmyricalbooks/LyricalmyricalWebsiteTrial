@@ -40,6 +40,7 @@ import { CATEGORIES } from "../features/site/constants";
 import { normalizeCategories, parentOf } from "../features/site/navItems";
 import { Book, Variant } from "../features/site/types";
 import { useCurrency } from "../CurrencyContext";
+import { BookCustomFields } from "./BookCustomFields";
 import { ConfirmDialog, SectionCard, TextField, TextArea, SelectField, Toggle, StatusBadge, Tabs } from "./riso/components";
 import { prepareProductImage } from "./prepareImage";
 import { studioHash } from "../lib/studioLocation";
@@ -51,7 +52,7 @@ import { addOnProblems, bundleProblems, giftCardProblems, isBoxSet, isGiftCardPr
 
 const MAX_BOOK_PHOTOS = 20;
 
-type BookTab = "details" | "media" | "pricing" | "inventory" | "editions" | "addons" | "boxset" | "organize" | "seo";
+type BookTab = "details" | "media" | "pricing" | "inventory" | "editions" | "addons" | "boxset" | "organize" | "more" | "seo";
 
 function SortablePhoto({ photo, index, onRemove, onAlt, onMakeCover }: {
   photo: any; index: number; onRemove: (id: string) => void; onAlt: (id: string, alt: string) => void; onMakeCover: (id: string) => void;
@@ -725,7 +726,7 @@ export function BookEditor({ book, onClose, onSave }: BookEditorProps) {
     { label: "Search description", ok: !!formData.metaDescription, tab: "seo" as BookTab },
   ];
   const doneCount = checklist.filter((c) => c.ok).length;
-  const tabIssues: Record<BookTab, number> = { details: 0, media: 0, pricing: 0, inventory: 0, editions: 0, addons: 0, boxset: 0, organize: 0, seo: 0 };
+  const tabIssues: Record<BookTab, number> = { details: 0, media: 0, pricing: 0, inventory: 0, editions: 0, addons: 0, boxset: 0, organize: 0, more: 0, seo: 0 };
   checklist.filter((c) => !c.ok).forEach((c) => { tabIssues[c.tab] += 1; });
   const tabs: Array<{ id: BookTab; label: string; count?: number }> = [
     { id: "details", label: "Details", count: tabIssues.details || undefined },
@@ -737,6 +738,7 @@ export function BookEditor({ book, onClose, onSave }: BookEditorProps) {
     ...(!giftCard && !boxSetOn ? [{ id: "addons" as BookTab, label: "Add-ons", count: (formData.addOns || []).length || undefined }] : []),
     ...(!giftCard ? [{ id: "boxset" as BookTab, label: "Box set", count: boxSetOn ? (formData.bundleItems || []).length : undefined }] : []),
     { id: "organize", label: "Categories & tags", count: tabIssues.organize || undefined },
+    { id: "more", label: "More details", count: Object.keys(formData.custom || {}).length || undefined },
     { id: "seo", label: "Search (SEO)", count: tabIssues.seo || undefined },
   ];
   const shownTab: BookTab = tabs.some((t) => t.id === tab) ? tab : "details";
@@ -1155,6 +1157,8 @@ export function BookEditor({ book, onClose, onSave }: BookEditorProps) {
             </SectionCard>
             </>
           )}
+
+          {shownTab === "more" && <BookCustomFields form={formData} set={set} />}
 
           {shownTab === "seo" && (
             <BookSeoPane book={formData} onChange={set} />

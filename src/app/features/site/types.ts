@@ -51,6 +51,8 @@ export type Book = {
   pageCount?: number;
   publisher?: string;
   publishDate?: string;
+  /** Answers to the shop's custom book fields (Books › Book fields), keyed by field key. */
+  custom?: Record<string, string>;
 };
 
 export type LocalFulfillmentAddress = { street: string; unit?: string; city: string; state: string; zip: string; country: string; postalCode?: string };

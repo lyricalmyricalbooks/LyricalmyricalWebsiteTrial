@@ -90,7 +90,7 @@ export const PREVIEW_BRIDGE_SOURCE = String.raw`(function(){
     if(d.type==='SCAN_STRUCTURE')scanStructure();
     if(d.type==='HOVER_NODE'){var h=typeof d.key==='string'?findNode(d.key):null;place(hover,h,h?nodeLabel(h):'');}
     if(d.type==='HIGHLIGHT_NODE'&&typeof d.key==='string'){var n=findNode(d.key);if(!n)return;n.scrollIntoView({behavior:'smooth',block:'center'});setTimeout(function(){place(hover,n,nodeLabel(n));},400);}
-    if(d.type==='OPEN_OVERLAY'&&(d.overlay==='cart'||d.overlay==='search'||d.overlay==='popup'||d.overlay==='close')){window.dispatchEvent(new CustomEvent('fm:studio-open-overlay',{detail:{overlay:d.overlay}}));scheduleScan();}
+    if(d.type==='OPEN_OVERLAY'&&(d.overlay==='cart'||d.overlay==='search'||d.overlay==='popup'||d.overlay==='close')){window.__studioOpenOverlay=d.overlay;window.dispatchEvent(new CustomEvent('fm:studio-open-overlay',{detail:{overlay:d.overlay}}));scheduleScan();}
     if(d.type==='SELECT_NODE'){selectedKey=typeof d.key==='string'?d.key:null;if(selectedKey){selected=null;block=null;}draw();var sn=selectedKey&&findNode(selectedKey);if(sn){if(d.scroll)sn.scrollIntoView({behavior:'smooth',block:'center'});send(elementInfo(sn,'ELEMENT_INFO'));}}
   });
   document.addEventListener('mouseover',function(e){if(mode!=='edit'||closest(e.target,'[data-studio-overlay]'))return;var n=closest(e.target,NODE),k=n?nodeKey(n):null;if(k!==hoverKey){hoverKey=k;send({type:'NODE_HOVER',key:k});}},true);

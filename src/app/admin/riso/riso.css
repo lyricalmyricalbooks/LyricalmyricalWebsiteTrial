@@ -688,6 +688,11 @@
 .book-editor-riso .be-stats strong { font-size: var(--rp-text-lg); }
 .book-editor-riso .be-warn { margin: 12px 0 0; padding: 8px 12px; border: var(--rp-stroke) solid var(--rp-border-strong); background: var(--rp-warning-tint, #fdf0d2); font-size: var(--rp-text-sm); }
 .book-editor-riso .be-note { margin: 12px 0; font-size: var(--rp-text-sm); color: var(--rp-text-muted); }
+.book-editor-riso .be-custom-fields { display: grid; gap: 12px; }
+.book-editor-riso .be-field-defs { display: grid; gap: 10px; margin: 0 0 12px; padding: 0; list-style: none; }
+.book-editor-riso .be-field-def, .book-editor-riso .be-field-add { display: grid; grid-template-columns: minmax(0, 2fr) minmax(0, 1fr) auto; gap: 10px; align-items: end; }
+.book-editor-riso .be-field-save { display: flex; flex-wrap: wrap; align-items: center; gap: 10px; margin-top: 12px; }
+@media (max-width: 640px) { .book-editor-riso .be-field-def, .book-editor-riso .be-field-add { grid-template-columns: 1fr; } }
 .book-editor-riso .be-stock-status { align-self: end; padding-bottom: 10px; }
 .book-editor-riso .be-drop { border: 2px dashed transparent; padding: 4px; transition: border-color .15s; }
 .book-editor-riso .be-drop.is-over { border-color: var(--rp-primary); background: var(--rp-primary-tint); }
