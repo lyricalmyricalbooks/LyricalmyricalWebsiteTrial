@@ -1,5 +1,6 @@
 import { consentAllows } from "./consent";
 import { restoredUser } from "../../lib/authSession";
+import { inThemePreview } from "../features/site/themePreview";
 
 /** The Studio preview iframe / new-tab preview runs the real storefront; it must not count as shopper traffic. */
 export const inEditorPreview = () =>
@@ -12,7 +13,8 @@ export const inEditorPreview = () =>
  * session so an admin is not counted just because auth had not finished loading.
  */
 export async function trackingAllowed(): Promise<boolean> {
-  if (inEditorPreview() || !consentAllows("analytics")) return false;
+  // A shared preview link (Studio 3.4) is the owner's guests looking at an unpublished design, not shop traffic.
+  if (inEditorPreview() || inThemePreview() || !consentAllows("analytics")) return false;
   try {
     // Guests with no saved sign-in skip loading Firebase Auth entirely.
     if (await restoredUser(1500)) return false;

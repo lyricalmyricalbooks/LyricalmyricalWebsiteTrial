@@ -4,6 +4,7 @@ import { LazyMotion, MotionConfig } from "motion/react";
 import { BrowserRouter, Routes, Route, useLocation } from "react-router";
 import { EditInStudioButton } from "./admin/EditInStudioButton";
 import { ScrollToTop } from "./lib/ScrollToTop";
+import { ThemePreviewBanner } from "./features/site/ThemePreviewBanner";
 import { CartProvider } from "./CartContext";
 import { CurrencyProvider } from "./CurrencyContext";
 import { Toaster } from "react-hot-toast";
@@ -100,6 +101,7 @@ export default function App() {
           <CookieConsent />
           <UnderConstructionWall />
           <EditInStudioButton />
+          <ThemePreviewBanner />
           <Suspense fallback={<BootSplash />}>
                 <Toaster 
                   position="top-center" 

@@ -36,6 +36,7 @@ import {
   deleteField,
   serverTimestamp,
   increment,
+  Timestamp,
 } from "firebase/firestore";
 import { 
   signInWithPopup, 
@@ -710,6 +711,39 @@ export const adminApi = {
     const seen = new Set(recent.map((v: any) => v.id));
     return [...recent, ...pinned.filter((v: any) => !seen.has(v.id))]
       .sort((a: any, b: any) => String(b.createdAt || "").localeCompare(String(a.createdAt || "")));
+  },
+
+  // ── Share previews (Studio 3.4): previewTokens/{token}, readable by the exact token until it expires ──
+  PREVIEW_LINK_MAX_DAYS: 30,
+
+  /** Saves `design` behind a new unguessable token for `days` (1–30) and returns the link's details. */
+  createPreviewLink: async (design: any, name: string, days = 7) => {
+    const bytes = new Uint8Array(24);
+    crypto.getRandomValues(bytes);
+    const token = btoa(String.fromCharCode(...bytes)).replace(/\+/g, "-").replace(/\//g, "_").replace(/=+$/, "");
+    const span = Math.min(adminApi.PREVIEW_LINK_MAX_DAYS, Math.max(1, Math.round(days)));
+    const createdAt = new Date();
+    const expiresAt = new Date(createdAt.getTime() + span * 86_400_000);
+    const clean = String(name || "").trim().slice(0, 80) || "Unpublished design";
+    await setDoc(doc(db, "previewTokens", token), {
+      design: JSON.parse(JSON.stringify(design ?? {})), name: clean,
+      createdAt: Timestamp.fromDate(createdAt), expiresAt: Timestamp.fromDate(expiresAt),
+    });
+    return { token, name: clean, createdAt: createdAt.toISOString(), expiresAt: expiresAt.toISOString() };
+  },
+
+  /** Every preview link (admin only), newest first, without the designs. */
+  listPreviewLinks: async () => {
+    const snap = await getDocs(collection(db, "previewTokens"));
+    const iso = (v: any) => (typeof v?.toDate === "function" ? v.toDate().toISOString() : String(v || ""));
+    return snap.docs.map((d: any) => { const data = d.data(); return { token: d.id, name: String(data.name || ""), createdAt: iso(data.createdAt), expiresAt: iso(data.expiresAt) }; })
+      .sort((a: any, b: any) => b.createdAt.localeCompare(a.createdAt));
+  },
+
+  /** Turns a preview link off at once. */
+  revokePreviewLink: async (token: string) => {
+    if (!token) return;
+    await deleteDoc(doc(db, "previewTokens", token));
   },
 
   // Schedule a design to go live at a future time. The storefront applies it

@@ -523,7 +523,19 @@ the image; existing images are not migrated into the library.
   **Edit this part** opens its section or element inspector. Repeats fold per part. Whole-draft `designChecks` stay
   below; their two "not measured" placeholders became one line pointing at the measured checks. The Publish dialog shows
   "Studio Health on <page> (<size>): N issues · M tips" with **Review**. Deviation: a dialog, not a rail tab; the audit
-  runs in Studio rather than via a bridge `RUN_AUDIT` message (same-origin iframe). - [ ] 3.4 Themes workspace + share previews.
+  runs in Studio rather than via a bridge `RUN_AUDIT` message (same-origin iframe). - [x] 3.4 Themes workspace + share previews. New rail tab **Themes** (`studio/StudioThemes.tsx`): Live theme, Your draft,
+  My themes and the ready-made looks as cards with code-drawn thumbnails (`ThemeThumb`, via `withRisoNoirDefault` so it
+  matches what the shop shows). **Preview** shows a theme in the canvas without touching the draft (Studio banner + Stop
+  preview; cleared when leaving the tab); **Customize** loads it (undoable); ··· › **Publish…** loads it and opens the
+  normal Publish confirmation; Rename / Duplicate / Download / Delete as before; Import a theme file…; **Use this look**
+  applies a preset. **Share a preview link** (draft or a saved theme) writes `previewTokens/{token}` (24 random bytes,
+  base64url; `adminApi.createPreviewLink/listPreviewLinks/revokePreviewLink`, 1/7/30 days). Rules: `get` only while
+  `expiresAt > request.time`, admin-only list/create/delete, keys and ≤31-day expiry checked. Storefront
+  `?themePreview=<token>` (`features/site/themePreview.ts`, read by `useSiteData` through `publicApi.getThemePreview`) shows
+  that design for the visit (sessionStorage), never caches it, marks pages noindex, records no visits/analytics, and shows
+  `ThemePreviewBanner` (Text & labels › Site & sharing `themePreview*`, cannot be hidden) with Exit preview; expired or
+  removed links fall back to the live shop and say so. Until `firestore.rules` is deployed, Studio says links need the
+  rules. Style › Theme look links to Themes.
 - [ ] 3.5 Scheduling & campaigns.
 
 **Phase 4 — Performance (continuous).**

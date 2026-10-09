@@ -1,6 +1,7 @@
 import { useLocation } from "react-router";
 import { useEffect, useSyncExternalStore } from "react";
 import { getCopy } from "../features/site/storeCopy";
+import { inThemePreview } from "../features/site/themePreview";
 
 import { canonicalUrl } from "./bookSeo";
 
@@ -91,7 +92,7 @@ export function useSEO(seo: SEO) {
       document.head.appendChild(canonical);
     }
     canonical.href = url;
-    const preview = new URLSearchParams(location.search).get("preview") === "true";
+    const preview = new URLSearchParams(location.search).get("preview") === "true" || inThemePreview();
     // Large image previews let Google show book covers and spreads full-size in results and Discover.
     setMeta('meta[name="robots"]', "content", seo.noindex || preview || /^\/(admin|checkout|account|wishlist|cart|track)(\/|$)/.test(location.pathname) ? "noindex, follow" : "index, follow, max-image-preview:large");
     // index.html's static shop markup is only for crawlers that never run scripts; the

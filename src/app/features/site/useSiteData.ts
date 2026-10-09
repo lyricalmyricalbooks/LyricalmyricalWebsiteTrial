@@ -16,6 +16,7 @@ import { applyBackorderPolicy } from "./backorder";
 import { withBundleStock } from "./bundleStock";
 import { resolveProductRoutes } from "./productRoutes";
 import { loadCatalog, newestFirst } from "./loadCatalog";
+import { inThemePreview, loadThemePreview } from "./themePreview";
 
 const isPreviewUrl = () => typeof window !== "undefined" && new URLSearchParams(window.location.search).get("preview") === "true";
 
@@ -72,6 +73,8 @@ export function useSiteData() {
 
     async function loadData() {
       try {
+        // A shared preview link (Studio 3.4) loads alongside the shop data.
+        const sharedPreview = loadThemePreview(publicApi.getThemePreview);
         const [bookResponse, settingsResponse, pagesResponse] = await loadSiteData();
 
         if (cancelled) return;
@@ -89,6 +92,11 @@ export function useSiteData() {
         // the scheduled design (preview keeps showing the editor's draft).
         const scheduled = isPreview ? null : dueScheduledDesign(safeSettings);
         if (scheduled) safeSettings.design = scheduled;
+        // Share preview: this visitor sees the shared, unpublished design instead (never cached, never counted).
+        const shared = isPreview ? null : await sharedPreview;
+        if (cancelled) return;
+        if (shared) safeSettings.design = withRisoNoirDefault(shared.design);
+        const sharing = inThemePreview();
 
         const safePages = Array.isArray(pagesResponse) ? (pagesResponse as Page[]) : [];
 
@@ -97,7 +105,7 @@ export function useSiteData() {
         setBooks(snapNow?.books || safeBooks);
         setSettings(snapNow?.settings ? { ...safeSettings, ...snapNow.settings, design: safeSettings.design } : safeSettings);
         setPages(snapNow?.pages || safePages);
-        if (!isPreview) writeSiteCache({
+        if (!isPreview && !sharing) writeSiteCache({
           books: safeBooks, 
           settings: safeSettings, 
           pages: safePages,
@@ -105,7 +113,7 @@ export function useSiteData() {
         });
 
         const sessionKey = `fm_visit_${new Date().toISOString().split("T")[0]}`;
-        if (!isPreview && consentAllows("analytics") && !sessionStorage.getItem(sessionKey)) {
+        if (!isPreview && !sharing && consentAllows("analytics") && !sessionStorage.getItem(sessionKey)) {
           publicApi.recordVisit();
           // Where the session came from and on what kind of screen (its own best-effort write).
           funnelApi.trackSession();

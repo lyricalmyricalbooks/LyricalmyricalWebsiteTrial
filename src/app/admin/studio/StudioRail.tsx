@@ -1,6 +1,6 @@
-import { FileText, Images, LayoutList, Navigation, Palette, Type } from "lucide-react";
+import { FileText, Images, LayoutList, Navigation, Palette, SwatchBook, Type } from "lucide-react";
 
-export type RailTab = "sections" | "style" | "text" | "menus" | "pages" | "media";
+export type RailTab = "sections" | "style" | "text" | "menus" | "pages" | "media" | "themes";
 export const RAIL_TABS: { id: RailTab; label: string; short: string; Icon: typeof Palette; hint: string }[] = [
   { id: "sections", label: "Page layout", short: "Layout", Icon: LayoutList, hint: "Add, arrange and edit this page's sections" },
   { id: "style", label: "Theme settings", short: "Theme", Icon: Palette, hint: "Colours, fonts, buttons and every element's look" },
@@ -8,6 +8,7 @@ export const RAIL_TABS: { id: RailTab; label: string; short: string; Icon: typeo
   { id: "menus", label: "Navigation", short: "Menus", Icon: Navigation, hint: "Menus, shop categories and their order" },
   { id: "pages", label: "Pages", short: "Pages", Icon: FileText, hint: "About, Contact, policies and other pages" },
   { id: "media", label: "Media", short: "Media", Icon: Images, hint: "Your uploaded images: descriptions, sizes and where each is used" },
+  { id: "themes", label: "Themes", short: "Themes", Icon: SwatchBook, hint: "Your saved themes, ready-made looks and private preview links" },
 ];
 
 /** Studio's left icon rail: one button per workspace, always visible. */

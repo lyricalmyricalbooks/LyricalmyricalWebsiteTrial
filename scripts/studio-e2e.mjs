@@ -717,6 +717,38 @@ await check("Studio Health checks the previewed page, shows a finding and opens 
   if (!/Studio Health on Home \(desktop\)/.test(await line.textContent())) throw new Error(`publish line reads "${await line.textContent()}"`);
 });
 
+await check("Themes saves the draft as a theme, previews a look without changing the draft, and creates a share link", desktop, async page => {
+  await expectText(page, "Preview connected", 30000);
+  await page.getByRole("button", { name: "Themes", exact: true }).click();
+  const panel = page.locator("[data-studio-panel='themes']");
+  await panel.locator("[data-theme-card='live']").waitFor({ timeout: 5000 });
+  // Save as a theme.
+  await panel.getByRole("button", { name: "Save as a theme…" }).click();
+  const ask = page.getByRole("dialog", { name: "Save to My themes" });
+  await ask.getByRole("textbox").fill("Autumn test");
+  await ask.getByRole("button", { name: "Save theme" }).click();
+  await panel.getByText("Autumn test").waitFor({ timeout: 5000 });
+  // Preview a ready-made look: the canvas changes, the draft doesn't.
+  const before = JSON.stringify((await page.evaluate(() => window.__studioFixture.calls)).filter(c => c.method === "saveDesign"));
+  const preset = panel.locator("[data-theme-card^='preset:']").first();
+  await preset.getByRole("button", { name: "Preview" }).click();
+  await page.locator("[data-studio-theme-preview]").waitFor({ timeout: 5000 });
+  if (await page.getByText("Unsaved changes", { exact: true }).isVisible()) throw new Error("previewing a look changed the draft");
+  await page.locator("[data-studio-theme-preview]").getByRole("button", { name: "Stop preview" }).click();
+  await page.locator("[data-studio-theme-preview]").waitFor({ state: "detached", timeout: 5000 });
+  if (JSON.stringify((await page.evaluate(() => window.__studioFixture.calls)).filter(c => c.method === "saveDesign")) !== before) throw new Error("preview saved something");
+  // Share a preview link of the draft.
+  await panel.locator("[data-theme-card='draft']").getByRole("button", { name: "Share a preview link" }).click();
+  const share = page.getByRole("dialog", { name: /Share a preview/ });
+  await share.getByRole("button", { name: "Create link" }).click();
+  const link = await share.locator("[data-share-link] input").inputValue();
+  if (!/\?themePreview=fixtureToken/.test(link)) throw new Error(`share link reads "${link}"`);
+  if (!(await calls(page)).some(c => c.method === "createPreviewLink" && c.args[1] === 7)) throw new Error("no 7-day link was created");
+  await share.locator("[data-preview-link]").first().getByRole("button", { name: "Turn off" }).click();
+  await page.getByRole("dialog", { name: "Turn off this preview link?" }).getByRole("button", { name: "Turn off link" }).click();
+  await page.waitForFunction(() => window.__studioFixture.calls.some(c => c.method === "revokePreviewLink"));
+});
+
 await check("phone-sized editor loads without errors", { width: 390, height: 844 }, async page => {
   await page.waitForTimeout(1500);
   const overflow = await page.evaluate(() => document.documentElement.scrollWidth - window.innerWidth);
