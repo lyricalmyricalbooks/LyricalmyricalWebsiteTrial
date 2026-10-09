@@ -10,6 +10,16 @@ export type AppUpdate = {
 // Newest first. Every PR adds an entry; links open the affected admin workspace.
 export const APP_UPDATES: AppUpdate[] = [
   {
+    id: "commerce-gift-cards-bundles-offers", date: "2026-10-09", title: "Gift cards, box sets, automatic offers, paid extras and sale dates",
+    summary: "Five new ways to sell. Gift cards: make a book a gift card (Books › edit › Details › Product type) with amounts like CA$25 or CA$50. Shoppers can send one to a friend, the code is emailed after payment, and it can be spent at checkout through a new Gift card box. You can also issue, disable, top up or resend cards on the new Gift cards page. Box sets: sell several books together at their own price; each set sold takes the books from stock. Automatic offers: discounts that apply without a code, including a free gift with purchase. Only one discount applies per order, and a code a shopper types replaces automatic offers. Paid extras: add a signed copy, personal inscription or gift wrap to a book for a small charge; packing lists show them in bold. Sale dates: a sale price can start and end on its own. Checkout prices all of this on the server. These need the updated Functions and Firestore rules deployed; they have been tested with local checks only, not live payments.",
+    links: [
+      { label: "Open Gift cards", tab: "giftCards" },
+      { label: "Create an automatic offer", tab: "discounts" },
+      { label: "Add extras or a box set to a book", tab: "catalog" },
+      { label: "Edit the gift card email", tab: "settings", settingsTab: "notifications" },
+    ],
+  },
+  {
     id: "studio-2-theme-system", date: "2026-10-09", title: "Theme settings, sorted into your site's look and its parts",
     summary: "Theme settings in the Design studio now opens in three parts. \"Site-wide design\" holds what every page shares: theme presets, logo, colours, fonts, buttons, spacing and the Riso print look. \"Parts of your shop\" holds the header and footer, the shop and book pages, and the bag, checkout and account pages — each has a \"Show on page\" button that opens that page in the preview (or opens the shopping bag) and selects the part, so you can see what you're changing. Long word lists in Text & labels (Checkout, Order tracking, Customer account, Product page, Cart) are split into short sections such as \"Discount codes\" and \"Error messages\". Find anything gives shorter result lists and opens an element's setting at the screen size you're previewing.",
     links: [{ label: "Open Theme settings", tab: "settings", settingsTab: "designer", studio: "#designer?tab=style" }],

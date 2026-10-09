@@ -1,10 +1,25 @@
 import { today } from "./discountState";
-/** `otherCodes`: codes of the shop's other discounts — two copies of one code make checkout ambiguous. */
-export function validateDiscountDraft(form: any, now = today(), otherCodes: string[] = []): Record<string, string> {
+/**
+ * `otherCodes`: codes of the shop's other discounts — two copies of one code make checkout ambiguous.
+ * Automatic offers (method "automatic") have no code; blank entries in otherCodes are ignored.
+ * `giftBook`: the catalog record picked as the free gift, when the dialog has it loaded.
+ */
+export function validateDiscountDraft(form: any, now = today(), otherCodes: string[] = [], giftBook?: any): Record<string, string> {
   const errors: Record<string, string> = {};
+  const automatic = form.method === "automatic";
   const code = String(form.code || "").trim();
-  if (!code) errors.code = "Enter a code customers will type at checkout.";
+  if (automatic) {
+    const title = String(form.title || "").trim();
+    if (!title) errors.title = "Enter the title shoppers will see, e.g. “Spring sale”.";
+    else if (title.length > 60) errors.title = "Keep the title to 60 characters or fewer.";
+  } else if (!code) errors.code = "Enter a code customers will type at checkout.";
   else if (!/^[A-Z0-9_-]{3,32}$/i.test(code)) errors.code = "Use 3–32 letters, numbers, hyphens, or underscores.";
+  if (form.type === "gift") {
+    if (!automatic) errors.gift = "A free gift can only be an automatic offer. Choose “Automatic (no code)”.";
+    else if (!form.giftBookId) errors.gift = "Choose the book to give away.";
+    else if (giftBook && (giftBook.variants || []).length && !form.giftVariantId) errors.gift = "That book is sold in editions: choose which edition to give.";
+    else if (giftBook && giftBook.productType === "giftCard") errors.gift = "A gift card can't be the free gift.";
+  }
   if (form.type === "percentage" && !(Number(form.value) > 0 && Number(form.value) <= 100)) errors.value = "Enter a percentage between 1 and 100.";
   if (form.type === "fixed" && !(Number(form.value) > 0)) errors.value = "Enter an amount greater than zero.";
   if (form.appliesTo === "categories" && !(form.selectedCategories || []).length) errors.applies = "Choose at least one category.";
@@ -21,7 +36,7 @@ export function validateDiscountDraft(form: any, now = today(), otherCodes: stri
     if (tiers.some((tier: any) => (tier.type || "percentage") === "percentage" && Number(tier.value) > 100)) errors.tiers = "A percentage tier can't be more than 100%.";
     else if (!tiers.length || tiers.some((tier: any) => Number(tier.value) <= 0) || tiers.some((tier: any, index: number) => index > 0 && Number(tier.minSpend) <= Number(tiers[index - 1].minSpend))) errors.tiers = "Add positive discounts with minimum spends in ascending order.";
   }
-  if (!errors.code && otherCodes.some(c => String(c || "").trim().toUpperCase() === code.toUpperCase()))
+  if (!automatic && !errors.code && otherCodes.some(c => String(c || "").trim() && String(c || "").trim().toUpperCase() === code.toUpperCase()))
     errors.code = "Another discount already uses this code. Edit or delete that one instead.";
   return errors;
 }

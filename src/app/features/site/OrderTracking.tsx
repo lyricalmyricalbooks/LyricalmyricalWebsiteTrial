@@ -1,4 +1,5 @@
 import { lineIsDigital } from "./digitalLine";
+import { orderLineNotes } from "./orderLineNotes";
 import { orderAccessHeaders, rememberOrderAccess, savedOrderAccess } from "../../lib/orderAccessClient";
 import { useSEO } from "../../lib/seo";
 import { regionProps } from "./storefrontRegions";
@@ -440,6 +441,11 @@ export default function OrderTracking() {
                       <div className="flex-1 min-w-0">
                         <p className="text-sm sm:text-base font-bold uppercase tracking-wide truncate">{item.title}</p>
                         {item.variantName && <p className="fm-track-mono mt-1">{item.variantName}</p>}
+                        {orderLineNotes(item, (k, v) => getCopy(settings?.design, k, v), "track").length > 0 && (
+                          <ul {...regionProps("trackingLineDetails")} className="list-none p-0 m-0 mt-1">
+                            {orderLineNotes(item, (k, v) => getCopy(settings?.design, k, v), "track").map((note, n) => <li key={n} className="fm-track-mono">{note}</li>)}
+                          </ul>
+                        )}
                         {order.paymentStatus === "paid" && !["shipped", "out_for_delivery", "delivered", "collected"].includes(order.fulfillmentStatus) && linePreorderNote(item, (k, v) => getCopy(settings?.design, k, v)) && <p className="fm-track-mono mt-1">{linePreorderNote(item, (k, v) => getCopy(settings?.design, k, v))}</p>}
                         <p className="fm-track-mono mt-2">{getCopy(settings?.design, "qtyLine", { qty: item.quantity })} × {orderFormatPrice(item.price)}</p>
                       </div>

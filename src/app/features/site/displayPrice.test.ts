@@ -29,3 +29,18 @@ describe("books sold in editions", () => {
     expect(showsSale({ retailPrice: 20, isOnSale: false, salePrice: 15 })).toBe(false);
   });
 });
+
+describe("scheduled sales", () => {
+  const now = new Date("2026-10-08T16:00:00Z");
+  it("shows the sale price and badge only inside the sale's dates, like the charge", () => {
+    const ended = { retailPrice: 20, isOnSale: true, salePrice: 15, saleEndsAt: "2026-10-07" };
+    const upcoming = { retailPrice: 20, isOnSale: true, salePrice: 15, saleStartsAt: "2026-10-09" };
+    const running = { retailPrice: 20, isOnSale: true, salePrice: 15, saleStartsAt: "2026-10-01", saleEndsAt: "2026-10-08" };
+    expect(displayPrice(ended, false, now)).toBe(20);
+    expect(showsSale(ended, now)).toBe(false);
+    expect(displayPrice(upcoming, false, now)).toBe(20);
+    expect(showsSale(upcoming, now)).toBe(false);
+    expect(displayPrice(running, false, now)).toBe(15);
+    expect(showsSale(running, now)).toBe(true);
+  });
+});

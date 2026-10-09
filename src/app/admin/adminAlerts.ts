@@ -84,6 +84,12 @@ export function buildAdminAlerts(allOrders: any[], webhook: WebhookStatus = null
   if (inventoryConflict.length) out.push(alert("inventory-conflict", "danger", `${plural(inventoryConflict.length, "captured payment needs", "captured payments need")} inventory reconciliation`,
     `Payment was captured after its stock hold expired: ${list(inventoryConflict)}. Review the provider payment and contact the customer.`, inventoryConflict));
 
+  // A card/PayPal payment arrived but a gift card could no longer cover its share, so the order was
+  // NOT marked paid. Refund the payment or settle the difference with the customer.
+  const giftCardConflict = orders.filter((o) => o.giftCardConflict && !o.giftCardConflict.resolvedAt && o.paymentStatus !== "paid" && !isFinished(o));
+  if (giftCardConflict.length) out.push(alert("gift-card-conflict", "danger", `${plural(giftCardConflict.length, "payment needs", "payments need")} gift card reconciliation`,
+    `A payment arrived but the gift card could no longer cover its part, so the order wasn't marked paid: ${list(giftCardConflict)}. Check the gift card in Gift cards, then refund the payment or contact the customer.`, giftCardConflict));
+
   const oversold = orders.filter((o) => o.oversold && o.paymentStatus === "paid" && !isFinished(o));
   if (oversold.length) out.push(alert("oversold", "warning", `${plural(oversold.length, "paid order was", "paid orders were")} oversold`,
     `More copies were sold than were in stock: ${list(oversold)}. Restock or contact the customer.`, oversold));

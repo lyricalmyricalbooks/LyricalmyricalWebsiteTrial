@@ -1,4 +1,5 @@
 import { lineIsDigital } from "./digitalLine";
+import { orderLineNotes } from "./orderLineNotes";
 import { regionProps } from "./storefrontRegions";
 import { getTrackingUrl } from "../../lib/tracking";
 import { accountsEnabled } from "./customerAccounts";
@@ -878,6 +879,11 @@ export default function AccountPage() {
                                 </div>
                                 <div className="flex-grow min-w-0">
                                   <p className="text-[11px] font-black text-white uppercase tracking-wider truncate">{item.title}</p>
+                                  {orderLineNotes(item, (k, v) => getCopy(settings?.design, k, v), "account").length > 0 && (
+                                    <ul {...regionProps("accountLineDetails")} className="list-none p-0 m-0 mt-1">
+                                      {orderLineNotes(item, (k, v) => getCopy(settings?.design, k, v), "account").map((note, n) => <li key={n} className="text-[9px] fm-muted font-mono">{note}</li>)}
+                                    </ul>
+                                  )}
                                   <p className="text-[9px] fm-muted font-mono mt-1">{getCopy(settings?.design, "qtyLine", { qty: item.quantity })} × {money(item.price, o)}</p>
                                 </div>
                               </div>

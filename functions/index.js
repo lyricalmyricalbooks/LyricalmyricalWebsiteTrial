@@ -5064,6 +5064,13 @@ exports.sendTestEmail = onBrowserRequest(
         tracking_url: "https://www.canadapost-postescanada.ca/track-reperage/en",
         cart_url: siteLink("/checkout"),
         button_url: siteLink("/account"),
+        // Gift card email (gift_card)
+        recipient_name: "Sam",
+        sender_name: "Julianne",
+        amount: "CA$50.00",
+        code: "ABCD-EFGH-JKMN-PQRS",
+        expires: "",
+        shop_url: siteLink("/"),
         items_table: `
           <div style="margin: 30px 0; border-top: 1px solid #eeeeee; padding-top: 20px;">
             <h4 style="margin-top: 0; font-size: 11px; text-transform: uppercase; letter-spacing: 0.1em; color: #888888;">Order Details</h4>

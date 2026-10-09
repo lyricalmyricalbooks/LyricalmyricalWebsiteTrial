@@ -10,6 +10,7 @@ import {
   suggestedParcelWeightLb,
 } from "./fulfillment";
 import { printOrders } from "./orderPrint";
+import { discountLabel, giftCardConflictOpen, giftCardPaid, issuedGiftCards } from "./orderLines";
 import { useState, useEffect, useRef } from "react";
 import { ArrowLeft, Copy, ExternalLink } from "lucide-react";
 import { adminApi } from "./api";
@@ -638,6 +639,21 @@ export function OrderDetail({
               }}>Mark refunded</SecondaryButton>
             </SectionCard>
           )}
+          {giftCardConflictOpen(order) && (
+            <SectionCard title="Gift card couldn't cover its part">
+              <p className="fw-summary">
+                The customer's payment arrived, but a gift card on this order no longer had enough balance (it may have been spent in another checkout, disabled or expired), so the order was not marked paid.
+                Check the card in Gift cards, then refund the payment in Stripe or PayPal, or contact the customer to settle the difference. Don't ship until this is sorted.
+              </p>
+              {(order.giftCardRedemptions || []).length > 0 && (
+                <div className="fw-actions">
+                  {(order.giftCardRedemptions || []).map((r: any) => (
+                    <a key={r.id} className="rp-btn rp-btn-secondary rp-btn-sm" href={`#gift-cards/${encodeURIComponent(r.id)}`}>Open gift card ••••{r.last4}</a>
+                  ))}
+                </div>
+              )}
+            </SectionCard>
+          )}
           {order.customerRequest?.type === "return" && (order.customerRequest.status === "open" || order.returnProgress) && <ReturnWorkbench key={`${order.id}-${order.returnProgress?.state || "requested"}`} order={order} onUpdated={loadOrder} />}
           {order.customerRequest?.status === "open" && order.customerRequest.type !== "return" && (
             <SectionCard title={order.customerRequest.type === "cancel" ? "Customer asks to cancel" : "Customer asks to return"}>
@@ -730,7 +746,10 @@ export function OrderDetail({
                 ["Shipping", money(order.shipping)],
                 ...(order.tax > 0 ? [["Tax", money(order.tax)]] : []),
                 ...(order.discount > 0
-                  ? [["Discount", `− ${money(order.discount)}`]]
+                  ? [[order.appliedDiscount?.type === "gift" ? `Free gift${discountLabel(order) ? ` · ${discountLabel(order)}` : ""}` : `Discount${discountLabel(order) ? ` · ${discountLabel(order)}` : ""}`, `− ${money(order.discount)}`]]
+                  : []),
+                ...(giftCardPaid(order) > 0
+                  ? [[`Gift card${(order.giftCardRedemptions || []).length ? ` (${(order.giftCardRedemptions || []).map((r: any) => `••••${r.last4}`).join(", ")})` : ""}`, `− ${money(giftCardPaid(order))}`]]
                   : []),
               ].map(([k, v]) => (
                 <div
@@ -757,7 +776,7 @@ export function OrderDetail({
                 }}
               >
                 <dt>
-                  <strong>Total</strong>
+                  <strong>{giftCardPaid(order) > 0 ? "Paid by card / PayPal" : "Total"}</strong>
                 </dt>
                 <dd className="rp-mono" style={{ margin: 0, fontWeight: 700 }}>
                   {money(order.total)}
@@ -800,6 +819,19 @@ export function OrderDetail({
               </div>
             )}
           </SectionCard>
+          {issuedGiftCards(order).length > 0 && (
+            <SectionCard title="Gift cards issued" description="Created when this order was paid and emailed to each recipient.">
+              <ul style={{ listStyle: "none", padding: 0, margin: 0, display: "grid", gap: 8 }}>
+                {issuedGiftCards(order).map((card) => (
+                  <li key={card.id} style={{ display: "flex", justifyContent: "space-between", gap: 8, flexWrap: "wrap" }}>
+                    <a href={`#gift-cards/${encodeURIComponent(card.id)}`} className="rp-mono" style={{ color: "inherit", textDecoration: "underline" }}>••••{card.last4}</a>
+                    <span className="rp-mono">{money((Number(card.minor) || 0) / 100)}</span>
+                    {card.recipientEmail && <span className="rp-hint" style={{ flexBasis: "100%", overflowWrap: "anywhere" }}>To {card.recipientEmail}</span>}
+                  </li>
+                ))}
+              </ul>
+            </SectionCard>
+          )}
         </aside>
       </div>
       <details className="fw-notes" data-print="hide">

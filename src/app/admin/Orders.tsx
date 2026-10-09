@@ -1,4 +1,5 @@
 import "./fulfillment.css";
+import { exportOrdersCsv } from "./orderCsv";
 import { useState, useEffect, useMemo, useRef } from "react";
 import { Download, Trash2 } from "lucide-react";
 import { adminApi } from "./api";
@@ -161,7 +162,7 @@ export function Orders({
       return;
     }
     // Rows the admin ticked are exported as they are; a whole list keeps only paid/refunded orders.
-    const csv = orderApi.exportToCsv(list, { paidOnly: selected.size === 0 });
+    const csv = exportOrdersCsv(list, { paidOnly: selected.size === 0 });
     orderApi.downloadCsv(
       `orders-${new Date().toISOString().split("T")[0]}.csv`,
       csv,
