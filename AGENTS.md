@@ -129,7 +129,10 @@ The default Settings → Design experience is `studio/StudioEditor.tsx`: its
 section/block outline, inspector, Edit/Browse preview and draft workflow are
 the primary editing surfaces. Custom pages created
 in Studio join the storefront header by default, and their public routes render
-the themed storefront header. The iframe preview receives the unsaved design,
+the themed storefront header. There is one header (`features/site/StoreHeader.tsx`: shop mode in MainSite, page
+mode everywhere else) and one footer (`features/site/StoreFooter.tsx`); wishlist, account, tracking and 404 get them
+through `StoreChrome` (Style › Header › `showStoreChromeOnUtilityPages`). Build header/footer features there only —
+`storeChrome.parity.test.tsx` guards every Studio hook. Checkout keeps its own minimal header. The iframe preview receives the unsaved design,
 settings, catalog and published-page collection as one live snapshot; preserve
 that full-state contract when adding Studio-editable storefront data. Snapshot
 delivery uses `postMessage` plus a same-origin message-event fallback so iframe

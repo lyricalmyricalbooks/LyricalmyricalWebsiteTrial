@@ -10,6 +10,11 @@ export type AppUpdate = {
 // Newest first. Every PR adds an entry; links open the affected admin workspace.
 export const APP_UPDATES: AppUpdate[] = [
   {
+    id: "studio-2-one-header", date: "2026-10-09", title: "One header and footer on every page",
+    summary: "Your shop's header (announcement bar, logo, categories, search, wishlist, account, currency and bag) and footer are now built once and shared by every page, so a change in the Design studio shows up everywhere at the same time. The wishlist, account, order-tracking and \"page not found\" pages now show the same header and footer as the rest of the shop, with their own title bar underneath. If you'd rather keep those pages plain, switch off Theme settings › Header & announcement bar › \"Show the shop header & footer on wishlist, account, order tracking and missing pages\". Also fixed: on product and custom pages, the category links shrank slightly even when there was room; they now stay at the size you chose. Checkout keeps its own short header.",
+    links: [{ label: "Open Page layout", tab: "settings", settingsTab: "designer", studio: "#designer?tab=sections" }],
+  },
+  {
     id: "studio-2-command-palette", date: "2026-10-09", title: "Find anything does more, and Show on page always lands somewhere",
     summary: "In the Design studio, Find anything (Ctrl+K, ⌘K on a Mac) now starts with what you can do to whatever you've selected — duplicate, hide, move or copy the style of a section, or open a page part in Theme settings — then the things you opened recently. It also finds the parts of the page you're previewing (like the buy card or the bag) and your books (it opens that book's page). Type > first to see commands only; each command shows its keyboard shortcut. A search that says \"phone\" or \"tablet\" now opens that screen size's setting. Show on page in Theme settings now waits for the page to finish loading, works for Customer accounts and Badges, and when a part isn't on the page (for example it's switched off) it opens that part's settings instead. Behind the scenes, unpublished designs are now only ever saved in the studio's private storage, never in the settings your shop's visitors download.",
     links: [{ label: "Open the Design studio", tab: "settings", settingsTab: "designer" }],

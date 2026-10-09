@@ -12,9 +12,9 @@ import {
 import { useCart, catalogUnitPrice, lineQuantityCap, backorderable } from "../../CartContext";
 import { useCurrency } from "../../CurrencyContext";
 import { useSiteData } from "./useSiteData";
-import { StorefrontPageHeader } from "./StorefrontPageHeader";
+import { StoreHeader } from "./StoreHeader";
 import { contentMaxWidth } from "./headerNav";
-import { SiteFooter } from "../../components/MainSite";
+import { StoreFooter } from "./StoreFooter";
 import { TemplateSections, GlobalSections } from "../../components/sectionRender";
 import { getCopy } from "./storeCopy";
 import { preorderActive, releaseDateOf, formatReleaseDate } from "./preorder";
@@ -586,7 +586,7 @@ export default function BookDetail() {
       )}
 
       {/* ── the same header + footer as the rest of the shop ── */}
-      <StorefrontPageHeader design={settings?.design} pages={pages} books={books} />
+      <StoreHeader design={settings?.design} pages={pages} books={books} />
 
       {/* ── hero layout ── */}
       <main className="relative z-10">
@@ -1190,7 +1190,7 @@ export default function BookDetail() {
         <GlobalSections design={settings?.design} books={books} />
 
       </main>
-      <SiteFooter settings={settings} pages={pages} />
+      <StoreFooter settings={settings} pages={pages} />
     </div>
   );
 }

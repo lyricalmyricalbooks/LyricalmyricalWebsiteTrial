@@ -4,7 +4,7 @@ import { DEVICE_MEDIA, UP_TO } from "./breakpoints";
 export type Region = { id: string; label: string; required?: boolean; grid?: boolean; image?: boolean; copy?: string };
 export type RegionGroup = { id: string; title: string; copy: string; files: string[]; regions: Region[] };
 export const REGION_GROUPS: RegionGroup[] = [
-  { id: "catalogElements", title: "Catalog & shared content · layout", copy: "Search & filters", files: ["features/site/CatalogControls.tsx", "features/site/RecentlyViewedRow.tsx", "components/MainSite.tsx"], regions: [
+  { id: "catalogElements", title: "Catalog & shared content · layout", copy: "Search & filters", files: ["features/site/CatalogControls.tsx", "features/site/RecentlyViewedRow.tsx", "components/MainSite.tsx", "features/site/StoreFooter.tsx"], regions: [
     { id: "catalogSearch", label: "Catalog search field" }, { id: "catalogSort", label: "Catalog sort selector" },
     { id: "catalogStock", label: "In-stock filter" }, { id: "catalogResults", label: "Filter result count" },
     { id: "catalogFormat", label: "Format filter" }, { id: "catalogPrice", label: "Price filter" },
