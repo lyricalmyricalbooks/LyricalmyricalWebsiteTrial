@@ -52,6 +52,10 @@ collections, and deployment. Don't duplicate that here. Quick orientation:
   `unpaid`. Never mark a Stripe order paid, adjust its inventory, or count its discount from
   client code or another Stripe recovery path. Preserve existing PayPal, manual/offline and free-order contracts.
 - **Tracked inventory reservations:** acquire expiring server-only holds transactionally before creating a payment and revalidate them at settlement; reservation-store failures fail closed. Release on payment/cancel and surface any already-captured payment that can no longer reserve stock for admin reconciliation.
+- **Gift-card balances move only with a confirmed payment.** `priceOrder` (functions/index.js) prices every
+  checkout path; gift cards are held with stock (`reserveCheckout`) and debited only inside the paid transaction
+  (`settleGiftCards`), credited back once by a full refund. Never write `giftCards/*` from the browser
+  (CLAUDE.md › Gift cards, box sets, automatic discounts, add-ons and scheduled sales).
 - **Never trust client-computed totals** for the authoritative charge. Prices,
   shipping, tax, and discounts that determine what a customer is charged must be
   computed/validated server-side via the Stripe session. The client may *display*
@@ -125,7 +129,10 @@ The default Settings → Design experience is `studio/StudioEditor.tsx`: its
 section/block outline, inspector, Edit/Browse preview and draft workflow are
 the primary editing surfaces. Custom pages created
 in Studio join the storefront header by default, and their public routes render
-the themed storefront header. The iframe preview receives the unsaved design,
+the themed storefront header. There is one header (`features/site/StoreHeader.tsx`: shop mode in MainSite, page
+mode everywhere else) and one footer (`features/site/StoreFooter.tsx`); wishlist, account, tracking and 404 get them
+through `StoreChrome` (Style › Header › `showStoreChromeOnUtilityPages`). Build header/footer features there only —
+`storeChrome.parity.test.tsx` guards every Studio hook. Checkout keeps its own minimal header. The iframe preview receives the unsaved design,
 settings, catalog and published-page collection as one live snapshot; preserve
 that full-state contract when adding Studio-editable storefront data. Snapshot
 delivery uses `postMessage` plus a same-origin message-event fallback so iframe
@@ -139,7 +146,9 @@ tab; the book workflow must update the live storefront and Studio draft together
 without replacing unrelated design fields.
 New book cards must carry the `fm-card-*` classes (`cardClasses.test.tsx`).
 Studio's **Find anything** (Ctrl/Cmd+K, `studioSearch.ts`) indexes `STYLE_GROUPS`/`COPY_SCHEMA` automatically — a new control needs a
-plain-English label so shop owners can find it. **Auto-fit for phones** (`autoMobile.ts`) writes phone/tablet overrides; keep it in sync
+plain-English label so shop owners can find it. Selection commands come from `contextCommands` (add one there plus a case in
+`runContext` in `StudioEditor.tsx`); `>` searches commands only. Studio drafts are only ever saved through `admin/themeStore.ts`
+(private `themes/workspace`; no public `draftDesign` fallback since 1.7 — never reintroduce one). **Auto-fit for phones** (`autoMobile.ts`) writes phone/tablet overrides; keep it in sync
 with the phone keys the renderers read (`mobilePadding*`, `mobileColumns`, `mobileHeadingSize`, block `grid.tablet/mobile`).
 Links, books, categories, pages, videos and fonts in section/block fields are **picked, not typed** (Studio 2.3): use the
 field kinds `link` / `book` / `books` / `category` / `page` / `video` / `font` (`studio/StudioPickers.tsx`), which store the
@@ -542,7 +551,7 @@ New panels say "Not recorded yet" until data exists — never a made-up zero.
 
 ## reCAPTCHA / App Check
 
-Invisible reCAPTCHA Enterprise initializes before Firestore/Auth in src/lib/firebase.ts.
+Invisible reCAPTCHA Enterprise initializes before Firestore/Auth in src/lib/firebaseApp.ts.
 Use functionFetch from src/app/lib/functionsBase.ts for every browser HTTP Function
 request and onBrowserRequest in functions/index.js for its server handler. Keep signed
 provider webhooks and emailed digital-download links outside browser attestation.

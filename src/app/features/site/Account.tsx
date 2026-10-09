@@ -1,4 +1,5 @@
 import { lineIsDigital } from "./digitalLine";
+import { orderLineNotes } from "./orderLineNotes";
 import { regionProps } from "./storefrontRegions";
 import { getTrackingUrl } from "../../lib/tracking";
 import { accountsEnabled } from "./customerAccounts";
@@ -35,6 +36,7 @@ import { useSEO } from "../../lib/seo";
 import { useWishlist, liveWishlistCount } from "../../lib/wishlist";
 import { isLiveBook } from "./liveBook";
 import { useSiteData } from "./useSiteData";
+import { StoreChrome, useInStoreChrome } from "./StoreChrome";
 import { getCopy } from "./storeCopy";
 import { useCurrency } from "../../CurrencyContext";
 import { StorefrontThemeStyle } from "./StorefrontThemeStyle";
@@ -62,7 +64,14 @@ const isAbandonedCheckout = (o: any) => o.paymentStatus === "unpaid" && o.status
 
 const EMPTY_ADDRESS = { street: "", city: "", state: "", zip: "", country: "Canada", phone: "", name: "" };
 
+/** The customer account, inside the one shop header and footer (Studio 2.0 · 2.1). */
 export default function AccountPage() {
+  return <StoreChrome surface="accountPage"><AccountContent /></StoreChrome>;
+}
+
+function AccountContent() {
+  // Under the shop header this title bar is a plain row, not a second <header>.
+  const TitleBar = useInStoreChrome() ? "div" : "header";
   const [user, setUser] = useState<User | null>(null);
   const [authLoading, setAuthLoading] = useState(true);
   const [orders, setOrders] = useState<any[]>([]);
@@ -378,7 +387,7 @@ export default function AccountPage() {
 
   if (authLoading) {
     return (
-      <div data-fm-store data-studio-target="copy:Customer account|style:colors" data-studio-label="Account page" className="min-h-screen fm-page text-white flex items-center justify-center">
+      <div data-fm-store data-studio-target="copy:Customer account|style:colors|style:accounts" data-studio-label="Account page" className="min-h-screen fm-page text-white flex items-center justify-center">
         <StorefrontThemeStyle design={settings?.design} />
         <Loader2 size={24} className="animate-spin" style={{ color: "var(--accent)" }} />
       </div>
@@ -387,7 +396,7 @@ export default function AccountPage() {
 
   if (!user) {
     return (
-      <div data-fm-store data-studio-target="copy:Customer account|style:colors" data-studio-label="Account page" className="min-h-screen fm-page text-white flex flex-col items-center justify-center px-6 relative overflow-hidden">
+      <div data-fm-store data-studio-target="copy:Customer account|style:colors|style:accounts" data-studio-label="Account page" className="min-h-screen fm-page text-white flex flex-col items-center justify-center px-6 relative overflow-hidden">
         <StorefrontThemeStyle design={settings?.design} />
         <TemplateSections design={settings?.design} templateId="accountPage" books={books} />
         <GlobalSections design={settings?.design} books={books} />
@@ -515,13 +524,13 @@ export default function AccountPage() {
   }
 
   return (
-    <div data-fm-store data-studio-target="copy:Customer account|style:colors" data-studio-label="Account page" className="min-h-screen fm-page text-white relative overflow-hidden pb-24">
+    <div data-fm-store data-studio-target="copy:Customer account|style:colors|style:accounts" data-studio-label="Account page" className="min-h-screen fm-page text-white relative overflow-hidden pb-24">
       <StorefrontThemeStyle design={settings?.design} />
       {/* Background glow */}
       <div {...regionProps("accountGlow")} className="fixed top-0 right-0 w-[600px] h-[600px] blur-[120px] rounded-full pointer-events-none -mr-64 -mt-64" style={{ backgroundColor: "rgba(var(--accent-rgb), 0.05)" }} />
       <div className="fixed bottom-0 left-0 w-[400px] h-[400px] bg-cyan-600/5 blur-[100px] rounded-full pointer-events-none" />
 
-      <header {...regionProps("accountHeader")} className="border-b border-white/5 px-8 py-6 flex items-center justify-between backdrop-blur-xl relative z-20" style={{ backgroundColor: "rgba(var(--overlay-rgb), 0.2)" }}>
+      <TitleBar {...regionProps("accountHeader")} className="border-b border-white/5 px-8 py-6 flex items-center justify-between backdrop-blur-xl relative z-20" style={{ backgroundColor: "rgba(var(--overlay-rgb), 0.2)" }}>
         <Link to="/" className="flex items-center gap-3 text-[10px] font-black tracking-[0.3em] text-white/40 hover:text-white transition-colors group uppercase">
           <ArrowLeft size={16} className="group-hover:-translate-x-1 transition-transform" /> {getCopy(settings?.design, "accountStorefront")}
         </Link>
@@ -532,7 +541,7 @@ export default function AccountPage() {
         >
           <LogOut size={14} /> {getCopy(settings?.design, "accountSignOut")}
         </button>
-      </header>
+      </TitleBar>
 
       <main className="max-w-4xl mx-auto px-6 pt-16 relative z-10 space-y-12">
         
@@ -878,6 +887,11 @@ export default function AccountPage() {
                                 </div>
                                 <div className="flex-grow min-w-0">
                                   <p className="text-[11px] font-black text-white uppercase tracking-wider truncate">{item.title}</p>
+                                  {orderLineNotes(item, (k, v) => getCopy(settings?.design, k, v), "account").length > 0 && (
+                                    <ul {...regionProps("accountLineDetails")} className="list-none p-0 m-0 mt-1">
+                                      {orderLineNotes(item, (k, v) => getCopy(settings?.design, k, v), "account").map((note, n) => <li key={n} className="text-[9px] fm-muted font-mono">{note}</li>)}
+                                    </ul>
+                                  )}
                                   <p className="text-[9px] fm-muted font-mono mt-1">{getCopy(settings?.design, "qtyLine", { qty: item.quantity })} × {money(item.price, o)}</p>
                                 </div>
                               </div>

@@ -108,6 +108,9 @@
 .studio-find-main small { font-size: 11px; color: var(--rp-text-subtle); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .studio-find-kind { flex: 0 0 64px; font-size: 9px; font-weight: 800; letter-spacing: .08em; text-transform: uppercase; text-align: center; padding: 3px 0; border: 1px solid var(--rp-border); border-radius: 3px; color: var(--rp-text-subtle); }
 .studio-find-kind[data-kind=action] { background: var(--rp-primary-tint); color: var(--rp-primary-text); border-color: transparent; }
+.studio-find-group { padding: 8px 12px 4px; font: 700 10px/1.2 var(--rp-font-mono, "DM Mono", monospace); letter-spacing: .08em; text-transform: uppercase; color: var(--rp-text-subtle); border-bottom: 1px solid var(--rp-divider); background: var(--rp-surface, transparent); }
+.studio-find-main { flex: 1 1 auto; }
+.studio-find-keys { flex: 0 0 auto; margin-left: auto; font: 500 11px/1 var(--rp-font-mono, "DM Mono", monospace); padding: 3px 6px; border: 1px solid var(--rp-border); border-radius: 3px; color: var(--rp-text-subtle); white-space: nowrap; }
 .studio-topbar kbd { font: 600 10px/1 var(--rp-font-mono, monospace); padding: 2px 5px; border: 1px solid var(--rp-border); border-radius: 3px; color: var(--rp-text-subtle); }
 /* Studio organization: readable navigation, category browsing and clear editing context. */
 .studio-sidebar { width: 320px; }

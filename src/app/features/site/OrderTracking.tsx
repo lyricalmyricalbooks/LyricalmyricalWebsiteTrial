@@ -1,4 +1,5 @@
 import { lineIsDigital } from "./digitalLine";
+import { orderLineNotes } from "./orderLineNotes";
 import { orderAccessHeaders, rememberOrderAccess, savedOrderAccess } from "../../lib/orderAccessClient";
 import { useSEO } from "../../lib/seo";
 import { regionProps } from "./storefrontRegions";
@@ -8,11 +9,12 @@ import { useState, useEffect } from "react";
 import { Link } from "react-router";
 import { ArrowLeft, Package, Truck, CheckCircle2, MapPin, Loader2, Download, ExternalLink } from "lucide-react";
 import { TRACKING_CSS } from "./trackingStyle";
-import { motion, AnimatePresence } from "motion/react";
+import { m, AnimatePresence } from "motion/react";
 import { adminApi } from "../../admin/api";
 import { functionUrl, functionFetch } from "../../lib/functionsBase";
 import { useCurrency } from "../../CurrencyContext";
 import { useSiteData } from "./useSiteData";
+import { StoreChrome, useInStoreChrome } from "./StoreChrome";
 import { StorefrontThemeStyle } from "./StorefrontThemeStyle";
 import { getCopy, CopyError, copyErrorText } from "./storeCopy";
 import { GlobalSections, TemplateSections } from "../../components/sectionRender";
@@ -20,7 +22,14 @@ import { orderStage, orderStep, shippingDays, stepDates } from "./orderStatus";
 import { OrderRequestBox, PrivacyRequestBox } from "./OrderRequests";
 import { waitingPreorderLines, shipDateOf, formatReleaseDate, linePreorderNote } from "./preorder";
 
+/** Order tracking, inside the one shop header and footer (Studio 2.0 · 2.1). */
 export default function OrderTracking() {
+  return <StoreChrome surface="trackingPage"><OrderTrackingContent /></StoreChrome>;
+}
+
+function OrderTrackingContent() {
+  // Under the shop header the order slip's heading is a plain block, not a second <header>.
+  const SlipHeader = useInStoreChrome() ? "div" : "header";
   const [orderIdInput, setOrderIdInput] = useState("");
   const [emailInput, setEmailInput] = useState("");
   const [order, setOrder] = useState<any>(null);
@@ -255,7 +264,7 @@ export default function OrderTracking() {
         <AnimatePresence mode="wait">
           {!order ? (
             /* Look-up form */
-            <motion.div {...regionProps("trackingForm")} key="search-form"
+            <m.div {...regionProps("trackingForm")} key="search-form"
               initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -12 }}
               className="max-w-xl mx-auto">
               <div {...regionProps("trackingIntro")} className="mb-8">
@@ -288,15 +297,15 @@ export default function OrderTracking() {
                   {loading ? <><Loader2 size={16} className="animate-spin" aria-hidden="true" /> {getCopy(settings?.design, "trackLoading")}</> : getCopy(settings?.design, "trackSubmit")}
                 </button>
               </form>
-            </motion.div>
+            </m.div>
           ) : (
             /* The order slip */
-            <motion.div key="order-display" initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }} className="space-y-8">
+            <m.div key="order-display" initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }} className="space-y-8">
               <button type="button" onClick={() => setOrder(null)} className="fm-track-link fm-track-mono bg-transparent border-0 p-0 cursor-pointer">
                 <ArrowLeft size={14} aria-hidden="true" /> {getCopy(settings?.design, "trackAnother")}
               </button>
 
-              <header {...regionProps("trackingSummary")} className="fm-track-card p-6 sm:p-10">
+              <SlipHeader {...regionProps("trackingSummary")} className="fm-track-card p-6 sm:p-10">
                 <div className="flex flex-col md:flex-row md:items-end justify-between gap-8">
                   <div className="min-w-0">
                     <p className="fm-track-mono mb-3">{getCopy(settings?.design, "trackFound")}</p>
@@ -314,7 +323,7 @@ export default function OrderTracking() {
                     </span>
                   </div>
                 </div>
-              </header>
+              </SlipHeader>
 
               {stage !== "active" && (
                 <div {...regionProps("trackingStatusBanner")} role="status" className="fm-track-notice" data-tone={stage === "awaiting_payment" ? "warning" : "danger"}>
@@ -440,6 +449,11 @@ export default function OrderTracking() {
                       <div className="flex-1 min-w-0">
                         <p className="text-sm sm:text-base font-bold uppercase tracking-wide truncate">{item.title}</p>
                         {item.variantName && <p className="fm-track-mono mt-1">{item.variantName}</p>}
+                        {orderLineNotes(item, (k, v) => getCopy(settings?.design, k, v), "track").length > 0 && (
+                          <ul {...regionProps("trackingLineDetails")} className="list-none p-0 m-0 mt-1">
+                            {orderLineNotes(item, (k, v) => getCopy(settings?.design, k, v), "track").map((note, n) => <li key={n} className="fm-track-mono">{note}</li>)}
+                          </ul>
+                        )}
                         {order.paymentStatus === "paid" && !["shipped", "out_for_delivery", "delivered", "collected"].includes(order.fulfillmentStatus) && linePreorderNote(item, (k, v) => getCopy(settings?.design, k, v)) && <p className="fm-track-mono mt-1">{linePreorderNote(item, (k, v) => getCopy(settings?.design, k, v))}</p>}
                         <p className="fm-track-mono mt-2">{getCopy(settings?.design, "qtyLine", { qty: item.quantity })} × {orderFormatPrice(item.price)}</p>
                       </div>
@@ -459,7 +473,7 @@ export default function OrderTracking() {
               <OrderRequestBox design={settings?.design} order={order} access={access} onUpdated={setOrder} />
 
               <p {...regionProps("trackingHelp")} className="text-center text-sm leading-6 fm-muted">{getCopy(settings?.design, "trackHelp")}</p>
-            </motion.div>
+            </m.div>
           )}
         </AnimatePresence>
       </div>

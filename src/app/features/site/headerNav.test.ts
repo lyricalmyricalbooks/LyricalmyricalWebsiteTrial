@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { navNeedsOwnRow } from "./headerNav";
+import { fitScale, naturalNavWidth, navNeedsOwnRow } from "./headerNav";
 
 describe("navNeedsOwnRow", () => {
   it("keeps a comfortable buffer when the header fits inline", () => {
@@ -12,5 +12,23 @@ describe("navNeedsOwnRow", () => {
 
   it("treats an exact fit including the buffer as inline", () => {
     expect(navNeedsOwnRow(404, 300, 800)).toBe(false);
+  });
+});
+
+describe("naturalNavWidth (shrink-to-fit category bar)", () => {
+  it("measures the links, not the bar's full-row box, so room to spare means no shrink", () => {
+    // A 1012px row holding 250px of links: measuring the box asked for 0.99, then 0.98, then 0.97…
+    expect(fitScale(naturalNavWidth(1012, 250, 1), 1010)).toBe(1);
+    expect(fitScale(naturalNavWidth(1012, 240, 0.96), 1010)).toBe(1);
+  });
+
+  it("still shrinks links that really overflow, and stays put once shrunk", () => {
+    const fit = fitScale(naturalNavWidth(1012, 1200, 1), 1010);
+    expect(fit).toBeLessThan(1);
+    expect(fitScale(naturalNavWidth(1012, 1200 * fit, fit), 1010)).toBe(fit);
+  });
+
+  it("falls back to the box width when there are no links to measure", () => {
+    expect(naturalNavWidth(300, 0, 0.5)).toBe(600);
   });
 });

@@ -1,5 +1,6 @@
-import { SiteFooter } from "../../components/MainSite";
+import { StoreFooter } from "./StoreFooter";
 import { NotFoundContent } from "./NotFoundPage";
+import { StoreChrome } from "./StoreChrome";
 import { useEffect } from "react";
 import { useParams } from "react-router";
 import { useSiteData } from "./useSiteData";
@@ -8,7 +9,7 @@ import { TemplateSections, GlobalSections } from "../../components/sectionRender
 import { CurrentPageContext, PageContentSection } from "../../components/SectionComponents";
 import { policyPageFor } from "./policyPages";
 import { getCopy } from "./storeCopy";
-import { StorefrontPageHeader } from "./StorefrontPageHeader";
+import { StoreHeader } from "./StoreHeader";
 import { googleFontHref } from "./fonts";
 import { useSEO } from "../../lib/seo";
 import { breadcrumbData } from "../../lib/bookSeo";
@@ -42,7 +43,7 @@ export function sitePageStyle(design: any, eyebrow: string): Record<string, any>
     ruleSpacing: d.pageRuleSpacing ?? undefined,
     textMeasure: d.pageTextMeasure || "readable",
     topSpacing: d.pageTopSpacing ?? undefined,
-    // Same width as the storefront header row (StorefrontPageHeader), so the title lines up with the logo.
+    // Same width as the storefront header row (StoreHeader), so the title lines up with the logo.
     headerWidth: Math.max(900, Math.min(1600, d.containerWidth ?? 1200)),
   };
 }
@@ -112,7 +113,7 @@ export function PageView() {
     return (
       <div data-fm-store data-studio-target="pages|copy:Custom pages & 404" data-studio-label="Page" className="min-h-screen fm-page flex flex-col">
         <StorefrontThemeStyle design={settings?.design} />
-        <StorefrontPageHeader design={settings?.design} pages={pages} books={books} />
+        <StoreHeader design={settings?.design} pages={pages} books={books} />
         <p className="flex-1 flex items-center justify-center text-white/40 text-[10px] tracking-[0.4em] uppercase animate-pulse">
           {getCopy(settings?.design, "pageLoading")}
         </p>
@@ -120,7 +121,7 @@ export function PageView() {
     );
   }
 
-  if (!shown) return <NotFoundContent design={settings?.design} />;
+  if (!shown) return <StoreChrome surface="page404"><NotFoundContent design={settings?.design} /></StoreChrome>;
 
   const isHistoryPage = /^(history|history-of-lm)$/.test(slug || "");
   const plainBody = shown.body?.replace(/<[^>]*>/g, "").trim() || "";
@@ -135,7 +136,7 @@ export function PageView() {
       style={themed ? { backgroundColor: themedBg, color: themedText } : undefined}
     >
       <StorefrontThemeStyle design={settings?.design} />
-      <StorefrontPageHeader design={settings?.design} pages={pages} books={books} />
+      <StoreHeader design={settings?.design} pages={pages} books={books} />
       {pageStyle.titleFont && <link rel="stylesheet" href={googleFontHref(String(pageStyle.titleFont))} />}
 
       <CurrentPageContext.Provider value={{ title: shown.title, body: shown.body, pageStyle }}>
@@ -155,7 +156,7 @@ export function PageView() {
 
       <GlobalSections design={settings?.design} books={books} />
 
-      {d.showPageFooter !== false && <SiteFooter settings={settings} pages={pages} />}
+      {d.showPageFooter !== false && <StoreFooter settings={settings} pages={pages} />}
     </div>
   );
 }

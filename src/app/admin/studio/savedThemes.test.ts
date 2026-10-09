@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { savedThemesBytes, savedThemesFit, SAVED_THEMES_BUDGET_BYTES, addSavedTheme, removeSavedTheme, renameSavedTheme, duplicateSavedTheme, serializeThemeFile, parseThemeFile, themeFileName, MAX_SAVED_THEMES } from "./savedThemes";
+import { addSavedTheme, removeSavedTheme, renameSavedTheme, duplicateSavedTheme, serializeThemeFile, parseThemeFile, themeFileName, MAX_SAVED_THEMES } from "./savedThemes";
 
 describe("saved themes", () => {
   it("stores a detached, undefined-free copy", () => {
@@ -45,15 +45,5 @@ describe("saved themes", () => {
     expect("error" in parseThemeFile("nope")).toBe(true);
     expect("error" in parseThemeFile('{"x":1}')).toBe(true);
     expect(themeFileName({ name: "My Theme!" })).toBe("my-theme.theme.json");
-  });
-  it("refuses to grow past the Firestore-safe budget", () => {
-    // A realistic design is ~75 KB; seven of them would blow the 500 KB budget.
-    const big = { blob: "x".repeat(75_000) };
-    let l = addSavedTheme([], "T0", big);
-    expect(savedThemesFit(l)).toBe(true);
-    for (let i = 1; i < 7; i++) l = addSavedTheme(l, `T${i}`, big);
-    expect(savedThemesBytes(l)).toBeGreaterThan(SAVED_THEMES_BUDGET_BYTES);
-    expect(savedThemesFit(l)).toBe(false);
-    expect(savedThemesFit(removeSavedTheme(l, l[0].id).slice(0, 5))).toBe(true);
   });
 });

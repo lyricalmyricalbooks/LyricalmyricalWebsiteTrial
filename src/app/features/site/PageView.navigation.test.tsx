@@ -11,8 +11,8 @@ const state = vi.hoisted(() => ({ data: { settings: { design: {}, policies: {} }
 ], loading: false, fresh: true }, fetch: vi.fn(() => new Promise(() => {})) }));
 vi.mock("./useSiteData", () => ({ useSiteData: () => state.data }));
 vi.mock("../../admin/api", () => ({ adminApi: { getPageBySlug: state.fetch } }));
-vi.mock("../../components/MainSite", () => ({ SiteFooter: () => <footer>Footer</footer> }));
-vi.mock("./StorefrontPageHeader", () => ({ StorefrontPageHeader: () => <header>Shop navigation</header> }));
+vi.mock("./StoreFooter", () => ({ StoreFooter: () => <footer>Footer</footer> }));
+vi.mock("./StoreHeader", () => ({ StoreHeader: () => <header>Shop navigation</header> }));
 vi.mock("./StorefrontThemeStyle", () => ({ StorefrontThemeStyle: () => null }));
 vi.mock("./NotFoundPage", () => ({ NotFoundContent: () => <p>Missing page</p> }));
 vi.mock("../../lib/seo", () => ({ useSEO: () => {} }));
@@ -49,7 +49,8 @@ it("switches published pages immediately without a loading screen or duplicate r
     await act(async () => navigate("/page/contact?preview=true"));
     expect(container.textContent).toContain("Updated Studio body");
     await act(async () => navigate("/page/draft"));
-    expect(container.textContent).toBe("Missing page");
+    // The missing-page content, inside the one shop header and footer (Studio 2.0 · 2.1).
+    expect(container.textContent).toBe("Shop navigationMissing pageFooter");
     expect(state.fetch).not.toHaveBeenCalled();
   } finally { await act(async () => root.unmount()); }
 });
@@ -92,7 +93,8 @@ it("keeps loading, not a 404, while a cached copy is missing a newly published p
     const freshRoot = createRoot(container);
     await act(async () => freshRoot.render(<MemoryRouter initialEntries={["/page/new-page"]}>
       <Routes><Route path="/page/:slug" element={<PageView />} /></Routes></MemoryRouter>));
-    expect(container.textContent).toBe("Missing page");
+    // The missing-page content, inside the one shop header and footer (Studio 2.0 · 2.1).
+    expect(container.textContent).toBe("Shop navigationMissing pageFooter");
     await act(async () => freshRoot.unmount());
   } finally { state.data = original; }
 });

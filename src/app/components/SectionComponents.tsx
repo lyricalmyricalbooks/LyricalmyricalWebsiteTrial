@@ -1,4 +1,4 @@
-import { motion, useMotionValue, useSpring } from "motion/react";
+import { m, useMotionValue, useSpring } from "motion/react";
 import { quickAddChoice } from "../features/site/buyable";
 import { displayPrice, showsSale } from "../features/site/displayPrice";
 import { createContext, useContext, useEffect, useId, useRef, useState } from "react";
@@ -22,14 +22,14 @@ import { aspectRatioValue } from "../features/site/imageAspect";
 function AnimationContainer({ children, enabled, delay = 0 }: any) {
   if (!enabled) return children;
   return (
-    <motion.div
+    <m.div
       initial={{ opacity: 0, y: 20 }}
       whileInView={{ opacity: 1, y: 0 }}
       viewport={{ once: true, margin: "-100px" }}
       transition={{ duration: 0.8, delay, ease: [0.215, 0.61, 0.355, 1] }}
     >
       {children}
-    </motion.div>
+    </m.div>
   );
 }
 
@@ -241,7 +241,7 @@ function MagneticButton({ magnetic, children, className, style, onClick, ...rest
   };
 
   return (
-    <motion.button
+    <m.button
       ref={ref}
       className={className}
       style={{ ...style, x: springX, y: springY }}
@@ -251,7 +251,7 @@ function MagneticButton({ magnetic, children, className, style, onClick, ...rest
       {...rest}
     >
       {children}
-    </motion.button>
+    </m.button>
   );
 }
 

@@ -1,5 +1,5 @@
 import { consentAllows } from "./consent";
-import { auth } from "../../lib/firebase";
+import { restoredUser } from "../../lib/authSession";
 
 /** The Studio preview iframe / new-tab preview runs the real storefront; it must not count as shopper traffic. */
 export const inEditorPreview = () =>
@@ -14,10 +14,8 @@ export const inEditorPreview = () =>
 export async function trackingAllowed(): Promise<boolean> {
   if (inEditorPreview() || !consentAllows("analytics")) return false;
   try {
-    if (typeof (auth as any).authStateReady === "function") {
-      await Promise.race([(auth as any).authStateReady(), new Promise(resolve => setTimeout(resolve, 1500))]);
-    }
-    if (auth.currentUser) return false;
+    // Guests with no saved sign-in skip loading Firebase Auth entirely.
+    if (await restoredUser(1500)) return false;
   } catch {
     // Auth unavailable: count the visit rather than lose it.
   }

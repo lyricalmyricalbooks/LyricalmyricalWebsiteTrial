@@ -1,6 +1,6 @@
 import { orderAccessHeaders } from "./orderAccessClient";
 import { getToken } from "firebase/app-check";
-import { appCheck } from "../../lib/firebase";
+import { appCheck } from "../../lib/firebaseApp";
 import { AppVerificationError } from "../../lib/appVerification";
 
 // Central resolver for Cloud Function endpoints so the project/region is
