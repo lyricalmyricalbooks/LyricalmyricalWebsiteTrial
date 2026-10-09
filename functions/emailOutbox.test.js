@@ -118,7 +118,7 @@ function harness({ docs: extra = {}, gmailFails = true, resendFails = true, patc
     auth: () => ({ verifyIdToken: async () => ({ email: "lyricalmyricalbooks@gmail.com", email_verified: true }), getUserByEmail: async () => { throw new Error("none"); } }),
   };
   const wrap = (...args) => args.at(-1);
-  const nodemailer = { createTransport: () => ({ sendMail: async (m) => { if (state.gmailFails) throw new Error("Invalid login"); delivered.push(m); return { messageId: "gmail-1" }; } }) };
+  const nodemailer = { createTransport: () => ({ verify: async () => { if (state.gmailFails) throw new Error("535-5.7.8 Username and Password not accepted"); return true; }, sendMail: async (m) => { if (state.gmailFails) throw new Error("Invalid login"); delivered.push(m); return { messageId: "gmail-1" }; } }) };
   const Resend = class { constructor() { this.emails = { send: async (m, options) => { state.resendOptions.push(options); if (state.resendFails) return { data: null, error: { message: "boom" } }; delivered.push(m); return { data: { id: "re-1" }, error: null }; } }; } };
   const mockRequire = name => {
     if (name === "firebase-admin") return admin;
@@ -388,5 +388,39 @@ describe("review fixes", () => {
     const settings = await app.exports.__defaults();
     const compiled = app.exports.__compile("order_confirmation", { ...settings, order_confirmation: { ...settings.order_confirmation, subject: "Order {{items_table}} {{order_id}}" } }, { order_id: "A1", items_table: "<table>x</table>" });
     expect(compiled.subject).toBe("Order A1");
+  });
+});
+
+describe("shop alerts and the Gmail check", () => {
+  const paidEvent = () => updated(order({ paymentStatus: "unpaid" }), order({ paymentStatus: "paid" }));
+  const shipEvent = () => updated(order({ paymentStatus: "paid", fulfillmentStatus: "processing" }), order({ paymentStatus: "paid", fulfillmentStatus: "shipped", trackingNumber: "T1", trackingCarrier: "Canada Post" }));
+  const shopMail = app => app.delivered.filter(m => m.to === "lyricalmyricalbooks@gmail.com");
+
+  test("the new-order and shipped-copy switches stop only the shop's emails", async () => {
+    const app = harness({ gmailFails: false, docs: { settings: { website: { payments: {} }, notifications: { shopAlerts: { newOrder: false, shipped: false } } } } });
+    await app.exports.onOrderUpdated(paidEvent());
+    await app.exports.onOrderUpdated(shipEvent());
+    expect(shopMail(app)).toHaveLength(0);
+    expect(app.delivered.filter(m => m.to === "reader@example.com")).toHaveLength(2);
+  });
+
+  test("shop alerts stay on by default, and an older saved new_order_admin switch is honoured", async () => {
+    const on = harness({ gmailFails: false });
+    await on.exports.onOrderUpdated(paidEvent());
+    expect(shopMail(on)).toHaveLength(1);
+    const legacy = harness({ gmailFails: false, docs: { settings: { website: { payments: {} }, notifications: { new_order_admin: { enabled: false } } } } });
+    await legacy.exports.onOrderUpdated(paidEvent());
+    expect(shopMail(legacy)).toHaveLength(0);
+  });
+
+  test("Check connection reports a refused password in plain words, without sending anything", async () => {
+    const bad = harness({ gmailFails: true });
+    const refused = await bad.call({ action: "verifyGmail" });
+    expect(refused.body).toMatchObject({ ok: false });
+    expect(refused.body.error).toMatch(/refused this app password/);
+    expect((await harness({ gmailFails: false }).call({ action: "verifyGmail" })).body).toEqual({ ok: true });
+    const none = harness({ docs: { adminSecrets: {} } });
+    expect((await none.call({ action: "verifyGmail" })).body.error).toMatch(/No Gmail app password/);
+    expect(bad.delivered).toHaveLength(0);
   });
 });

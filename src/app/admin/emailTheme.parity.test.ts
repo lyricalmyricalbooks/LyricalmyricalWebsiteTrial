@@ -34,3 +34,16 @@ describe("Riso email theme", () => {
     expect(out).toContain("color:#100f0d");
   });
 });
+
+describe("branding that can't break an email", () => {
+  it("uses only a #hex accent and an https logo, escaped", () => {
+    expect(server.risoAccent('red;"><script>')).toBe("#e8402a");
+    expect(server.risoAccent("#1B3FE0")).toBe("#1B3FE0");
+    expect(server.safeLogoUrl("javascript:alert(1)")).toBe("");
+    expect(server.safeLogoUrl("http://shop.test/logo.png")).toBe("");
+    expect(server.safeLogoUrl('https://shop.test/a.png?x=1&y="2"')).toBe("https://shop.test/a.png?x=1&amp;y=&quot;2&quot;");
+    const html = server.risoLayout("x", { logoUrl: 'https://x.test/"onerror="alert(1)' });
+    expect(html).not.toContain('"onerror="');
+    expect(client.safeLogoUrl("https://x.test/l.png")).toBe(server.safeLogoUrl("https://x.test/l.png"));
+  });
+});

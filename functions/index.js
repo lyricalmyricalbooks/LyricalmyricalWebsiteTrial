@@ -3762,6 +3762,12 @@ async function loadNotificationSettings() {
       merged[key] = { ...DEFAULT_NOTIFICATIONS[key], ...(dbSettings[key] || {}) };
     }
   }
+  // Emails to the shop itself (Settings › Notifications › Emails to the shop). On unless switched off;
+  // an older saved new_order_admin.enabled is honoured too.
+  merged.shopAlerts = {
+    newOrder: dbSettings.shopAlerts?.newOrder ?? (dbSettings.new_order_admin?.enabled !== false),
+    shipped: dbSettings.shopAlerts?.shipped !== false,
+  };
   return merged;
 }
 
@@ -4129,7 +4135,7 @@ exports.onOrderUpdated = onDocumentUpdated(
       }
       // The shop's one email per paid order (Settings › Notifications › new-order alert).
       // It goes out even when the customer's address is rejected.
-      if (notificationSettings.new_order_admin?.enabled !== false) try {
+      if (notificationSettings.shopAlerts?.newOrder !== false) try {
         await sendOrderEmailOnce(orderId, "shopNewOrder", {
           to: ADMIN_TO,
           subject: `${order.sandboxPayment ? "[TEST] " : ""}[NEW ${preorderLines.length ? "PRE-ORDER" : "ORDER"}] ${order.orderId || orderId} · paid · ${chargedTotalFmt(order)} · ${order.customer.name}`,
@@ -4188,7 +4194,7 @@ exports.onOrderUpdated = onDocumentUpdated(
         console.error("Shipping confirmation email to customer failed", err);
       }
       // The shop's own copy goes out even when the customer's address is rejected (first dispatch only).
-      if (becameShipped) try {
+      if (becameShipped && notificationSettings.shopAlerts?.shipped !== false) try {
         await sendOrderEmailOnce(orderId, "shopShipped", {
           to: ADMIN_TO,
           subject: `[SHIPPED] ${after.orderId || orderId} · ${after.customer?.name}`,
@@ -5264,7 +5270,7 @@ exports.onOrderCreated = onDocumentCreated(
     // Card/PayPal orders are created before payment (and many are never paid): the shop
     // hears about those once, when they're paid (onOrderUpdated). Only manual-payment
     // orders, which are paid later by e-Transfer/cash, are news when placed.
-    if (notificationSettings.new_order_admin?.enabled !== false && order.paymentStatus === "pending") {
+    if (notificationSettings.shopAlerts?.newOrder !== false && order.paymentStatus === "pending") {
       const itemsTable = `
         <table style="width:100%;border-collapse:collapse;margin:24px 0;font-size:13px;">
           ${orderRowsHtml(order.items)}
@@ -5517,6 +5523,27 @@ exports.sendTestEmail = onBrowserRequest(
       } catch (err) {
         console.error("email queue action failed:", err);
         res.status(500).json({ error: "The email queue could not be read. Check that the latest Cloud Functions are deployed." });
+      }
+      return;
+    }
+
+    // Settings › Notifications › Gmail sending › Check connection: signs in to Gmail without
+    // sending anything, so a revoked or mistyped app password shows up before an order does.
+    if (body.action === "verifyGmail") {
+      let pass = "";
+      try { pass = String((await db.collection("adminSecrets").doc("gmail").get()).data()?.appPassword || "").replace(/\s+/g, ""); }
+      catch (err) { console.warn("verifyGmail: could not read the app password:", err.message); }
+      if (!pass) { res.status(200).json({ ok: false, error: "No Gmail app password is saved yet." }); return; }
+      try {
+        const transport = nodemailer.createTransport({ service: "gmail", auth: { user: ADMIN_TO, pass }, connectionTimeout: 15000, greetingTimeout: 15000, socketTimeout: 20000 });
+        await transport.verify();
+        res.status(200).json({ ok: true });
+      } catch (err) {
+        const raw = String(err?.message || err);
+        const wrong = /535|invalid login|username and password not accepted|badcredentials/i.test(raw);
+        res.status(200).json({ ok: false, error: wrong
+          ? "Gmail refused this app password. Create a new one at myaccount.google.com › Security › App passwords and save it here."
+          : `Gmail could not be reached (${raw.slice(0, 200)}). Try again in a minute.` });
       }
       return;
     }

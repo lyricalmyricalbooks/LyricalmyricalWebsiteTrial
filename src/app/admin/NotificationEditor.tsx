@@ -1,13 +1,13 @@
 import { useState, useEffect, type SyntheticEvent } from "react";
 import { collection, doc, getDoc, getDocs, limit, orderBy, query, setDoc } from "firebase/firestore";
 import { db, auth } from "../../lib/firebase";
-import { functionFetch } from "../lib/functionsBase";
 import toast from "react-hot-toast";
-import { risoButton, risoLayout } from "./emailTheme";
+import { risoButton, risoLayout, safeLogoUrl } from "./emailTheme";
 import { GmailSendingCard } from "./GmailSendingCard";
 import { currentRows, emailLogBadge, emailLogDetail, needsAttention } from "./emailLogDisplay";
-import { fillSample, insertAt, PLACEHOLDERS, templateProblems, withRequiredPlaceholders, type TemplateFields } from "./emailTemplateChecks";
+import { fillSample, insertAt, PLACEHOLDERS, templateProblems, withRequiredPlaceholders, type TemplateFields, type TemplateId } from "./emailTemplateChecks";
 import { adminApi } from "./api";
+import { emailFunction, lastGmailProblem } from "./notificationApi";
 import {
   DataTable, GhostButton, LoadingState, SaveBar, SectionCard, SectionHead, SecondaryButton, SelectField, StatusBadge, Tabs, TextArea, TextField, Toggle, useConfirm,
 } from "./riso/components";
@@ -45,19 +45,6 @@ type QueuedEmail = {
 
 const MAX_TRIES = 8;
 
-// Admin-only calls to the sendTestEmail function (test sends and the retry queue actions).
-async function emailFunction(body: Record<string, unknown>) {
-  const idToken = await auth.currentUser?.getIdToken();
-  if (!idToken) throw new Error("Sign in again as the shop administrator.");
-  const response = await functionFetch("sendTestEmail", {
-    method: "POST",
-    headers: { "Content-Type": "application/json", "Authorization": `Bearer ${idToken}` },
-    body: JSON.stringify(body),
-  });
-  const data = await response.json().catch(() => ({}));
-  if (!response.ok) throw new Error(data.error || `The email service answered ${response.status}. Check that Cloud Functions are deployed.`);
-  return data;
-}
 
 type NotificationSettings = {
   brand: {
@@ -77,6 +64,8 @@ type NotificationSettings = {
   delivery_update: TemplateFields;
   contact_reply: TemplateFields;
   gift_card: TemplateFields;
+  /** Emails to the shop itself; on unless switched off. */
+  shopAlerts: { newOrder: boolean; shipped: boolean };
 };
 
 const DEFAULT_SETTINGS: NotificationSettings = {
@@ -155,7 +144,8 @@ const DEFAULT_SETTINGS: NotificationSettings = {
     buttonText: "Track shipment",
     signoff: "Best,\nThe Lyricalmyrical Team",
     enabled: true
-  }
+  },
+  shopAlerts: { newOrder: true, shipped: true }
 };
 
 const TABS = [
@@ -171,7 +161,7 @@ const TABS = [
   { id: "gift_card", label: "Gift card" }
 ] as const;
 
-function compilePreviewHtml(templateId: keyof Omit<NotificationSettings, "brand">, data: NotificationSettings) {
+function compilePreviewHtml(templateId: TemplateId, data: NotificationSettings) {
   const brand: Partial<NotificationSettings["brand"]> = data.brand || {};
   const brandColor = brand.brandColor || "#e8402a";
   
@@ -227,7 +217,7 @@ function compilePreviewHtml(templateId: keyof Omit<NotificationSettings, "brand"
 export function NotificationEditor() {
   const [data, setData] = useState<NotificationSettings>(DEFAULT_SETTINGS);
   const [loading, setLoading] = useState(true);
-  const [activeTab, setActiveTab] = useState<keyof Omit<NotificationSettings, "brand">>("order_confirmation");
+  const [activeTab, setActiveTab] = useState<TemplateId>("order_confirmation");
   const [saving, setSaving] = useState(false);
   const [original, setOriginal] = useState("");
   const [resendDraft, setResendDraft] = useState("");
@@ -330,7 +320,12 @@ export function NotificationEditor() {
           customer_welcome: { ...DEFAULT_SETTINGS.customer_welcome, ...(dbData.customer_welcome || {}) },
           delivery_update: { ...DEFAULT_SETTINGS.delivery_update, ...(dbData.delivery_update || {}) },
           contact_reply: { ...DEFAULT_SETTINGS.contact_reply, ...(dbData.contact_reply || {}) },
-          gift_card: { ...DEFAULT_SETTINGS.gift_card, ...(dbData.gift_card || {}) }
+          gift_card: { ...DEFAULT_SETTINGS.gift_card, ...(dbData.gift_card || {}) },
+          // An older saved new_order_admin.enabled carries over until shopAlerts is saved.
+          shopAlerts: {
+            newOrder: dbData.shopAlerts?.newOrder ?? (dbData.new_order_admin?.enabled !== false),
+            shipped: dbData.shopAlerts?.shipped !== false,
+          },
         };
         if (dbData.brand?.resendApiKey || dbData.resendApiKey) {
           // Older saves left the key in the public doc: move it to adminSecrets now.
@@ -460,6 +455,7 @@ export function NotificationEditor() {
     if (!testEmail && auth.currentUser?.email) setTestEmail(auth.currentUser.email);
   };
   const enabled = currentTemplate.enabled !== false;
+  const badColor = !!data.brand?.brandColor && !/^#[0-9a-f]{3,8}$/i.test(data.brand.brandColor.trim());
   const subjectPreview = fillSample(activeTab, currentTemplate.subject || DEFAULT_SETTINGS[activeTab].subject);
   const problems = templateProblems(activeTab, currentTemplate);
   const defaults = DEFAULT_SETTINGS[activeTab];
@@ -489,14 +485,18 @@ export function NotificationEditor() {
     <div className="rp-stack">
       <SectionCard title="Email branding" description="Shared by every customer and administrator email.">
         <div style={{ display: "grid", gap: 16, gridTemplateColumns: "repeat(auto-fit, minmax(220px, 1fr))" }}>
-          <TextField label="Brand logo URL" value={data.brand?.logoUrl || ""} placeholder="https://domain.com/logo.png" onChange={(e) => handleBrandChange("logoUrl", e.target.value)} />
+          <TextField label="Brand logo URL" value={data.brand?.logoUrl || ""} placeholder="https://domain.com/logo.png"
+            error={data.brand?.logoUrl && !safeLogoUrl(data.brand.logoUrl) ? "Use an https:// image address. Other addresses are left out of emails." : undefined}
+            onChange={(e) => handleBrandChange("logoUrl", e.target.value)} />
           <div className="rp-field">
             <label className="rp-label" htmlFor="brand-color">Brand accent color</label>
             <div style={{ display: "flex", gap: 8 }}>
               <input id="brand-color" type="color" aria-label="Pick brand accent color" value={data.brand?.brandColor || "#e8402a"} onChange={(e) => handleBrandChange("brandColor", e.target.value)}
                 style={{ width: 48, height: 44, padding: 2, border: "1px solid var(--rp-border)", background: "var(--rp-input-bg)" }} />
-              <input className="rp-input rp-mono" aria-label="Brand accent color hex" value={data.brand?.brandColor || ""} placeholder="#e8402a" onChange={(e) => handleBrandChange("brandColor", e.target.value)} />
+              <input className="rp-input rp-mono" aria-label="Brand accent color hex" value={data.brand?.brandColor || ""} placeholder="#e8402a"
+                aria-invalid={badColor || undefined} onChange={(e) => handleBrandChange("brandColor", e.target.value)} />
             </div>
+            {badColor && <p className="rp-error-text" role="alert" style={{ margin: "6px 0 0" }}>Use a colour code like #e8402a. Until then emails use flare red.</p>}
           </div>
           <SelectField label="Email theme" value={data.brand?.emailTheme === "dark" ? "dark" : "light"} onChange={(e) => handleBrandChange("emailTheme", e.target.value)}
             hint="Riso Press look: Light = cream paper, ink text · Dark = black paper, white text.">
@@ -583,7 +583,17 @@ export function NotificationEditor() {
         </SectionCard>
       </div>
 
-      <GmailSendingCard />
+      <SectionCard title="Emails to the shop" description="Alerts sent to lyricalmyricalbooks@gmail.com. Customer emails are set in the templates above.">
+        <div className="rp-stack" style={{ gap: 16 }}>
+          <Toggle label="New order alerts — a paid order, or an order waiting for a manual payment" checked={data.shopAlerts?.newOrder !== false}
+            onChange={() => setData((prev) => ({ ...prev, shopAlerts: { ...prev.shopAlerts, newOrder: prev.shopAlerts?.newOrder === false } }))} />
+          <Toggle label="Shipped copy — a copy of each order you mark as shipped" checked={data.shopAlerts?.shipped !== false}
+            onChange={() => setData((prev) => ({ ...prev, shopAlerts: { ...prev.shopAlerts, shipped: prev.shopAlerts?.shipped === false } }))} />
+        </div>
+        <p className="rp-hint" style={{ margin: "12px 0 0" }}>Payment problems, return and privacy requests, and the daily to-do email always go out.</p>
+      </SectionCard>
+
+      <GmailSendingCard lastProblem={lastGmailProblem(deliveries || [])} />
 
       {queue.length > 0 && (
         <SectionCard title="Waiting to send" description={`Every sender refused these emails, so they are kept and tried again automatically (up to ${MAX_TRIES} tries over about a day). Fix the sending setup above, then choose Retry now.`}

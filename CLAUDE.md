@@ -150,6 +150,11 @@ npm run logs
   Templates: unknown `{{placeholders}}` send as blank, `{{items_table}}` only fills the body, the gift-card `{{code}}` line is re-added if removed
   (`REQUIRED_PLACEHOLDERS`, mirrored in `admin/emailTemplateChecks.ts`), buttons need an http(s) link. Send test uses
   the editor's unsaved words and branding.
+- **Shop alerts & Gmail check:** `loadNotificationSettings` returns `shopAlerts { newOrder, shipped }` (on unless
+  `settings/notifications.shopAlerts` turns them off; an older `new_order_admin.enabled` is honoured) — Settings ›
+  Notifications › **Emails to the shop**. Gmail sending › **Check connection** = `sendTestEmail` action `verifyGmail`
+  (nodemailer `verify()`, nothing sent). Email branding goes through `risoAccent` (#hex only) and `safeLogoUrl` (https,
+  escaped) in `emailTheme.js` and its admin mirror.
 - **Email delivery log:** every `sendEmail` attempt (sent or failed, with a plain-English reason from
   `functions/emailErrors.js`) is written to the admin-only `emailLog` collection and listed in
   Settings › Notifications › **Recent deliveries**. Customer and shop-copy sends are attempted

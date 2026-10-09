@@ -17,9 +17,16 @@ const FONT_DISPLAY = "'Anton', Impact, 'Arial Narrow Bold', sans-serif";
 const FONT_BODY = "'Archivo', 'Helvetica Neue', Helvetica, Arial, sans-serif";
 const FONT_MONO = "'DM Mono', 'Courier New', Courier, monospace";
 
+// Only a #hex colour reaches the CSS; anything else (a typo, a stray quote) falls back to flare red.
 function risoAccent(brandColor) {
   const c = String(brandColor || "").trim();
-  return !c || LEGACY_DEFAULT_ACCENT.test(c) ? RISO.accent : c;
+  return !/^#[0-9a-f]{3,8}$/i.test(c) || LEGACY_DEFAULT_ACCENT.test(c) ? RISO.accent : c;
+}
+
+// The email logo: an https address only, with quotes escaped so it can't break the email.
+function safeLogoUrl(url) {
+  const u = String(url || "").trim();
+  return /^https:\/\/[^\s<>]+$/i.test(u) ? u.replace(/&/g, "&amp;").replace(/"/g, "&quot;").replace(/'/g, "&#39;") : "";
 }
 
 function risoButton(href, label, accent, theme) {
@@ -53,8 +60,9 @@ function risoize(html, accent, theme) {
 function risoLayout(inner, { logoUrl = "", accent = "", theme = "light", year = new Date().getFullYear() } = {}) {
   const a = risoAccent(accent);
   const p = risoPalette(theme);
-  const masthead = logoUrl
-    ? `<img src="${logoUrl}" alt="Lyricalmyrical Books" style="max-height:44px;width:auto;display:block;" />`
+  const logo = safeLogoUrl(logoUrl);
+  const masthead = logo
+    ? `<img src="${logo}" alt="Lyricalmyrical Books" style="max-height:44px;width:auto;display:block;" />`
     : `<div style="font-family:${FONT_DISPLAY};font-size:30px;line-height:1;letter-spacing:0.01em;text-transform:uppercase;color:${p.text};">Lyricalmyrical Books</div>`;
   return `<!DOCTYPE html>
 <html>
@@ -84,4 +92,4 @@ function risoLayout(inner, { logoUrl = "", accent = "", theme = "light", year = 
 </html>`;
 }
 
-export { RISO, RISO_THEMES, risoPalette, risoAccent, risoButton, risoize, risoLayout };
+export { RISO, RISO_THEMES, risoPalette, risoAccent, safeLogoUrl, risoButton, risoize, risoLayout };
