@@ -2,10 +2,16 @@
 // tests and in the local fixture page (studio-fixture.html) without a signed-in admin or
 // Firestore. Every write is recorded in `calls` so checks can assert what would have been saved.
 import { DEFAULT_SETTINGS } from "../../../features/site/constants";
+import { mediaApi } from "../../mediaApi";
+import type { MediaItem } from "../mediaLibrary";
 import { setThemeBackend, ThemeConflictError } from "../../themeStore";
 
 export type FixtureCall = { method: string; args: any[] };
-export type StudioFixture = { calls: FixtureCall[]; settings: any; pages: any[]; books: any[]; versions: any[]; rev: number };
+export type StudioFixture = {
+  calls: FixtureCall[]; settings: any; pages: any[]; books: any[]; versions: any[]; rev: number;
+  /** Studio › Media records. `mediaDenied` acts as if the media Firestore rules weren't deployed yet. */
+  media: MediaItem[]; mediaDenied?: boolean;
+};
 
 const clone = <T,>(v: T): T => JSON.parse(JSON.stringify(v ?? null));
 
@@ -20,10 +26,26 @@ export const FIXTURE_PAGES = [
   { id: "p2", slug: "open-call", title: "Open call", body: "<p>Coming soon.</p>", status: "draft", showInNav: true },
 ];
 
+// A small drawn picture (no network needed), "uploaded" at three widths.
+const swatch = (w: number) => `data:image/svg+xml,${encodeURIComponent(`<svg xmlns="http://www.w3.org/2000/svg" width="${w}" height="${Math.round(w * 2 / 3)}" viewBox="0 0 3 2"><rect width="3" height="2" fill="#f2c94c"/><circle cx="1.5" cy="1" r=".6" fill="#e8402a"/></svg>`)}`;
+export const FIXTURE_MEDIA: MediaItem[] = [{
+  id: "m-riso-print", name: "riso-print.jpg", alt: "", focalX: 50, focalY: 50, width: 2400, height: 1600, type: "image/webp",
+  bytes: 41_000 + 98_000 + 240_000, widths: [480, 960, 1600],
+  variants: [
+    { w: 480, h: 320, url: swatch(480), path: "assets/media/m-riso-print/1-480w.webp", bytes: 41_000 },
+    { w: 960, h: 640, url: swatch(960), path: "assets/media/m-riso-print/1-960w.webp", bytes: 98_000 },
+    { w: 1600, h: 1067, url: swatch(1600), path: "assets/media/m-riso-print/1-1600w.webp", bytes: 240_000 },
+  ],
+  createdAt: "2026-10-08T12:00:00.000Z", updatedAt: "2026-10-08T12:00:00.000Z",
+}];
+
 export function createStudioFixture(overrides: Partial<StudioFixture> = {}): StudioFixture {
   const settings = overrides.settings ?? clone({ ...DEFAULT_SETTINGS, design: (DEFAULT_SETTINGS as any).design || {} });
   if (!settings.draftDesign) settings.draftDesign = clone(settings.design);
-  return { calls: [], rev: 0, settings, pages: clone(overrides.pages ?? FIXTURE_PAGES), books: clone(overrides.books ?? FIXTURE_BOOKS), versions: overrides.versions ?? [] };
+  return {
+    calls: [], rev: 0, settings, pages: clone(overrides.pages ?? FIXTURE_PAGES), books: clone(overrides.books ?? FIXTURE_BOOKS), versions: overrides.versions ?? [],
+    media: clone(overrides.media ?? FIXTURE_MEDIA), mediaDenied: overrides.mediaDenied,
+  };
 }
 
 /** Replace Studio's adminApi methods with in-memory ones. Returns a function that restores them. */
@@ -46,6 +68,17 @@ export function installFakeStudioApi(api: Record<string, any>, fixture: StudioFi
     uploadFile: async (_file: File, path: string) => { record("uploadFile", path); return `https://example.invalid/${path}`; },
     updateShopCategories: async (categories: any[]) => { record("updateShopCategories", categories); },
   };
+  const denied = () => Object.assign(new Error("Missing or insufficient permissions."), { code: "permission-denied" });
+  const fakeMedia: Record<string, (...args: any[]) => any> = {
+    list: async () => { if (fixture.mediaDenied) throw denied(); return clone(fixture.media); },
+    save: async (item: MediaItem) => {
+      if (fixture.mediaDenied) throw denied();
+      record("saveMedia", item);
+      fixture.media = [clone(item), ...fixture.media.filter(m => m.id !== item.id)];
+    },
+    remove: async (item: MediaItem, paths: string[]) => { record("removeMedia", item.id, paths); fixture.media = fixture.media.filter(m => m.id !== item.id); },
+    removeFiles: async (paths: string[]) => { if (paths.length) record("removeMediaFiles", paths); },
+  };
   const originals: Record<string, any> = {};
   for (const [name, fn] of Object.entries(fake)) { originals[name] = api[name]; api[name] = fn; }
   // Studio's draft store (admin/themeStore.ts): Save draft, Publish and Discard are recorded as
@@ -63,5 +96,12 @@ export function installFakeStudioApi(api: Record<string, any>, fixture: StudioFi
     fieldUpdate: async fields => { record("draftFieldUpdate", fields); Object.assign(fixture.settings.draftDesign, clone(fields)); },
     readField: async key => clone(fixture.settings.draftDesign?.[key]),
   });
-  return () => { restoreBackend(); for (const [name, fn] of Object.entries(originals)) api[name] = fn; };
+  const media = mediaApi as Record<string, any>;
+  const mediaOriginals: Record<string, any> = {};
+  for (const [name, fn] of Object.entries(fakeMedia)) { mediaOriginals[name] = media[name]; media[name] = fn; }
+  return () => {
+    restoreBackend();
+    for (const [name, fn] of Object.entries(originals)) api[name] = fn;
+    for (const [name, fn] of Object.entries(mediaOriginals)) media[name] = fn;
+  };
 }

@@ -7,7 +7,7 @@ export type StudioUiState = {
   device?: "desktop" | "tablet" | "mobile"; zoom?: Zoom; productSlug?: string; collectionSlug?: string;
 };
 
-const TABS = new Set(["sections", "style", "text", "menus", "pages"]);
+const TABS = new Set(["sections", "style", "text", "menus", "pages", "media"]);
 const DEVICES = new Set(["desktop", "tablet", "mobile"]);
 const ZOOMS = new Set<Zoom>(["fit", 100, 75, 50]);
 const text = (v: any) => (typeof v === "string" && v.length < 200 ? v : undefined);

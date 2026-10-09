@@ -266,6 +266,19 @@ size controls desktop/tablet/phone scope; Reset removes that size's overrides. N
 spacing fields also live in Layout & style. The shared renderer applies padding once
 at the content box and carries the same responsive overrides onto the storefront.
 
+**Media library (2.4):** Studio's **Media** rail tab (`studio/StudioMedia.tsx`) manages admin-only Firestore
+`media/{id}` records (`admin/mediaApi.ts`); `uploadMediaImage` (`studio/mediaUpload.ts`) stores WebP copies at
+480/960/1600 px under `assets/media/<id>/`. Image fields get **Choose from library** (`studio/mediaPicker.tsx`), and
+their **Upload image** adds to the library once it is readable (Theme settings images too). A picture placed in a
+section/block field keeps its plain URL plus a public `${field}__media` record; Theme settings images (logo, share
+image, favicon, placeholder) get the URL only (plain `<img>`, written through the scoped `onChange`). The
+record is defined in `features/site/mediaRef.ts`; section renderers draw images with
+`components/ResponsiveImage.tsx` (`srcset`/`sizes`/`width`/`height`/lazy; `fetchpriority="high"` in the home/custom
+page's first section) and render plain URLs exactly as before — new `<img>`s in `SectionComponents.tsx` should use
+it too. Where-used/replace/filters are pure in `studio/mediaLibrary.ts`; Delete refuses a picture still used in the
+draft, live design, a page, My themes or a retained Version history snapshot (`snapshotUses`; versions re-read first). **Deploy Firestore rules (`match /media/{mediaId}`) and Storage rules with the
+frontend**; until then Media shows "isn't switched on yet" and fields keep URL + plain upload.
+
 **Studio repairs (0.2):** every Studio image upload uses `uploadStudioImage` (`studio/mediaUpload.ts`) — never write
 uploads outside a Storage folder `storage.rules` lets the admin write (`admin/storagePaths.test.ts`). Linked shared
 blocks resolve centrally in `SectionList`; each section renders inside `SectionBoundary`. Phone/tablet widths come

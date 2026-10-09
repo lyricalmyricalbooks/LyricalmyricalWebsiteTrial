@@ -61,7 +61,7 @@ The editor is **not** a blank slate. It already supports:
 
 | File | Owns |
 |------|------|
-| `src/app/admin/studio/StudioEditor.tsx` | Studio shell: top bar (page picker, device, Edit/Browse, undo/redo, Save draft, Publish, Theme actions), left rail (Page layout, Theme settings, Text & labels, Navigation, Pages), preview iframe wiring and the single `change(fn)` edit entry point. |
+| `src/app/admin/studio/StudioEditor.tsx` | Studio shell: top bar (page picker, device, Edit/Browse, undo/redo, Save draft, Publish, Theme actions), left rail (Page layout, Theme settings, Text & labels, Navigation, Pages, Media), preview iframe wiring and the single `change(fn)` edit entry point. |
 | `src/app/admin/studio/StudioOutline.tsx` / `StudioInspector.tsx` | Section/block outline and the section/block inspector (Content, Layout & style). |
 | `src/app/admin/studio/styleSchema.ts` / `settingsMap.ts` | Every Theme settings control (`STYLE_GROUPS`, region groups) and where each one lives. |
 | `src/app/admin/studio/previewBridge.ts` / `canvasBridge.ts` | Script injected into the preview: click-to-edit, inline text, canvas toolbar, spacing handles. |
@@ -71,6 +71,7 @@ The editor is **not** a blank slate. It already supports:
 | `src/app/components/MainSite.tsx` | Renders the homepage/storefront. Uses `SectionList` for `heroPage.sections` and the shared `GlobalSections` from `sectionRender`. |
 | `src/app/features/site/StorefrontThemeStyle.tsx` + `themeTokens` | Injects the semantic token / CSS-variable layer onto any storefront surface via the `[data-fm-store]` attribute. |
 | `src/app/admin/api.ts` | Persistence: `getSettings`, `updateSettings(settings, { publish })`, `schedulePublish`. |
+| `src/app/admin/studio/StudioMedia.tsx` / `mediaLibrary.ts` / `mediaPicker.tsx` | Media library (2.4): rail panel, picker dialog, pure where-used/replace/filter helpers; `components/ResponsiveImage.tsx` renders library pictures with `srcset`. |
 | `src/app/admin/studio/studioModel.ts` | Immutable Studio state, recursive block-tree operations (three levels), linked shared-block resolution, normalization, and undo/redo. |
 
 ## The section/block contract (read before adding a section)
@@ -344,7 +345,7 @@ assistant, personalization/A-B tests, author/series/event pages, multi-language 
       (old selection frozen and compared, including the published design), `pickers.test.ts`, `StudioPickers.test.tsx`,
       and an e2e check (pick a page link and a book, assert the saved draft and the preview). Not done here: no page
       field uses `page` yet (available for 2.7/2.8); Theme settings' own URL fields (social links, mega-menu links)
-      are unchanged. - [ ] 2.4 Media library + responsive images.
+      are unchanged. - [x] 2.4 Media library + responsive images (details below).
 - [x] 2.5 Colour schemes 2.0. A scheme (`design.colorSchemes[]`, `features/site/colorSchemes.ts`) has ten roles:
       background, surface, text, muted, accent, onAccent, border, buttonBg, buttonText, link. `schemeCss(design)`, emitted
       first by `StorefrontOverrides` on every surface, turns each into `[data-scheme="<id>"]` variables with the
@@ -371,6 +372,29 @@ assistant, personalization/A-B tests, author/series/event pages, multi-language 
       those parts fall back to theme colours (undoable). The buy card, bag and card-title click targets also show their
       scheme choice in the element inspector. - [ ] 2.6 Section library 2.0 + new sections.
 - [ ] 2.7 Custom book fields + dynamic sources. - [ ] 2.8 Alternate templates. - [ ] 2.9 Product information as blocks.
+
+**2.4 Media library + responsive images (done).** A **Media** rail tab (`studio/StudioMedia.tsx`) lists the
+admin-only Firestore `media/{id}` records (`admin/mediaApi.ts`: name, alt, focal point, width/height, bytes,
+widths, per-copy `variants`, replaced files in `previous`). `uploadMediaImage` (`studio/mediaUpload.ts`) runs
+`prepareMediaVariants` (`admin/prepareImage.ts`: WebP 0.82 at 480/960/1600 px, never enlarged, JPEG where the
+browser can't write WebP, GIF/SVG kept as one original) and uploads to `assets/media/<id>/<stamp>-<w>w.webp`
+(storage.rules' admin-writable `assets/`; `storagePaths.test.ts`). The panel searches, filters **Unused /
+Over size budget / No description** (budgets 50/150/200 KB by width), edits the description and focal point,
+lists **Where it's used** (draft, live design until Publish, custom pages — `collectStrings`/`usagePaths` in
+the pure `studio/mediaLibrary.ts`), **Replace image…** (new files under the same id; `applyMediaChange` repoints
+every draft use in one undoable change) and **Delete image** (refused while used anywhere, including My themes and retained Version history snapshots — `snapshotUses`, versions re-read before deleting). Image fields get
+**Choose from library** (`studio/mediaPicker.tsx` context + the picker dialog) and their **Upload image** adds to
+the library once it is readable (Theme settings images too — they store the URL only, since the logo, favicon,
+share image and placeholder are drawn as plain images). Placing a picture in a section/block field writes the plain URL plus a public companion record
+`${field}__media` (`features/site/mediaRef.ts`: id, src, srcset widths, width/height, alt);
+`components/ResponsiveImage.tsx` emits `srcset`/`sizes`/`width`/`height`/lazy loading only when that record's
+`src` still equals the field, and `fetchpriority="high"` + eager loading in the first section of the home page
+and custom pages (`SectionPriorityContext`, set by `SectionList`). Section renderers use it through
+`StyledImage` and every block `<img>`; plain URLs render the same DOM as before (`ResponsiveImage.test.tsx`).
+Rollout: until `firestore.rules` (`match /media/{mediaId}`, admin-only) is deployed, reads are
+permission-denied and Media/the picker explain it while fields keep URL + plain upload. Not done here: CSS
+background images (section backgrounds) have no `srcset`; old files of a replaced image are deleted only with
+the image; existing images are not migrated into the library.
 
 **Phase 3 — Theme management & quality**
 - [ ] 3.1 Version history 2.0. - [ ] 3.2 Live sync. - [ ] 3.3 Studio Health. - [ ] 3.4 Themes workspace + share previews.
@@ -728,9 +752,10 @@ content from responsive layout overrides. Existing draft/publish persistence is 
 
 ### F. Performance & assets (Core Web Vitals)
 - [ ] Keep renderers shallow; add a DOM-depth/node-count audit.
-- [ ] Image pipeline: 1500–2000px cap, JPEG 80–85, WebP/AVIF, responsive
+- [~] Image pipeline: 1500–2000px cap, JPEG 80–85, WebP/AVIF, responsive
       `srcset`, focal-point mapping, payload budgets (hero <200KB / content
-      <150KB / thumb <50KB).
+      <150KB / thumb <50KB). Studio 2.0 · 2.4 covers Media-library pictures (WebP 480/960/1600, `srcset`,
+      focal point, budget warnings); AVIF and CSS background images remain.
 - [ ] Lazy-load below-the-fold sections/images; on-demand section JS.
 - [ ] Element caching of unchanged rendered section HTML.
 - [x] Surface an in-editor theme-weight guardrail score (section/block counts plus warning states).

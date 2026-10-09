@@ -10,6 +10,11 @@ export type AppUpdate = {
 // Newest first. Every PR adds an entry; links open the affected admin workspace.
 export const APP_UPDATES: AppUpdate[] = [
   {
+    id: "studio-2-media", date: "2026-10-09", title: "A media library for your shop's pictures",
+    summary: "The Design studio has a new Media button in its left rail. Pictures you upload there — or with Upload image on any image field — are saved as three sizes (480, 960 and 1600 pixels wide); in page sections, phones then download a small file and big screens a sharp one; pictures in the first section of the home page load first. Each picture has a description for screen readers, a focal point, its file sizes (with a warning when one is larger than recommended), and a list of where it's used — click a place to open that section. Filters show unused pictures, pictures over the size budget and pictures without a description. Replace swaps a picture everywhere in your draft at once; Delete refuses while a picture is still used — including in My themes or a saved version in Version history. Image fields have a new Choose from library button. Pictures already on your site look exactly as before. The library needs its new security rules switched on; until then Media explains this and image fields work as they always have.",
+    links: [{ label: "Open Media", tab: "settings", settingsTab: "designer", studio: "#designer?tab=media" }],
+  },
+  {
     id: "orders-tracking-link-oct-2026", date: "2026-10-09", title: "Adding a tracking link to the shipping email is easier",
     summary: "When an order is ready to ship, press Enter tracking & mark shipped (it used to say \"I made my own label\") to type the carrier, tracking number and, if you like, your own tracking link. That link is what the Track shipment button in the customer's shipping email opens; leave it blank and the email uses the carrier's own tracking page. Orders with a Shippo label now show the same box before you mark them shipped, so you can check or change the link. After an order ships you can fix the link from Edit tracking (or Edit tracking link for Shippo orders), and the order shows a Customer's tracking link to check what the customer sees. Fixing a link doesn't send the customer another email; use Resend shipping email if you want them to get the new one.",
     links: [{ label: "Open Orders", tab: "orders" }],

@@ -27,4 +27,8 @@ describe("Studio links", () => {
   it("sends links to the retired Shared layout tab to Page layout", () => {
     expect(parseStudioLocation("#designer?tab=shared")?.leftTab).toBe("sections");
   });
+
+  it("links straight to the Media library", () => {
+    expect(parseStudioLocation(studioHash({ leftTab: "media" }))?.leftTab).toBe("media");
+  });
 });
