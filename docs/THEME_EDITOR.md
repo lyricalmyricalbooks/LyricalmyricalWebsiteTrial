@@ -288,7 +288,21 @@ assistant, personalization/A-B tests, author/series/event pages, multi-language 
       no longer indexes each region field three times (desktop entry carries "tablet phone mobile" keywords).
       Deviation from plan: no new Brand/Colours/… heading per category and no presets-gallery rebuild — the
       existing category cards already are those headings; Page starters stay in Add section.
-- [ ] 1.7 Command palette 2.0; legacy draft path cleanup.
+- [x] 1.7 Command palette 2.0; legacy draft path cleanup. Find anything (`StudioSearch.tsx`, pure `paletteGroups` /
+      `contextCommands` / `pushRecent` / `searchedDevice` in `studioSearch.ts`) opens on **For what you selected**
+      (duplicate, move, hide/show, copy, copy/paste style, move to another page, save for reuse, delete for a section;
+      Open in Theme settings / Close for a page part), then **Recent** (last picks, browser-local) and **Shortcuts**.
+      `>` searches commands only. Commands show the key from `shortcuts.ts`. The index adds the parts of the previewed
+      page (from the `STRUCTURE` scan) and books (open their product page). A search that names phone/tablet opens
+      that size's element setting and preview. Legacy drafts: `themeStore.ts` has no public-document fallback any
+      more — drafts and My themes are only in `themes/workspace` / `savedThemes/*`; the first open (or the first
+      category/wall change) copies an older public `draftDesign`/`savedThemes` across once and then removes them;
+      refused access raises `ThemeStoreUnavailableError` (Studio shows it) instead of saving where shoppers can
+      read it. `themeWrite` never writes `draftDesign`/`savedThemes` to `settings/website`. Storage is swappable
+      (`setThemeBackend`): the fixture records Save draft / Publish / Discard as `saveDesign`.
+      Also fixes from the 1.6 review: Show on page waits for the page to finish loading (8s), rescans when the
+      preview address doesn't change, keeps the open custom page, maps Badges to the product page, tags the Account
+      screens with `style:accounts`, and opens the category's settings when its part isn't on the page.
 
 **Phase 2 — Shopify OS 2.0 features**
 - [x] 2.1 One header and footer on every page. `features/site/StoreHeader.tsx` is the only storefront header:
@@ -610,9 +624,9 @@ holds preview, history, checks and guarded discard. Inspector device context dis
 content from responsive layout overrides. Existing draft/publish persistence is unchanged.
 
 - [x] **Friendlier settings homes (October 2026).** `studio/settingsMap.ts` (pure, tested) decides *where* controls
-      appear; it never adds or removes one. Theme settings opens on task headings: Overall look, Header, menu & footer,
-      Shop & book pages, Bag, checkout & accounts, Pages & small details, and a folded **Fine-tune single elements**
-      (per-element region groups + Custom code). Each category card has a one-line description (`GROUP_BLURBS`)
+      appear; it never adds or removes one. Theme settings opens in three bands (1.6): **Site-wide design**, **Parts
+      of your shop** (Header, menu & footer · Shop & book pages · Bag, checkout & accounts · Pages & features, each
+      card with **Show on page**) and **Advanced** (folded **Fine-tune single elements** + Custom code). Each category card has a one-line description (`GROUP_BLURBS`)
       and a **● N changed** badge. **Theme presets & saved themes** and **Payment icons** are categories now
       (`EXTRA_STYLE_CATEGORIES`; click-to-edit `style:paymentIcons` opens it). Big categories split into short collapsible
       sub-sections (`STYLE_SUBSECTIONS`; unlisted keys fall into **More settings**, so a new control always shows);

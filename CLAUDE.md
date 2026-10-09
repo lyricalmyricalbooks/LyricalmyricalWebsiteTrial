@@ -33,7 +33,8 @@ originally generated from a Figma design ("Artsy Website for Publisher").
   **Radix UI** primitives in `src/app/components/ui/`.
 - **MUI** and **motion** (Framer Motion successor) are also present for some
   components/animations.
-- **Firebase 11** client SDK (`src/lib/firebase.ts`, project
+- **Firebase 11** client SDK (`src/lib/firebaseApp.ts` app + App Check; `src/lib/firebase.ts` full Firestore + Auth;
+  `src/lib/firestoreLite.ts` shopper Firestore Lite — see *Storefront bundle* below, project
   `lyricalmyrical-web-v2`). A secondary "legacy" Firebase project is used for
   inventory sync (`src/lib/legacyFirebase.ts`).
 - **Stripe** for checkout, **Resend** for transactional email, **Shippo** for
@@ -195,7 +196,8 @@ For larger categories, use Edit › Assigned here in groups of up to 400 first.
 **Find anything:** the Studio top bar **Find** button (or Ctrl/Cmd+K) searches every Style control, Text & labels
 string, Menus panel, page, section and action (`studio/studioSearch.ts` + `StudioSearch.tsx`; `goToResult` in
 `StudioEditor.tsx` navigates). It indexes `STYLE_GROUPS` and `COPY_SCHEMA`, so new controls are findable with no extra
-work — give them clear labels. **Auto-fit for phones** (`studio/autoMobile.ts`) fills phone/tablet values from the
+work — give them clear labels. It also lists the parts of the previewed page and books, opens on commands for the current selection
+(`contextCommands`), then Recent and Shortcuts; `>` searches commands only (`paletteGroups`). **Auto-fit for phones** (`studio/autoMobile.ts`) fills phone/tablet values from the
 desktop design: Sections tab › *Auto-fit page for phones*, or section › Layout & style › *Phone & tablet layout*.
 
 Studio's Sections outline supports sortable sections and blocks. Canvas clicks
@@ -275,7 +277,7 @@ My themes in `savedThemes/{id}`; never add draft or theme data back to public `s
 saves go through `admin/themeStore.ts` (revision-checked; `ThemeConflictError` → merge or the conflict dialog).
 Admin tools that change one design field outside Studio call `draftFieldUpdate`. Shopper code reads settings
 with `adminApi.getPublicSettings()`, never `getSettings()` (which also reads admin-only key flags).
-Deploy Firestore rules before (or with) the frontend; until then Studio safely stays on the legacy fields.
+There is no public fallback any more (1.7): the first open copies an older public `draftDesign`/`savedThemes` across once and removes them; refused access raises `ThemeStoreUnavailableError` and Studio says so. `themeWrite` never writes a draft to `settings/website`. The fixture/tests swap storage with `setThemeBackend` (saves are recorded as `saveDesign`).
 
 **One design resolver (0.5):** storefront code must resolve page designs only through
 `features/site/designModel.ts` (`layerDesign`, or the `resolve*Design` helpers in `surfaceDesign.ts`) — never
@@ -467,8 +469,8 @@ Additional › **Storefront elements**.
 string. A registry type with **no identically named renderer renders nothing**
 ("added but doesn't show up"). Adding a section = registry schema **+** matching
 renderer **+** storefront mapping **+** library entry **+** verify on the live
-storefront. Theme data persists as `design` (live) / `draftDesign` (draft) via
-`adminApi.updateSettings(..., { publish })`.
+storefront. Theme data persists as `design` (live, public `settings/website`) and the private
+draft in `themes/workspace`, both written only through `admin/themeStore.ts`.
 
 ## Deployment
 
@@ -720,6 +722,20 @@ Preview canvases retain their selected viewport width (1200px desktop, 820px tab
 390px phone) in a scrollable canvas, so narrow editor windows cannot activate the
 wrong breakpoint while the owner edits a different device.
 
+## Storefront bundle (9 October 2026)
+
+The shopper entry bundle must stay free of Firebase Auth, the full Firestore SDK and `admin/api.ts`.
+Storefront reads/writes use **Firestore Lite** (`lib/firestoreLite.ts` `liteDb` + functions from
+`firebase/firestore/lite` — never mix its refs/snapshots with the full SDK) via `lib/publicApi.ts`
+(books, settings, pages, shipping profiles, visits; `adminApi` re-exports these). Admin, Checkout and
+Account keep the full SDK from `lib/firebase.ts`. Shopper code that needs the signed-in user calls
+`restoredUser()` / `loadAuth()` from `lib/authSession.ts`, which loads Auth only when the browser may hold a
+saved sign-in. Storefront animations use `m.*` from `motion/react` under the `LazyMotion` +
+`MotionConfig reducedMotion="user"` wrapper in `App.tsx` (engine in `lib/motionFeatures.ts`, domAnimation:
+no layout/drag); don't put CSS `transition-all`/`transition-transform` on an element motion animates.
+The prerender blocks Lite's REST writes (`documents:commit`). Check with `npx vite build`: the `index-*.js`
+entry was ~205 KB gzipped after this change.
+
 ## Storefront loading performance (4 October 2026)
 
 Storefront components share one catalog/settings/published-pages bootstrap request, including
@@ -949,7 +965,7 @@ per edition when set; `packingInfo` in `fulfillment.ts`). Books are public-reada
 
 ## reCAPTCHA / App Check
 
-Invisible reCAPTCHA Enterprise initializes before Firestore/Auth in src/lib/firebase.ts.
+Invisible reCAPTCHA Enterprise initializes before Firestore/Auth in src/lib/firebaseApp.ts.
 Use functionFetch from src/app/lib/functionsBase.ts for every browser HTTP Function
 request and onBrowserRequest in functions/index.js for its server handler. Keep signed
 provider webhooks and emailed digital-download links outside browser attestation.
@@ -1205,3 +1221,43 @@ summary notice (region `checkoutPreorder`), order-tracking note (region `trackin
 drawer › **Pre-order note** (`cartDrawerShowPreorder`); words in Text & labels › Product page (`pdpPreorder*`,
 `preorderButton`, `preorderBadge`), Cart (`cartPreorder*`), Checkout (`coPreorderNotice*`), Order tracking
 (`trackPreorder*`). Mixed bags ship together on the latest release. Deploy Functions with the frontend.
+
+## Gift cards, box sets, automatic discounts, add-ons and scheduled sales (9 October 2026)
+
+All five are priced on the server by **`priceOrder`** (`functions/index.js`), the one price builder every checkout
+path uses (card, PayPal, manual, free); `recalculateOrder` and the Stripe handler both call it. Pure rules live in
+`functions/promotions.js` (sale windows, add-ons, box sets, gift-card products), `functions/discountMath.js`
+(discount arithmetic, automatic choice, free gift) and `functions/giftCards.js` (codes, holds, debit/credit), mirrored
+for display in `features/site/promotions.ts` / `discountMath.ts` (`*.parity.test.ts`). Handler tests:
+`functions/promotionsCheckout.test.js`, `functions/giftCardSettlement.test.js`.
+
+- **Scheduled sales:** `saleStartsAt` / `saleEndsAt` (plain Toronto dates, inclusive) bound `isOnSale`/`salePrice`
+  (`saleActive`); `catalogUnitPrice` on both sides uses it, so badges and charges agree.
+- **Paid add-ons:** book `addOns` (≤6: `{id,label,price,kind:"option"|"text",maxLength}`), priced per copy. Cart lines
+  carry `addOns` and a line key (different inscriptions = different lines); the server re-prices from the catalog and
+  saves `basePrice` + `addOns` (label, price, text) on the line. Never on gift cards or box sets.
+- **Box sets:** a book with `bundleItems` (≤20 parts `{bookId,variantId,quantity}`) sells at its own price with no stock
+  of its own. Order lines store `components`; `promotions.stockLines` expands them inside `stockChanges`,
+  `readBooks` and `linesByBook`, so holds, sales, refunds and inspected returns (`returnRestockItems`) move the real
+  books. Available sets = `bundleAvailable` (the storefront derives box-set stock the same way).
+- **Automatic discounts:** `discounts` with `method: "automatic"`, `code: ""` and a shopper-facing `title`, loaded by
+  `loadAutomaticDiscounts` and never redeemable by code. **One discount per order:** a code replaces automatic offers;
+  otherwise the biggest saving wins and free shipping applies only when no money-off offer does
+  (`pickAutomaticDiscount`). `type: "gift"` (free gift with purchase: `giftBookId`/`giftVariantId`) adds a
+  `promoGift` line from the catalog whose price is the discount; browser-sent gift lines are always dropped. Saved as
+  `appliedDiscount { id, code: null, automatic: true, title }`, counted like codes. Checkout reads offers via
+  `validateDiscountCode` `{ action: "automaticDiscounts" }`.
+- **Gift cards:** a book with `productType: "giftCard"` (editions = amounts) is digital, never discounted or taxed and
+  can't be paid with another gift card. Paid lines issue one card per copy in `onOrderUpdated`
+  (`issueGiftCardsForOrder`, once via `giftCardsIssuedAt`) and email it (template `gift_card`). Cards live in
+  admin-read/server-write `giftCards/{sha256(code)}` with `balanceMinor` (CAD cents) and 30-minute `holds`.
+  Checkout's code list goes on the order as `giftCards` (rules allow ≤5); `priceOrder` writes `giftCardAmount` +
+  `giftCardRedemptions`, and **`total` is what the card/PayPal pays after gift cards**. Holds are taken with stock
+  (`reserveCheckout`); the balance is debited only inside the paid transaction (`settleGiftCards`: Stripe webhook,
+  verified PayPal capture, `completeOrderWithoutCard`), once (`giftCardsDebitedAt`); a short balance records
+  `giftCardConflict` and leaves the order unpaid (Needs attention). A full refund credits it back once
+  (`giftCardsRestoredAt`) and disables cards the order bought (`giftCardsVoidedAt`). Orders a gift card fully covers
+  use the free path (`completeFreeOrder`); manual payments refuse gift cards; hosted Stripe sessions refuse them.
+  Shopper balance check: `validateDiscountCode` `{ action: "giftCardBalance" }` (rate limited). Admin actions:
+  `createStripeCheckoutSession` `{ action: "giftCardAdmin", op: issue|setEnabled|adjust|resend }` (`requireAdmin`).
+  Deploy `firestore.rules` and Functions with the frontend.

@@ -1,5 +1,5 @@
 import { regionProps } from "../features/site/storefrontRegions";
-import { motion } from "motion/react";
+import { m } from "motion/react";
 import { StorefrontThemeStyle } from "../features/site/StorefrontThemeStyle";
 import { useLiveDesign } from "../features/site/useSiteData";
 import { getCopy } from "../features/site/storeCopy";
@@ -12,7 +12,7 @@ export function BootSplash() {
       <StorefrontThemeStyle design={design} />
       <div {...regionProps("loadingArtwork")} className="absolute -left-[8vw] top-[12vh] h-44 w-[62vw] -rotate-6 bg-[var(--accent)] opacity-90 mix-blend-screen" />
       <div {...regionProps("loadingArtwork")} className="absolute -right-[10vw] bottom-[10vh] h-48 w-[64vw] rotate-6 bg-[var(--accent-2)] opacity-80 mix-blend-screen" />
-      <motion.div
+      <m.div
         initial={{ opacity: 0, y: 18 }}
         animate={{ opacity: 1, y: 0 }}
         className="relative flex w-[min(86vw,34rem)] flex-col items-center"
@@ -25,14 +25,14 @@ export function BootSplash() {
         </p>
         <p {...regionProps("loadingSubtitle")} className="mt-5 text-[10px] font-black uppercase tracking-[0.64em]">{getCopy(design, "loadingSub")}</p>
         <div {...regionProps("loadingProgress")} className="mt-12 h-2 w-full overflow-hidden border border-[var(--rp-outline)]" aria-hidden="true">
-          <motion.div
+          <m.div
             className="h-full w-1/3 bg-[var(--accent)]"
             animate={{ x: ["-100%", "300%"] }}
             transition={{ duration: 1.35, repeat: Infinity, ease: "easeInOut" }}
           />
         </div>
         <span {...regionProps("loadingStatus")} className="mt-3 self-start text-[9px] font-black uppercase tracking-[0.32em]">{getCopy(design, "loadingStatus")}</span>
-      </motion.div>
+      </m.div>
     </div>
   );
 }

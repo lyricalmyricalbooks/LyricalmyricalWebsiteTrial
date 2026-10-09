@@ -33,7 +33,7 @@ export const STYLE_TARGET_FIELDS: Record<string, RegExp> = {
   "Breadcrumb": /^(pdpShowBreadcrumb|pdpShowBackLink|pdpMeta)/,
   "Bag heading": /^(cartDrawer(Title|Meta|ShowCount|Padding|Edge))/,
   "Free-shipping bar": /^(showFreeShipBar|cartDrawerProgress)/,
-  "Bag line items": /^(cartDrawer(ShowItemNumbers|ShowPreorder|Thumb|GrayscaleThumbs|ItemTitleSize|ShowUnitPrice|ShowLineTotal|QtyStyle|RemoveStyle|Border|Muted))/,
+  "Bag line items": /^(cartDrawer(ShowItemNumbers|ShowPreorder|ShowLineOptions|Thumb|GrayscaleThumbs|ItemTitleSize|ShowUnitPrice|ShowLineTotal|QtyStyle|RemoveStyle|Border|Muted))/,
   "Bag suggestion": /^(cartDrawer(ShowUpsell|UpsellShadow|Surface|GrayscaleThumbs))/,
   "Bag total & checkout": /^(cartDrawer(ShowSummary|TotalSize|Checkout|ShowCheckoutArrow|ShowDeliveryNote)|showCartTrustBadges)/,
 };
@@ -491,6 +491,8 @@ export const STYLE_GROUPS: StyleGroup[] = [
       { key: "checkoutSummaryOpenOnPhones", label: "Open the order summary by default on phones", kind: "toggle" },
       { key: "hidePayButtonTotal", label: "Hide the order total on the Pay button", kind: "toggle" },
       { key: "alwaysShowDiscountBox", label: "Always show the discount code box (instead of a link)", kind: "toggle" },
+      { key: "showCheckoutGiftCardBox", label: "Gift card box at checkout", kind: "toggle", defaultValue: true },
+      { key: "showCheckoutAutoDiscountHint", label: "Tell shoppers when an automatic offer beats their code", kind: "toggle", defaultValue: true },
       { key: "hideCheckoutFreeShipNudge", label: "Hide “add more for free shipping” in the order summary", kind: "toggle" },
       { key: "hideCheckoutLowStock", label: "Hide “only N left” in the order summary", kind: "toggle" },
       { key: "hideCheckoutPolicyLinks", label: "Hide the policy links under the Pay button", kind: "toggle" },
@@ -537,6 +539,7 @@ export const STYLE_GROUPS: StyleGroup[] = [
       { key: "cartDrawerShowUnitPrice", label: "Show price per copy", kind: "toggle", defaultValue: true },
       { key: "cartDrawerShowLineTotal", label: "Show line total (price × quantity)", kind: "toggle", defaultValue: true },
       { key: "cartDrawerShowPreorder", label: "Pre-order note under pre-ordered books", kind: "toggle", defaultValue: true },
+      { key: "cartDrawerShowLineOptions", label: "Extras, gift-card recipient & box-set contents under each book", kind: "toggle", defaultValue: true },
       { key: "cartDrawerQtyStyle", label: "Quantity buttons", kind: "select", defaultValue: "boxes", options: [{ value: "boxes", label: "Outlined boxes" }, { value: "pill", label: "Soft pill" }] },
       { key: "cartDrawerRemoveStyle", label: "Remove button", kind: "select", defaultValue: "text", options: [{ value: "text", label: "Word (Text & labels › Cart)" }, { value: "icon", label: "Bin icon" }] },
       // Upsell

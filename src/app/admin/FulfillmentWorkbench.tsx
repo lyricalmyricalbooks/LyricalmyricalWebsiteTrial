@@ -13,6 +13,7 @@ import {
   preorderShipDate,
 } from "./fulfillment";
 import { formatReleaseDate } from "../features/site/preorder";
+import { addOnLines, bundlePartsText, giftCardLineText, isFreeGiftLine, isGiftCardLine } from "./orderLines";
 import {
   Checkbox,
   PrimaryButton,
@@ -282,9 +283,19 @@ export function FulfillmentWorkbench({
                         {[item.variantName, item.format, item.sku]
                           .filter(Boolean)
                           .join(" · ")}
-                        {isDigitalItem(item) ? " · Digital" : ""}
+                        {isDigitalItem(item) && !isGiftCardLine(item) ? " · Digital" : ""}
                         {item.preorder ? ` · Pre-order${item.releaseDate ? ` (releases ${formatReleaseDate(item.releaseDate, "en-CA")})` : ""}` : ""}
                       </span>
+                      {isFreeGiftLine(item) && <span><StatusBadge tone="success">Free gift</StatusBadge></span>}
+                      {isGiftCardLine(item) && <span className="rp-hint">{giftCardLineText(item, order)}</span>}
+                      {bundlePartsText(item) && (
+                        <span className="fw-item-extra">Box set — includes {bundlePartsText(item)}{Number(item.quantity) > 1 ? " in each set" : ""}</span>
+                      )}
+                      {addOnLines(item).length > 0 && (
+                        <ul className="fw-item-addons" aria-label={`Extras for ${item.title}`}>
+                          {addOnLines(item).map((line, n) => <li key={n}><strong>{line}</strong>{Number(item.quantity) > 1 ? ` (each of ${item.quantity} copies)` : ""}</li>)}
+                        </ul>
+                      )}
                       {info.shelf && !isDigitalItem(item) && (
                         <span className="fw-item-shelf">Shelf {info.shelf}</span>
                       )}

@@ -71,7 +71,9 @@ service cloud.firestore {
         && request.resource.data.keys().hasOnly(['customer', 'cartId', 'customerId', 'referralSource', 'orderNote',
           'addressVerified', 'addressError', 'items', 'subtotal', 'discount', 'shipping', 'shippingMethod',
           'fulfillmentSelection', 'tax', 'total', 'status', 'paymentStatus', 'paymentMethod', 'paymentInstructions',
-          'testMode', 'appliedDiscount', 'metadata', 'trackingKey', 'orderId', 'createdAt', 'updatedAt', 'activity'])
+          'testMode', 'appliedDiscount', 'metadata', 'trackingKey', 'orderId', 'createdAt', 'updatedAt', 'activity', 'giftCards'])
+        // Gift card codes the shopper typed; the server prices and holds them (functions/giftCards.js).
+        && (!('giftCards' in request.resource.data) || (request.resource.data.giftCards is list && request.resource.data.giftCards.size() <= 5))
         && (request.resource.data.paymentMethod == "Stripe" || request.resource.data.paymentMethod == "PayPal" || request.resource.data.paymentMethod == "Free")
         && (!('paymentInstructions' in request.resource.data) || request.resource.data.paymentInstructions == "")
         && request.resource.data.customer.email is string
@@ -144,6 +146,11 @@ service cloud.firestore {
         && analyticsMapsOk()
       );
       allow delete: if isAdmin();
+    }
+    // Gift cards (functions/giftCards.js): the admin reads them; only Functions create, spend or change them.
+    match /giftCards/{cardId} {
+      allow read: if isAdmin();
+      allow write: if false;
     }
     match /discounts/{docId} {
       // Public code validation happens via the validateDiscountCode function.

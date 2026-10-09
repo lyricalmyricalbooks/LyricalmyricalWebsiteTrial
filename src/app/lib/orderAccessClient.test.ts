@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
-vi.mock("../../lib/firebase", () => ({ auth: { currentUser: null } }));
+vi.mock("../../lib/authSession", () => ({ restoredUser: async () => null }));
 import { rememberOrderAccess, savedOrderAccess, orderAccessHeaders, newOrderAccessKey } from "./orderAccessClient";
 afterEach(() => vi.unstubAllGlobals());
 describe("guest order authorization", () => {

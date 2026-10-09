@@ -16,6 +16,9 @@ vi.mock("firebase/auth", () => ({
 vi.mock("firebase/storage", () => ({ ref: vi.fn(), uploadBytes: vi.fn(), getDownloadURL: vi.fn() }));
 vi.mock("firebase/database", () => ({ ref: vi.fn(), get: vi.fn() }));
 vi.mock("../../lib/firebase", () => ({ db: {}, auth: { currentUser: null }, storage: {}, googleProvider: {} }));
+vi.mock("../../lib/firebaseApp", () => ({ app: {}, db: {}, appCheck: null, authState: { loaded: true } }));
+vi.mock("../../lib/firestoreLite", () => ({ liteDb: {} }));
+vi.mock("firebase/firestore/lite", () => import("firebase/firestore"));
 vi.mock("../../lib/legacyFirebase", () => ({ legacyDb: {}, legacyAuth: {} }));
 
 import { adminApi } from "./api";
@@ -28,28 +31,19 @@ describe("theme draft / publish separation", () => {
     vi.spyOn(adminApi, "recordAuditLog").mockResolvedValue(undefined as any);
   });
 
-  it("saving a draft writes draftDesign only and never touches the live design", async () => {
+  // Studio's draft itself is saved in the admin-only themes/workspace document (themeStore.test.ts).
+  it("a draft-only settings write never puts the design or a draft into the public document", async () => {
     await adminApi.updateSettings({ design: { primaryColor: "#e8402a" } }, { publish: false });
     const payload = lastWrite();
-    expect(payload.draftDesign).toEqual({ primaryColor: "#e8402a" });
     expect("design" in payload).toBe(false);
+    expect("draftDesign" in payload).toBe(false);
   });
 
-  it("publishing writes both the live design and the draft", async () => {
+  it("publishing writes the live design and no public draft copy", async () => {
     await adminApi.updateSettings({ design: { primaryColor: "#1b3fe0" } }, { publish: true });
     const payload = lastWrite();
     expect(payload.design).toEqual({ primaryColor: "#1b3fe0" });
-    expect(payload.draftDesign).toEqual({ primaryColor: "#1b3fe0" });
-  });
-
-  it("discarding a draft resets draftDesign to the published design and never writes design", async () => {
-    const published = { primaryColor: "#100f0d", sections: [{ type: "HeroSection" }] };
-    await adminApi.discardThemeDraft(published);
-    const payload = lastWrite();
-    expect(payload).toEqual({ draftDesign: published });
-    expect("design" in payload).toBe(false);
-    // The draft is a copy, not the same object reference.
-    expect(payload.draftDesign).not.toBe(published);
+    expect("draftDesign" in payload).toBe(false);
   });
 
   it("non-theme settings saves do not create a design or draft", async () => {

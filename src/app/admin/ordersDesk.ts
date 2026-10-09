@@ -54,6 +54,7 @@ export function rowStatus(o: any): { tone: "danger" | "warning" | "info" | "succ
   const q = queueOf(o);
   if (o.paymentMismatch?.paidAfterCancel && !o.paymentMismatch.resolvedAt && o.paymentStatus !== "paid") return { tone: "danger", text: "⚠ Paid after cancelling — refund" };
   if (o.paymentMismatch && !o.paymentMismatch.resolvedAt && o.paymentStatus !== "paid") return { tone: "danger", text: "⚠ Payment doesn't match" };
+  if (o.giftCardConflict && !o.giftCardConflict.resolvedAt && o.paymentStatus !== "paid") return { tone: "danger", text: "⚠ Gift card couldn't cover its part" };
   if (o.customerRequest?.status === "open") return { tone: "danger", text: o.customerRequest.type === "cancel" ? "⚠ Customer asks to cancel" : "⚠ Customer asks to return" };
   if (Array.isArray(o.duplicatePayments) && o.duplicatePayments.length) return { tone: "danger", text: "⚠ Paid twice — refund the extra" };
   if (o.disputeStatus === "needs_response") return { tone: "danger", text: "⚠ Dispute — respond in Stripe" };

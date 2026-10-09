@@ -1,4 +1,5 @@
 import { lineIsDigital } from "./digitalLine";
+import { orderLineNotes } from "./orderLineNotes";
 import { regionProps } from "./storefrontRegions";
 import { getTrackingUrl } from "../../lib/tracking";
 import { accountsEnabled } from "./customerAccounts";
@@ -386,7 +387,7 @@ function AccountContent() {
 
   if (authLoading) {
     return (
-      <div data-fm-store data-studio-target="copy:Customer account|style:colors" data-studio-label="Account page" className="min-h-screen fm-page text-white flex items-center justify-center">
+      <div data-fm-store data-studio-target="copy:Customer account|style:colors|style:accounts" data-studio-label="Account page" className="min-h-screen fm-page text-white flex items-center justify-center">
         <StorefrontThemeStyle design={settings?.design} />
         <Loader2 size={24} className="animate-spin" style={{ color: "var(--accent)" }} />
       </div>
@@ -395,7 +396,7 @@ function AccountContent() {
 
   if (!user) {
     return (
-      <div data-fm-store data-studio-target="copy:Customer account|style:colors" data-studio-label="Account page" className="min-h-screen fm-page text-white flex flex-col items-center justify-center px-6 relative overflow-hidden">
+      <div data-fm-store data-studio-target="copy:Customer account|style:colors|style:accounts" data-studio-label="Account page" className="min-h-screen fm-page text-white flex flex-col items-center justify-center px-6 relative overflow-hidden">
         <StorefrontThemeStyle design={settings?.design} />
         <TemplateSections design={settings?.design} templateId="accountPage" books={books} />
         <GlobalSections design={settings?.design} books={books} />
@@ -523,7 +524,7 @@ function AccountContent() {
   }
 
   return (
-    <div data-fm-store data-studio-target="copy:Customer account|style:colors" data-studio-label="Account page" className="min-h-screen fm-page text-white relative overflow-hidden pb-24">
+    <div data-fm-store data-studio-target="copy:Customer account|style:colors|style:accounts" data-studio-label="Account page" className="min-h-screen fm-page text-white relative overflow-hidden pb-24">
       <StorefrontThemeStyle design={settings?.design} />
       {/* Background glow */}
       <div {...regionProps("accountGlow")} className="fixed top-0 right-0 w-[600px] h-[600px] blur-[120px] rounded-full pointer-events-none -mr-64 -mt-64" style={{ backgroundColor: "rgba(var(--accent-rgb), 0.05)" }} />
@@ -886,6 +887,11 @@ function AccountContent() {
                                 </div>
                                 <div className="flex-grow min-w-0">
                                   <p className="text-[11px] font-black text-white uppercase tracking-wider truncate">{item.title}</p>
+                                  {orderLineNotes(item, (k, v) => getCopy(settings?.design, k, v), "account").length > 0 && (
+                                    <ul {...regionProps("accountLineDetails")} className="list-none p-0 m-0 mt-1">
+                                      {orderLineNotes(item, (k, v) => getCopy(settings?.design, k, v), "account").map((note, n) => <li key={n} className="text-[9px] fm-muted font-mono">{note}</li>)}
+                                    </ul>
+                                  )}
                                   <p className="text-[9px] fm-muted font-mono mt-1">{getCopy(settings?.design, "qtyLine", { qty: item.quantity })} × {money(item.price, o)}</p>
                                 </div>
                               </div>

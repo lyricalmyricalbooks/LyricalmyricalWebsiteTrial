@@ -20,3 +20,14 @@ describe("discountPerformance", () => {
     expect(c).not.toHaveProperty("usageCount");
   });
 });
+
+describe("automatic offers", () => {
+  it("counts automatic offers under their id and duplicates them by title", async () => {
+    const { perfKey } = await import("./discountPerformance");
+    const m = discountPerformance([{ paymentStatus: "paid", total: 20, discount: 5, appliedDiscount: { id: "d1", code: null, automatic: true, title: "Fall" } }]);
+    expect(m.get(perfKey({ id: "d1", method: "automatic" }))).toMatchObject({ orders: 1, discountGiven: 5 });
+    const copy = duplicateDiscount({ id: "d1", method: "automatic", code: "", title: "Fall", usageCount: 3 }, []);
+    expect(copy).toMatchObject({ code: "", title: "Fall (copy)", isActive: false });
+    expect(copy).not.toHaveProperty("id");
+  });
+});

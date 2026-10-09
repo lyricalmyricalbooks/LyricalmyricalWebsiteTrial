@@ -11,8 +11,8 @@ import {
   getDoc,
   deleteField,
   deleteDoc,
-} from "firebase/firestore";
-import { db } from "../../lib/firebase";
+} from "firebase/firestore/lite";
+import { liteDb } from "../../lib/firestoreLite";
 
 export type Review = {
   id: string;
@@ -46,7 +46,7 @@ export const reviewsApi = {
   },
 
   list: async (bookId: string, includePending = false): Promise<Review[]> => {
-    const base = collection(db, "reviews");
+    const base = collection(liteDb, "reviews");
     const q = includePending
       ? query(base, where("bookId", "==", bookId), orderBy("createdAt", "desc"), limit(50))
       : query(
@@ -66,11 +66,11 @@ export const reviewsApi = {
     const payload = { ...publicFields, title: publicFields.title || "", status: "pending" as const, createdAt };
     // The review is public once approved; the reviewer's email goes to admin-only
     // reviewContacts under the same id, written together.
-    const ref = doc(collection(db, "reviews"));
-    const batch = writeBatch(db);
+    const ref = doc(collection(liteDb, "reviews"));
+    const batch = writeBatch(liteDb);
     batch.set(ref, payload);
     const cleanEmail = String(email || "").trim().slice(0, 254);
-    if (cleanEmail) batch.set(doc(db, "reviewContacts", ref.id), { email: cleanEmail, createdAt });
+    if (cleanEmail) batch.set(doc(liteDb, "reviewContacts", ref.id), { email: cleanEmail, createdAt });
     await batch.commit();
     clearApprovedCache();
     return { id: ref.id, ...payload };
@@ -83,12 +83,12 @@ export const reviewsApi = {
   contactsFor: async (reviews: Review[]): Promise<Record<string, string>> => {
     const out: Record<string, string> = {};
     if (!legacyEmailsMoved) {
-      const all = await getDocs(collection(db, "reviews"));
+      const all = await getDocs(collection(liteDb, "reviews"));
       const legacy = all.docs.filter(d => d.data().email);
       for (let i = 0; i < legacy.length; i += 200) {
-        const batch = writeBatch(db);
+        const batch = writeBatch(liteDb);
         for (const d of legacy.slice(i, i + 200)) {
-          batch.set(doc(db, "reviewContacts", d.id), { email: String(d.data().email), createdAt: d.data().createdAt || new Date().toISOString() });
+          batch.set(doc(liteDb, "reviewContacts", d.id), { email: String(d.data().email), createdAt: d.data().createdAt || new Date().toISOString() });
           batch.update(d.ref, { email: deleteField() });
           out[d.id] = String(d.data().email);
         }
@@ -97,25 +97,25 @@ export const reviewsApi = {
       legacyEmailsMoved = true;
     }
     await Promise.all(reviews.filter(r => !out[r.id]).map(async r => {
-      const snap = await getDoc(doc(db, "reviewContacts", r.id)).catch(() => null);
+      const snap = await getDoc(doc(liteDb, "reviewContacts", r.id)).catch(() => null);
       if (snap?.exists()) out[r.id] = String(snap.data().email || "");
     }));
     return out;
   },
 
   setStatus: async (id: string, status: Review["status"]) => {
-    await updateDoc(doc(db, "reviews", id), { status });
+    await updateDoc(doc(liteDb, "reviews", id), { status });
     clearApprovedCache();
   },
 
   setReply: async (id: string, body: string) => {
     const text = body.trim().slice(0, 1000);
-    await updateDoc(doc(db, "reviews", id), { reply: text ? { body: text, at: new Date().toISOString() } : null });
+    await updateDoc(doc(liteDb, "reviews", id), { reply: text ? { body: text, at: new Date().toISOString() } : null });
     clearApprovedCache();
   },
 
   remove: async (id: string) => {
-    await deleteDoc(doc(db, "reviews", id));
+    await deleteDoc(doc(liteDb, "reviews", id));
     clearApprovedCache();
   },
 

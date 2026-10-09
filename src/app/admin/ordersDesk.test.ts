@@ -45,5 +45,8 @@ describe("orders desk", () => {
     expect(rowStatus({ ...paid("X", "2026-10-06T00:00:00Z"), disputeStatus: "needs_response" }).tone).toBe("danger");
     expect(rowStatus({ paymentStatus: "unpaid", paymentMismatch: { ok: false } }).text).toMatch(/doesn't match/);
     expect(rowStatus(orders[3]).text).toMatch(/Waiting on payment/);
+    const conflict = { id: "GC", paymentStatus: "unpaid", giftCardConflict: { reason: "balance" }, items: [{ id: "b", quantity: 1 }] };
+    expect(rowStatus(conflict)).toMatchObject({ tone: "danger", text: expect.stringMatching(/Gift card/) });
+    expect(deskOrders([conflict], "needs").map((o) => o.id)).toEqual(["GC"]);
   });
 });

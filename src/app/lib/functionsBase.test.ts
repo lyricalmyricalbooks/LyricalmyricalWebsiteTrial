@@ -3,7 +3,8 @@ import { functionFetch } from "./functionsBase";
 import { copyErrorText } from "../features/site/storeCopy";
 const { token, state } = vi.hoisted(() => ({ token: vi.fn(), state: { appCheck: {} as object | null } }));
 vi.mock("firebase/app-check", () => ({ getToken: token }));
-vi.mock("../../lib/firebase", () => ({ get appCheck() { return state.appCheck; } }));
+vi.mock("../../lib/firebaseApp", () => ({ get appCheck() { return state.appCheck; } }));
+vi.mock("../../lib/authSession", () => ({ restoredUser: async () => null }));
 
 beforeEach(() => { vi.stubEnv("VITE_APP_CHECK_MODE", "monitor"); state.appCheck = {}; token.mockReset(); token.mockResolvedValue({ token: "valid-token" }); });
 afterEach(() => { vi.unstubAllEnvs(); vi.unstubAllGlobals(); });
