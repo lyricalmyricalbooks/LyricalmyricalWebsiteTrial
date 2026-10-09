@@ -10,6 +10,11 @@ export type AppUpdate = {
 // Newest first. Every PR adds an entry; links open the affected admin workspace.
 export const APP_UPDATES: AppUpdate[] = [
   {
+    id: "orders-tracking-link-oct-2026", date: "2026-10-09", title: "Adding a tracking link to the shipping email is easier",
+    summary: "When an order is ready to ship, press Enter tracking & mark shipped (it used to say \"I made my own label\") to type the carrier, tracking number and, if you like, your own tracking link. That link is what the Track shipment button in the customer's shipping email opens; leave it blank and the email uses the carrier's own tracking page. Orders with a Shippo label now show the same box before you mark them shipped, so you can check or change the link. After an order ships you can fix the link from Edit tracking (or Edit tracking link for Shippo orders), and the order shows a Customer's tracking link to check what the customer sees. Fixing a link doesn't send the customer another email; use Resend shipping email if you want them to get the new one.",
+    links: [{ label: "Open Orders", tab: "orders" }],
+  },
+  {
     id: "studio-2-command-palette", date: "2026-10-09", title: "Find anything does more, and Show on page always lands somewhere",
     summary: "In the Design studio, Find anything (Ctrl+K, ⌘K on a Mac) now starts with what you can do to whatever you've selected — duplicate, hide, move or copy the style of a section, or open a page part in Theme settings — then the things you opened recently. It also finds the parts of the page you're previewing (like the buy card or the bag) and your books (it opens that book's page). Type > first to see commands only; each command shows its keyboard shortcut. A search that says \"phone\" or \"tablet\" now opens that screen size's setting. Show on page in Theme settings now waits for the page to finish loading, works for Customer accounts and Badges, and when a part isn't on the page (for example it's switched off) it opens that part's settings instead. Behind the scenes, unpublished designs are now only ever saved in the studio's private storage, never in the settings your shop's visitors download.",
     links: [{ label: "Open the Design studio", tab: "settings", settingsTab: "designer" }],

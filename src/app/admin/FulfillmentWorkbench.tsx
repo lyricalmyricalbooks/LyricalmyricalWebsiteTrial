@@ -12,6 +12,7 @@ import {
   packingInfo,
   preorderShipDate,
 } from "./fulfillment";
+import { getTrackingUrl } from "../lib/tracking";
 import { formatReleaseDate } from "../features/site/preorder";
 import { addOnLines, bundlePartsText, giftCardLineText, isFreeGiftLine, isGiftCardLine } from "./orderLines";
 import {
@@ -39,7 +40,6 @@ type Props = {
   onResendEmail?: () => void;
   onCheckAll?: (indices: number[]) => void;
   onPackingSlip?: () => void;
-  onHandedOver?: () => void;
   onLocalAdvance: () => void;
   onRelease: () => void;
   /** Pre-ordered books arrived early: let an "Awaiting release" order be packed now. */
@@ -60,7 +60,6 @@ export function FulfillmentWorkbench({
   onResendEmail,
   onCheckAll,
   onPackingSlip,
-  onHandedOver,
   onLocalAdvance,
   onRelease,
   onReleasePreorder,
@@ -370,8 +369,8 @@ export function FulfillmentWorkbench({
                 )}
                 <p className="fw-summary">
                   {order.labelUrl
-                    ? `Label bought · ${order.trackingCarrier || "Carrier"} · ${order.trackingNumber || "Tracking pending"}. Print it, hand the parcel to the carrier, then confirm dispatch to email the customer.`
-                    : "Buy the label through Shippo, or make your own label and enter its tracking. The customer is emailed when you confirm dispatch."}
+                    ? `Label bought · ${order.trackingCarrier || "Carrier"} · ${order.trackingNumber || "Tracking pending"}. Print it, hand the parcel to the carrier, then mark it shipped — you can add or check the tracking link the customer's email uses.`
+                    : "Buy a Shippo label, or enter the carrier, tracking number and tracking link yourself. The customer's shipping email uses them when you mark it shipped."}
                 </p>
                 <div className="fw-actions">
                   {order.labelUrl ? (
@@ -385,7 +384,7 @@ export function FulfillmentWorkbench({
                         <ExternalLink size={14} aria-hidden="true" />
                         Print label
                       </a>
-                      <PrimaryButton onClick={onHandedOver || onDispatch} disabled={busy}>
+                      <PrimaryButton onClick={onDispatch} disabled={busy}>
                         Parcel handed over — mark shipped
                       </PrimaryButton>
                     </>
@@ -395,7 +394,7 @@ export function FulfillmentWorkbench({
                         Buy Shippo label
                       </PrimaryButton>
                       <SecondaryButton disabled={busy} onClick={onDispatch}>
-                        I made my own label
+                        Enter tracking &amp; mark shipped
                       </SecondaryButton>
                     </>
                   )}
@@ -423,6 +422,18 @@ export function FulfillmentWorkbench({
                 {order.trackingCarrier || "Carrier"} ·{" "}
                 {order.trackingNumber || "No tracking recorded"}
                 {order.fulfillmentStatus === "out_for_delivery" ? " · Out for delivery" : ""}
+                {order.trackingNumber && (
+                  <>
+                    {" · "}
+                    <a
+                      href={getTrackingUrl(order.trackingCarrier || "", order.trackingNumber, order.trackingUrl)}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                    >
+                      Customer's tracking link <ExternalLink size={12} aria-hidden="true" />
+                    </a>
+                  </>
+                )}
               </p>
               {isOverdueInTransit(order) && (
                 <p className="fw-problems" role="alert">
@@ -447,9 +458,9 @@ export function FulfillmentWorkbench({
                       Resend shipping email
                     </SecondaryButton>
                   )}
-                  {onEditTracking && !order.labelUrl && (
+                  {onEditTracking && (
                     <SecondaryButton disabled={busy} onClick={onEditTracking}>
-                      Edit tracking
+                      {order.labelUrl ? "Edit tracking link" : "Edit tracking"}
                     </SecondaryButton>
                   )}
                 </div>
