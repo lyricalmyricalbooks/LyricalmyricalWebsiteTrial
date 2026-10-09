@@ -12,9 +12,8 @@ import {
   where,
   limit,
   increment,
-} from "firebase/firestore";
-import { db } from "../../lib/firebase";
-import { adminApi } from "../admin/api";
+} from "firebase/firestore/lite";
+import { liteDb } from "../../lib/firestoreLite";
 
 export type FulfillmentStatus =
   | "pending_payment"
@@ -55,10 +54,12 @@ export const orderApi = {
     status: FulfillmentStatus,
     note?: string,
   ) => {
-    await updateDoc(doc(db, "orders", orderId), {
+    await updateDoc(doc(liteDb, "orders", orderId), {
       fulfillmentStatus: status,
       updatedAt: new Date().toISOString(),
     });
+    // Admin-only path: load the admin API on demand so the shopper bundle never carries it.
+    const { adminApi } = await import("../admin/api");
     await adminApi.addOrderNote(
       orderId,
       note || `Fulfillment status changed to ${FULFILLMENT_LABELS[status]}.`,
@@ -68,7 +69,7 @@ export const orderApi = {
   bulkSetStatus: async (orderIds: string[], status: FulfillmentStatus) => {
     await Promise.all(
       orderIds.map(id =>
-        updateDoc(doc(db, "orders", id), {
+        updateDoc(doc(liteDb, "orders", id), {
           fulfillmentStatus: status,
           updatedAt: new Date().toISOString(),
         }),
@@ -164,7 +165,7 @@ export const abandonedCartApi = {
     },
   ) => {
     if (!payload.email) return;
-    const ref = doc(db, "abandoned-carts", cartKey);
+    const ref = doc(liteDb, "abandoned-carts", cartKey);
     const now = new Date().toISOString();
     // createdAt/recovered are set once: later saves must not reset the cart's
     // age or reopen a cart that was already bought (firestore.rules forbids that).
@@ -184,7 +185,7 @@ export const abandonedCartApi = {
 
   markRecovered: async (cartKey: string) => {
     try {
-      await updateDoc(doc(db, "abandoned-carts", cartKey), {
+      await updateDoc(doc(liteDb, "abandoned-carts", cartKey), {
         recovered: true,
         recoveredAt: new Date().toISOString(),
       });
@@ -194,7 +195,7 @@ export const abandonedCartApi = {
   list: async (max = 100) => {
     const snap = await getDocs(
       query(
-        collection(db, "abandoned-carts"),
+        collection(liteDb, "abandoned-carts"),
         orderBy("updatedAt", "desc"),
         limit(max),
       ),
@@ -216,7 +217,7 @@ async function bump(patch: Record<string, Record<string, ReturnType<typeof incre
   if (!(await trackingAllowed())) return;
   const today = dayKey();
   try {
-    await setDoc(doc(db, "analytics", today), { date: today, ...patch }, { merge: true });
+    await setDoc(doc(liteDb, "analytics", today), { date: today, ...patch }, { merge: true });
   } catch {
     // best-effort
   }

@@ -1,7 +1,7 @@
 import { layerDesign } from "../features/site/designModel";
 import { CartShippingPreview } from "./CartShippingPreview";
 import { useEffect, useMemo, useRef, useState } from "react";
-import { motion, AnimatePresence } from "motion/react";
+import { m, AnimatePresence } from "motion/react";
 import { useNavigate } from "react-router";
 import { useCart, catalogUnitPrice, MAX_LINE_QUANTITY, repriceCart } from "../CartContext";
 import { quickAddChoice } from "../features/site/buyable";
@@ -13,13 +13,13 @@ import { StorefrontThemeStyle } from "../features/site/StorefrontThemeStyle";
 import { cartDrawerCss, cartDrawerFontNames, cartDrawerWidth } from "../features/site/cartDrawerStyle";
 import { googleFontHref } from "../features/site/fonts";
 import { useFocusTrap } from "../lib/useFocusTrap";
-import { adminApi } from "../admin/api";
+import { publicApi } from "../lib/publicApi";
 import { catalogFulfillmentItems } from "../features/site/checkoutFulfillment";
 import { bagFreeShipThreshold } from "../features/site/freeShipThreshold";
 
 // Shipping rules are read once per visit (public collection) the first time the bag opens.
 let shippingProfilesLoad: Promise<any[] | null> | null = null;
-const loadShippingProfiles = () => (shippingProfilesLoad ||= adminApi.getShippingProfiles().catch(() => { shippingProfilesLoad = null; return null; }));
+const loadShippingProfiles = () => (shippingProfilesLoad ||= publicApi.getShippingProfiles().catch(() => { shippingProfilesLoad = null; return null; }));
 import { X, ShoppingBag, Minus, Plus as PlusIcon, Trash2, ArrowRight, ShieldCheck, Truck, Lock } from "lucide-react";
 
 // The shopping bag. Its look is the Studio › Style › "Cart drawer (shopping bag)" group (CSS from
@@ -68,6 +68,8 @@ export function CartDrawer() {
   const showNumbers = design.cartDrawerShowItemNumbers ?? true;
   const showUnitPrice = design.cartDrawerShowUnitPrice ?? true;
   const showPreorder = design.cartDrawerShowPreorder ?? true;
+  // Extras (signed copy, inscription), gift-card recipient and box-set contents under each line.
+  const showLineOptions = design.cartDrawerShowLineOptions ?? true;
   const showLineTotal = design.cartDrawerShowLineTotal ?? true;
   const showUpsell = design.cartDrawerShowUpsell ?? true;
   const showSummary = design.cartDrawerShowSummary ?? true;
@@ -101,14 +103,14 @@ export function CartDrawer() {
     <AnimatePresence>
       {isCartOpen && (
         <>
-          <motion.div
+          <m.div
             initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
             onClick={() => setIsCartOpen(false)}
             aria-hidden="true"
             className={`fixed inset-0 z-[60] ${backdropBlur ? "backdrop-blur-sm" : ""}`}
             style={{ backgroundColor: design.cartDrawerBackdropColor || "rgba(0, 0, 0, 0.55)" }}
           />
-          <motion.div
+          <m.div
             ref={drawerRef}
             role="dialog"
             data-studio-target="style:cartDrawer|copy:Cart" data-studio-label="Cart drawer"
@@ -159,9 +161,13 @@ export function CartDrawer() {
               {cart.length > 0 && (
                 <ul data-studio-target="style:cartDrawer|copy:Cart" data-studio-label="Bag line items" className="fm-bag-pad">
                   {cart.map((item, idx) => {
-                    const atLimit = typeof item.stockLimit === "number" && item.stockLimit !== 999 && item.quantity >= item.stockLimit;
+                    const key = item.lineKey || `${item.id}::${item.variantId || ""}`;
+                    // Lines of the same edition with different extras share its stock.
+                    const siblings = cart.filter((other) => other !== item && other.id === item.id && (other.variantId || "") === (item.variantId || "")).reduce((n, other) => n + other.quantity, 0);
+                    const atLimit = typeof item.stockLimit === "number" && item.stockLimit !== 999 && item.quantity + siblings >= item.stockLimit;
+                    const giftTo = item.giftCardDetails ? (item.giftCardDetails.recipientName || item.giftCardDetails.recipientEmail || "").trim() : "";
                     return (
-                      <li key={`${item.id}-${item.variantId || ""}`} className="fm-bag-item flex gap-4 py-5">
+                      <li key={key} className="fm-bag-item flex gap-4 py-5">
                         {showNumbers && <span className="fm-bag-num pt-0.5" aria-hidden="true">{pad2(idx + 1)}</span>}
                         <div className="fm-bag-thumb">
                           {item.photoUrl && <img src={item.photoUrl} alt="" loading="lazy" decoding="async" className={`w-full h-full object-cover ${grayscaleThumbs ? "grayscale" : ""}`} />}
@@ -172,23 +178,31 @@ export function CartDrawer() {
                             {showLineTotal && <span className="fm-bag-line">{formatPrice(item.price * item.quantity)}</span>}
                           </div>
                           {item.variantName && <p className="fm-bag-meta">{item.variantName}</p>}
+                          {showLineOptions && (item.addOns || []).map((addOn) => (
+                            <p key={addOn.id} className="fm-bag-meta fm-bag-addon">
+                              {getCopy(design, "cartAddOnLine", { label: addOn.label })}
+                              {addOn.text ? <> {getCopy(design, "cartAddOnText", { text: addOn.text })}</> : null}
+                            </p>
+                          ))}
+                          {showLineOptions && item.giftCard && <p className="fm-bag-meta fm-bag-giftcard">{giftTo ? getCopy(design, "cartGiftCardTo", { recipient: giftTo }) : getCopy(design, "cartGiftCardSelf")}</p>}
+                          {showLineOptions && item.bundle && (item.bundleCount || 0) > 0 && <p className="fm-bag-meta fm-bag-boxset">{getCopy(design, "cartBoxSetIncludes", { count: item.bundleCount as number })}</p>}
                           {showPreorder && linePreorderNote(item, (k, v) => getCopy(design, k, v)) && <p className="fm-bag-meta fm-bag-preorder">{linePreorderNote(item, (k, v) => getCopy(design, k, v))}</p>}
                           {showUnitPrice && <p className="fm-bag-meta">{getCopy(design, "cartEachLabel", { price: formatPrice(item.price) })}</p>}
                           <div className="flex items-center justify-between gap-3 mt-auto pt-2">
                             <div className="fm-bag-qty" data-style={qtyStyle} role="group" aria-label={getCopy(design, "cartQtyAria", { title: item.title })}>
-                              <button onClick={() => updateQuantity(item.id, item.variantId, -1)} disabled={item.quantity <= 1} aria-label={getCopy(design, "cartDecreaseAria", { title: item.title })} className="fm-bag-qty-btn min-w-[40px] min-h-[40px] flex items-center justify-center disabled:opacity-30 transition-colors"><Minus size={12} /></button>
+                              <button onClick={() => updateQuantity(key, -1)} disabled={item.quantity <= 1} aria-label={getCopy(design, "cartDecreaseAria", { title: item.title })} className="fm-bag-qty-btn min-w-[40px] min-h-[40px] flex items-center justify-center disabled:opacity-30 transition-colors"><Minus size={12} /></button>
                               <span className="fm-bag-qty-n" aria-live="polite" aria-atomic="true">{item.quantity}</span>
-                              <button onClick={() => updateQuantity(item.id, item.variantId, 1)} disabled={atLimit || item.quantity >= MAX_LINE_QUANTITY} aria-label={getCopy(design, "cartIncreaseAria", { title: item.title })} className="fm-bag-qty-btn min-w-[40px] min-h-[40px] flex items-center justify-center disabled:opacity-30 transition-colors"><PlusIcon size={12} /></button>
+                              <button onClick={() => updateQuantity(key, 1)} disabled={atLimit || item.quantity >= MAX_LINE_QUANTITY} aria-label={getCopy(design, "cartIncreaseAria", { title: item.title })} className="fm-bag-qty-btn min-w-[40px] min-h-[40px] flex items-center justify-center disabled:opacity-30 transition-colors"><PlusIcon size={12} /></button>
                             </div>
                             <button
-                              onClick={() => removeFromCart(item.id, item.variantId)}
+                              onClick={() => removeFromCart(key)}
                               aria-label={getCopy(design, "cartRemoveAria", { title: item.title })}
                               className="fm-bag-remove fm-bag-meta min-h-[44px] min-w-[44px] flex items-center justify-center transition-colors"
                             >
                               {removeAsIcon ? <Trash2 size={14} aria-hidden="true" /> : getCopy(design, "cartRemoveLabel")}
                             </button>
                           </div>
-                          {atLimit && <p className="fm-bag-warn fm-bag-meta" role="status">{getCopy(design, "cartOnlyAvailable", { count: item.stockLimit as number })}</p>}
+                          {atLimit && <p className="fm-bag-warn fm-bag-meta" role="status">{getCopy(design, "cartOnlyAvailable", { count: Math.max(0, (item.stockLimit as number) - siblings) })}</p>}
                         </div>
                       </li>
                     );
@@ -258,7 +272,7 @@ export function CartDrawer() {
                 {showDeliveryNote && <p className="fm-bag-meta text-center" style={{ textTransform: "none", letterSpacing: "0.02em" }}>{getCopy(design, "cartDeliveryNote")}</p>}
               </div>
             )}
-          </motion.div>
+          </m.div>
         </>
       )}
     </AnimatePresence>

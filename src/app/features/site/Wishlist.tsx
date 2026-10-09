@@ -14,8 +14,16 @@ import { useCurrency } from "../../CurrencyContext";
 import { StorefrontThemeStyle } from "./StorefrontThemeStyle";
 import { getCopy } from "./storeCopy";
 import { GlobalSections, TemplateSections } from "../../components/sectionRender";
+import { StoreChrome, useInStoreChrome } from "./StoreChrome";
 
+/** The wishlist, inside the one shop header and footer (Studio 2.0 · 2.1). */
 export default function WishlistPage() {
+  return <StoreChrome surface="wishlistPage"><WishlistContent /></StoreChrome>;
+}
+
+function WishlistContent() {
+  // Under the shop header this title bar is a plain row, not a second <header>.
+  const TitleBar = useInStoreChrome() ? "div" : "header";
   const { ids, remove } = useWishlist();
   const { books, settings, loading } = useSiteData();
   const { addToCart } = useCart();
@@ -47,13 +55,13 @@ export default function WishlistPage() {
   return (
     <div data-fm-store data-studio-target="copy:Collection & wishlist pages" data-studio-label="Wishlist page" className="min-h-screen fm-page text-white">
       <StorefrontThemeStyle design={settings?.design} />
-      <header {...regionProps("wishlistHeader")} className="border-b border-white/10 px-6 py-5 flex items-center justify-between">
+      <TitleBar {...regionProps("wishlistHeader")} className="border-b border-white/10 px-6 py-5 flex items-center justify-between">
         <Link to="/" className="flex items-center gap-2 text-[10px] tracking-[0.3em] text-white/50 hover:text-white uppercase">
           <ArrowLeft size={14} /> {getCopy(settings?.design, "backToCatalog")}
         </Link>
         <span {...regionProps("wishlistTitle")} className="text-[10px] tracking-[0.4em] text-white/40 uppercase">{getCopy(settings?.design, "wishlistTitle")}</span>
         <span {...regionProps("wishlistCount")} className="text-[10px] tracking-[0.4em] text-white/40 uppercase">{getCopy(settings?.design, "wishlistCount", { count: items.length })}</span>
-      </header>
+      </TitleBar>
 
       {items.length === 0 ? (
         <div {...regionProps("wishlistEmpty")} className="flex flex-col items-center justify-center py-32 gap-6">
@@ -76,7 +84,7 @@ export default function WishlistPage() {
             const choice = quickAddChoice(book);
             const out = !choice.inStock;
             return (
-              <article key={book.id} className="group">
+              <article key={book.id} className="fm-card group">
                 <Link to={`/books/${slug}`} className="block">
                   <div {...regionProps("wishlistPhoto")} className="relative aspect-[3/4] fm-surface rounded-2xl overflow-hidden mb-3 border border-white/[0.05]">
                     <img loading="lazy" decoding="async"

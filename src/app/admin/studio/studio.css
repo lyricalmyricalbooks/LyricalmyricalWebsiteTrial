@@ -108,6 +108,9 @@
 .studio-find-main small { font-size: 11px; color: var(--rp-text-subtle); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .studio-find-kind { flex: 0 0 64px; font-size: 9px; font-weight: 800; letter-spacing: .08em; text-transform: uppercase; text-align: center; padding: 3px 0; border: 1px solid var(--rp-border); border-radius: 3px; color: var(--rp-text-subtle); }
 .studio-find-kind[data-kind=action] { background: var(--rp-primary-tint); color: var(--rp-primary-text); border-color: transparent; }
+.studio-find-group { padding: 8px 12px 4px; font: 700 10px/1.2 var(--rp-font-mono, "DM Mono", monospace); letter-spacing: .08em; text-transform: uppercase; color: var(--rp-text-subtle); border-bottom: 1px solid var(--rp-divider); background: var(--rp-surface, transparent); }
+.studio-find-main { flex: 1 1 auto; }
+.studio-find-keys { flex: 0 0 auto; margin-left: auto; font: 500 11px/1 var(--rp-font-mono, "DM Mono", monospace); padding: 3px 6px; border: 1px solid var(--rp-border); border-radius: 3px; color: var(--rp-text-subtle); white-space: nowrap; }
 .studio-topbar kbd { font: 600 10px/1 var(--rp-font-mono, monospace); padding: 2px 5px; border: 1px solid var(--rp-border); border-radius: 3px; color: var(--rp-text-subtle); }
 /* Studio organization: readable navigation, category browsing and clear editing context. */
 .studio-sidebar { width: 320px; }
@@ -314,3 +317,53 @@
 .studio-media-usage ul { display: grid; gap: 4px; list-style: none; margin: 0; padding: 0; font-size: 12px; }
 .studio-media-usage small { color: var(--rp-text-subtle); }
 .studio-media .studio-field { display: grid; gap: 6px; margin: 0; }
+
+/* Theme settings › Colour schemes (StudioColorSchemes.tsx) */
+.studio-scheme-list { display: grid; gap: 10px; margin: 0 0 12px; padding: 0; list-style: none; }
+.studio-scheme { border: var(--rp-stroke, 2px) solid var(--rp-border-strong); background: var(--rp-surface); }
+.studio-scheme-head { width: 100%; display: grid; grid-template-columns: minmax(0, 1fr); gap: 8px; padding: 10px; text-align: left; }
+.studio-scheme-head:hover { background: var(--rp-primary-tint); }
+.studio-scheme-name { display: flex; align-items: baseline; justify-content: space-between; gap: 8px; }
+.studio-scheme-name strong { font-size: 13px; }
+.studio-scheme-name small { font-size: 11px; color: var(--rp-text-muted); }
+.studio-scheme-swatch { display: grid; gap: 8px; padding: 10px 12px; border: 1px solid; font-size: 12px; }
+.studio-scheme-swatch-row { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
+.studio-scheme-swatch-row strong { font-size: 18px; line-height: 1; }
+.studio-scheme-swatch-tag { padding: 2px 8px; font-size: 10px; font-weight: 800; text-transform: uppercase; letter-spacing: .08em; }
+.studio-scheme-swatch-panel { padding: 3px 8px; border: 1px solid; }
+.studio-scheme-swatch-button { padding: 4px 10px; font-weight: 800; }
+.studio-scheme-contrast { display: flex; flex-wrap: wrap; gap: 6px; margin: 0; padding: 0 10px 10px; list-style: none; }
+.studio-scheme-contrast .rp-badge { height: auto; min-height: 24px; white-space: normal; }
+.studio-scheme-body { display: grid; gap: 12px; padding: 12px 10px; border-top: 1px solid var(--rp-divider); }
+.studio-scheme-field { display: grid; gap: 4px; font-size: 11px; font-weight: 700; }
+.studio-scheme-field input { min-height: 36px; padding: 0 10px; border: 1px solid var(--rp-border); background: var(--rp-input-bg, var(--rp-surface)); font-size: 13px; font-weight: 500; }
+.studio-scheme-roles { display: grid; gap: 10px; }
+.studio-scheme-role-hint { display: block; margin-top: 3px; font-size: 11px; color: var(--rp-text-muted); }
+.studio-scheme-legacy { display: grid; gap: 8px; padding: 10px; background: var(--rp-surface-sunken); font-size: 12px; line-height: 1.5; }
+.studio-scheme-actions { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; }
+
+/* Catalog pickers (2.3): link / book / books / category / page / video / font fields (StudioPickers.tsx) */
+.studio-field-picker { display: grid; gap: 6px; min-width: 0; }
+.studio-field-picker-current { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; min-width: 0; }
+.studio-field-picker-summary { flex: 1; min-width: 0; display: grid; gap: 1px; margin: 0; font-size: 12px; font-weight: 700; color: var(--rp-text); overflow-wrap: anywhere; }
+.studio-field-picker-summary small { font-size: 10px; font-weight: 600; color: var(--rp-text-subtle); }
+.studio-field-picker-summary em { font-style: normal; font-weight: 500; color: var(--rp-text-subtle); }
+.studio-field-picker-summary[data-missing], .studio-field-picker-list li[data-missing] span { color: var(--rp-warning); }
+.studio-field-picker-button { display: inline-flex; align-items: center; gap: 4px; min-height: 34px; padding: 6px 10px; border: 1px solid var(--rp-border-strong); background: var(--rp-surface); color: var(--rp-text); font-size: 11px; font-weight: 800; white-space: nowrap; }
+.studio-field-picker-button:hover { background: var(--rp-primary-tint); }
+.studio-field-picker-add { justify-content: center; width: 100%; border-style: dashed; }
+.studio-field-picker-icon { display: inline-grid; place-items: center; min-width: 30px; min-height: 30px; border: 1px solid var(--rp-border); background: var(--rp-surface); color: var(--rp-text); }
+.studio-field-picker-icon:disabled { opacity: .35; }
+.studio-field-picker-input { width: 100%; min-height: 36px; padding: 6px 10px; border: 1px solid var(--rp-border); background: var(--rp-input-bg); color: var(--rp-text); font-size: 12px; }
+.studio-field-picker-note { font-size: 11px; color: var(--rp-text-subtle); }
+.studio-field-picker-note[data-tone=warn] { color: var(--rp-warning); }
+.studio-field-picker-list { list-style: none; margin: 0; padding: 0; display: grid; gap: 4px; }
+.studio-field-picker-list li { display: flex; align-items: center; gap: 4px; padding: 4px 4px 4px 8px; border: 1px solid var(--rp-border); background: var(--rp-surface); font-size: 12px; }
+.studio-field-picker-list li span { flex: 1; min-width: 0; display: grid; overflow-wrap: anywhere; }
+.studio-field-picker-list li small { font-size: 10px; color: var(--rp-text-subtle); }
+/* Inside a field the search list opens in place, so a docked inspector never clips it. */
+.studio-field-picker-panel { position: static; width: auto; min-width: 0; margin: 0; box-shadow: 3px 3px 0 var(--rp-border-strong); }
+.studio-field-picker-panel .studio-picker-search input { width: 100%; min-width: 0; }
+.studio-field-picker-summary { flex-basis: 8em; }
+.studio-field-picker-panel .studio-picker-list { max-height: 260px; }
+.studio-field-picker-close { margin-top: 6px; font-size: 11px; text-decoration: underline; color: var(--rp-text-subtle); }

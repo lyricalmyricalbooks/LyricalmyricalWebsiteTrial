@@ -1,6 +1,7 @@
 import { displayPrice } from "./features/site/displayPrice";
 import React, { createContext, useContext, useState, useEffect } from "react";
 import { ChevronDown } from "lucide-react";
+import { saleActive } from "./features/site/promotions";
 
 export type Currency = "CAD" | "USD" | "EUR";
 
@@ -127,7 +128,7 @@ export function CurrencyProvider({ children }: { children: React.ReactNode }) {
   const getVariantPrice = (variant: any, parentBook?: any) => {
     if (!variant) return 0;
     // Same rule as getBookPrice: CAD converted at today's rate, as charged.
-    const base = variant.price || (parentBook ? (parentBook.isOnSale && parentBook.salePrice > 0 ? parentBook.salePrice : parentBook.retailPrice) : 0) || 0;
+    const base = variant.price || (parentBook ? (saleActive(parentBook) ? parentBook.salePrice : parentBook.retailPrice) : 0) || 0;
     return base * (rates[currency] || 1.0);
   };
 

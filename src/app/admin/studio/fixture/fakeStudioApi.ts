@@ -4,10 +4,11 @@
 import { DEFAULT_SETTINGS } from "../../../features/site/constants";
 import { mediaApi } from "../../mediaApi";
 import type { MediaItem } from "../mediaLibrary";
+import { setThemeBackend, ThemeConflictError } from "../../themeStore";
 
 export type FixtureCall = { method: string; args: any[] };
 export type StudioFixture = {
-  calls: FixtureCall[]; settings: any; pages: any[]; books: any[]; versions: any[];
+  calls: FixtureCall[]; settings: any; pages: any[]; books: any[]; versions: any[]; rev: number;
   /** Studio › Media records. `mediaDenied` acts as if the media Firestore rules weren't deployed yet. */
   media: MediaItem[]; mediaDenied?: boolean;
 };
@@ -42,7 +43,7 @@ export function createStudioFixture(overrides: Partial<StudioFixture> = {}): Stu
   const settings = overrides.settings ?? clone({ ...DEFAULT_SETTINGS, design: (DEFAULT_SETTINGS as any).design || {} });
   if (!settings.draftDesign) settings.draftDesign = clone(settings.design);
   return {
-    calls: [], settings, pages: clone(overrides.pages ?? FIXTURE_PAGES), books: clone(overrides.books ?? FIXTURE_BOOKS), versions: overrides.versions ?? [],
+    calls: [], rev: 0, settings, pages: clone(overrides.pages ?? FIXTURE_PAGES), books: clone(overrides.books ?? FIXTURE_BOOKS), versions: overrides.versions ?? [],
     media: clone(overrides.media ?? FIXTURE_MEDIA), mediaDenied: overrides.mediaDenied,
   };
 }
@@ -54,15 +55,6 @@ export function installFakeStudioApi(api: Record<string, any>, fixture: StudioFi
     getPages: async () => clone(fixture.pages),
     getCategoryBooks: async () => clone(fixture.books),
     listThemeVersions: async () => clone(fixture.versions),
-    updateSettings: async (patch: any, options: { publish?: boolean } = {}) => {
-      record("updateSettings", patch, options);
-      if (patch.design) {
-        fixture.settings.draftDesign = clone(patch.design);
-        if (options.publish) fixture.settings.design = clone(patch.design);
-      }
-      for (const [k, v] of Object.entries(patch)) if (k !== "design") fixture.settings[k] = clone(v);
-    },
-    discardThemeDraft: async (design: any) => { record("discardThemeDraft", design); fixture.settings.draftDesign = clone(design); },
     saveThemeVersion: async (kind: string, label: string, design: any) => {
       record("saveThemeVersion", kind, label);
       const version = { id: `v${fixture.versions.length + 1}`, kind, label, createdAt: new Date().toISOString(), design: clone(design) };
@@ -89,10 +81,26 @@ export function installFakeStudioApi(api: Record<string, any>, fixture: StudioFi
   };
   const originals: Record<string, any> = {};
   for (const [name, fn] of Object.entries(fake)) { originals[name] = api[name]; api[name] = fn; }
+  // Studio's draft store (admin/themeStore.ts): Save draft, Publish and Discard are recorded as
+  // `saveDesign` with ({ design }, { publish }), the shape checks assert on.
+  const restoreBackend = setThemeBackend({
+    open: async () => ({ draft: clone(fixture.settings.draftDesign), rev: fixture.rev, savedThemes: clone(fixture.settings.savedThemes || []) }),
+    write: async (expectedRev, draft, live) => {
+      if (expectedRev !== fixture.rev) throw new ThemeConflictError({ draft: clone(fixture.settings.draftDesign), rev: fixture.rev });
+      record("saveDesign", { design: draft }, { publish: Boolean(live) });
+      fixture.settings.draftDesign = clone(draft);
+      if (live) fixture.settings.design = clone(live);
+      return ++fixture.rev;
+    },
+    saveThemes: async (_previous, next) => { record("saveThemes", next); fixture.settings.savedThemes = clone(next); },
+    fieldUpdate: async fields => { record("draftFieldUpdate", fields); Object.assign(fixture.settings.draftDesign, clone(fields)); },
+    readField: async key => clone(fixture.settings.draftDesign?.[key]),
+  });
   const media = mediaApi as Record<string, any>;
   const mediaOriginals: Record<string, any> = {};
   for (const [name, fn] of Object.entries(fakeMedia)) { mediaOriginals[name] = media[name]; media[name] = fn; }
   return () => {
+    restoreBackend();
     for (const [name, fn] of Object.entries(originals)) api[name] = fn;
     for (const [name, fn] of Object.entries(mediaOriginals)) media[name] = fn;
   };

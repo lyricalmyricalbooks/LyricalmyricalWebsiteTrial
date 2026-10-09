@@ -24,13 +24,14 @@ import {
   patchSectionSettings, redo, removeSection, sameDesign, setSections, toggleSection, undo, undoLabel, redoLabel, moveSection,
   resolveSharedBlocks, type Section, type SectionTarget, type SharedBlock,
 } from "./studioModel";
-import { STATIC_SURFACES, STYLE_GROUPS, STYLE_TARGET_FIELDS, applyGlobalStyle, readStyle, regionStyleFields, type StyleField, type StyleGroup } from "./styleSchema";
+import { STATIC_SURFACES, STYLE_GROUPS, STYLE_TARGET_FIELDS, applyGlobalStyle, readStyle, regionStyleFields, schemeFieldOptions, type StyleField, type StyleGroup } from "./styleSchema";
+import { StudioColorSchemes } from "./StudioColorSchemes";
 import { StudioPages } from "./StudioPages";
 import { StudioCategories } from "./StudioCategories";
 import { categoryNavOrder } from "./categoryManager";
 import { PREVIEW_BRIDGE_SOURCE } from "./previewBridge";
 import { RISO_NOIR_ID, RISO_NOIR_TOKENS } from "../../features/site/risoNoir";
-import { addSavedTheme, duplicateSavedTheme, savedThemesBytes, savedThemesFit, parseThemeFile, removeSavedTheme, renameSavedTheme, serializeThemeFile, themeFileName, type SavedTheme } from "./savedThemes";
+import { addSavedTheme, duplicateSavedTheme, parseThemeFile, removeSavedTheme, renameSavedTheme, serializeThemeFile, themeFileName, type SavedTheme } from "./savedThemes";
 import { PAYMENT_BADGE_OPTIONS, resolveFooterBadges } from "../../features/site/paymentBadges";
 import { HOME_LAYOUT_TEMPLATES } from "./homeLayouts";
 import { applyThemeKeysToSurfaces } from "../themeScope";
@@ -42,7 +43,8 @@ import { elementTabs, type ElementRef } from "./elementCatalog";
 import { buildPageStructure, primaryTarget, readStructure, structurePath, type PageStructure, type StructureItem } from "./pageStructure";
 import { StudioInspector } from "./StudioInspector";
 import { StudioSearch } from "./StudioSearch.tsx";
-import { buildStudioIndex, type SearchEntry } from "./studioSearch";
+import { buildStudioIndex, contextCommands, searchedDevice, type SearchEntry } from "./studioSearch";
+import { resolveProductRoutes } from "../../features/site/productRoutes";
 import { autoFitSections, autoFitRegions } from "./autoMobile";
 import { applyCanvasAction, applyPageStyle, buildPreviewState, deliverPreviewState, findSectionOwner, moveBlockTo, moveSectionTo, PAGE_STYLE_GROUPS, PREVIEW_CHANNEL, previewRoute, sectionEntries, updateSectionsById, withDraftPage } from "./studioWorkflow";
 import { sectionStyleFields, SPACING_CARD_KEYS } from "./sectionStyleSchema";
@@ -70,6 +72,7 @@ import { currentOption, pickerOptions, type PickerOption } from "./templatePicke
 import { loadUiState, saveUiState, uiStateKey, type Zoom } from "./studioUiState";
 import { auth } from "../../../lib/firebase";
 import type { StudioLocation } from "../../lib/studioLocation";
+import { StudioPickerProvider } from "./StudioPickers";
 import "./studio.css";
 
 type LeftTab = "sections" | "style" | "text" | "menus" | "pages" | "media";
@@ -342,7 +345,7 @@ export function StudioEditor({ settings, onExit, onPersisted, appearance = "ligh
   onPersisted?: (design: any, published: boolean) => void;
 }) {
   const defaults = useMemo(() => adminApi.getDefaultSettings().design, []);
-  const [workspace] = useState<Workspace>(() => openedWorkspace ?? { mode: "legacy", draft: settings?.draftDesign ?? settings?.design, rev: 0, savedThemes: settings?.savedThemes || [] });
+  const [workspace] = useState<Workspace>(() => openedWorkspace ?? { draft: settings?.draftDesign ?? settings?.design, rev: 0, savedThemes: settings?.savedThemes || [] });
   const [hist, setHist] = useState(() => initHistory(normalizeDesign(settings?.draftDesign ?? settings?.design, defaults)));
   const design = hist.present;
   const [savedDraft, setSavedDraft] = useState<any>(design);
@@ -351,6 +354,8 @@ export function StudioEditor({ settings, onExit, onPersisted, appearance = "ligh
   const [pageLoadError, setPageLoadError] = useState(false);
   const [pageBusy, setPageBusy] = useState(false);
   const [books, setBooks] = useState<any[]>([]);
+  // Link / book / category / page pickers search what Studio already loaded (StudioPickers.tsx).
+  const pickerData = useMemo(() => ({ books, pages, categories: design?.categories || [] }), [books, pages, design?.categories]);
   // The page open in Studio › Pages with unsaved edits — shown in the preview only, never saved from here.
   const [draftPage, setDraftPage] = useState<any | null>(null);
   // Where you were last time (this browser): page, workspace, device, zoom.
@@ -459,7 +464,8 @@ export function StudioEditor({ settings, onExit, onPersisted, appearance = "ligh
   }, []);
   useEffect(() => {
     loadPages();
-    adminApi.getCategoryBooks().then((b: any[]) => { const published = (b || []).filter(x => x.status === "published" || !x.status); setBooks(published); setProductSlug(current => published.some(x => x.slug === current) ? current : published[0]?.slug || ""); }).catch(() => say("err", "Could not load preview products. Reopen Studio to retry."));
+    adminApi.getCategoryBooks().then((b: any[]) => { // Same collision-safe routes as the storefront (missing or shared slugs use the book id).
+    const published = resolveProductRoutes((b || []).filter(x => x.status === "published" || !x.status)); setBooks(published); setProductSlug(current => published.some(x => x.slug === current) ? current : published[0]?.slug || ""); }).catch(() => say("err", "Could not load preview products. Reopen Studio to retry."));
   }, [loadPages]);
   // Media's delete guard reads the retained versions itself (they may not be loaded in History yet).
   const fetchVersions = useCallback(() => adminApi.listThemeVersions() as Promise<ThemeVersion[]>, []);
@@ -521,13 +527,6 @@ export function StudioEditor({ settings, onExit, onPersisted, appearance = "ligh
     say("ok", `“${theme.name}” applied to the draft (sections and text kept) — Publish to make it live.`, { label: "Undo", run: () => setHist(undo) });
   };
   const persistThemes = async (next: SavedTheme[], okText: string) => {
-    // In the legacy layout every saved theme sits inside settings/website (one 1 MiB Firestore doc):
-    // refuse to grow past the budget there (shrinking, e.g. delete, is always allowed). In the private
-    // store each theme is its own document, so there is no shared budget.
-    if (workspace.mode === "legacy" && savedThemesBytes(next) > savedThemesBytes(savedThemes) && !savedThemesFit(next)) {
-      say("err", "Not enough room for another saved theme. Delete one under My themes, then try again.");
-      return;
-    }
     try { await saveSavedThemes(workspace, savedThemes, next); setSavedThemes(next); say("ok", okText); }
     catch (err: any) { say("err", `Could not save themes: ${err?.message || err}`); }
   };
@@ -564,7 +563,8 @@ export function StudioEditor({ settings, onExit, onPersisted, appearance = "ligh
     else setStyle(path, value);
   };
 
-  const renderStyleField = (g: StyleGroup, f: StyleField) => {
+  const renderStyleField = (g: StyleGroup, field: StyleField) => {
+    const f = schemeFieldOptions(field, colorSchemes);
     const local = styleScope === "page" && PAGE_STYLE_GROUPS.has(g.id);
     const region = REGION_GROUPS.find(group => group.id === g.id)?.regions.find(r => f.key.startsWith('regions.' + r.id));
     const values = { ...design.regions, ...(local ? design[template.id]?.regions : {}) };
@@ -784,26 +784,38 @@ export function StudioEditor({ settings, onExit, onPersisted, appearance = "ligh
   };
   // Theme settings › "Show on page": open the page where a category's part appears, then select that
   // part in the inspector once the preview has reported its structure (opening a pop-over if needed).
-  const pendingShow = useRef<null | { group: string; overlayOpened: boolean; until: number }>(null);
+  // Scans keep arriving while the page loads, so it waits up to 8s; if the part never shows (switched
+  // off, or it needs content first) the category's own settings open instead of a dead end.
+  const pendingShow = useRef<null | { group: string; overlayOpened: boolean; until: number; timer: number }>(null);
+  const categoryTitle = (id: string) => EXTRA_STYLE_CATEGORIES[id]?.title || STYLE_GROUPS.find(g => g.id === id)?.title || id;
   const showOnPage = (groupId: string) => {
     const where = CATEGORY_PAGES[groupId]; if (!where) return;
-    pendingShow.current = { group: groupId, overlayOpened: false, until: Date.now() + 8000 };
+    if (pendingShow.current) window.clearTimeout(pendingShow.current.timer);
+    const request = { group: groupId, overlayOpened: false, until: Date.now() + 8000, timer: 0 };
+    request.timer = window.setTimeout(() => {
+      if (pendingShow.current !== request) return;
+      pendingShow.current = null;
+      setLeftTab("style"); setStyleCategory(groupId); setMobilePanel("outline");
+      say("ok", `${categoryTitle(groupId)} isn't showing on this page right now — it may be switched off or need content first. Its settings are open instead.`);
+    }, 8000);
+    pendingShow.current = request;
     setStyleCategory(null); setStyleFocus(null); setSelectedId(null); setBlockId(null); setShowGlobal(false);
     setLeftTab("sections"); setMobilePanel("preview");
-    if (where.template && where.template !== template.id) setTemplateId(where.template);
+    // Already on a custom page counts as "a custom page"; otherwise switch, which reloads the preview.
+    const next = where.template === "page" && template.id.startsWith("page:") ? template.id : where.template;
+    if (next && next !== template.id) setTemplateId(next);
     else postPreview({ type: "SCAN_STRUCTURE" });
   };
+  useEffect(() => () => { if (pendingShow.current) window.clearTimeout(pendingShow.current.timer); }, []);
   useEffect(() => {
     const want = pendingShow.current; if (!want || !structure) return;
-    if (Date.now() > want.until) { pendingShow.current = null; return; }
     const all = (items: StructureItem[]): StructureItem[] => items.flatMap(i => [i, ...all(i.children)]);
     const found = all([...structure.header, ...structure.main, ...structure.footer, ...structure.overlay, ...structure.page])
       .find(i => i.target.split("|").includes(`style:${want.group}`));
-    if (found) { pendingShow.current = null; openStructureItem(found); return; }
+    if (found) { window.clearTimeout(want.timer); pendingShow.current = null; openStructureItem(found); return; }
     const overlay = CATEGORY_PAGES[want.group]?.overlay;
-    if (overlay && !want.overlayOpened) { want.overlayOpened = true; setMode("edit"); postPreview({ type: "OPEN_OVERLAY", overlay }); return; }
-    pendingShow.current = null;
-    say("ok", "That part isn't on this page right now. Pick a page where it shows with Page to edit, then click it in the preview.");
+    if (overlay && !want.overlayOpened) { want.overlayOpened = true; setMode("edit"); postPreview({ type: "OPEN_OVERLAY", overlay }); }
+    // Otherwise keep waiting: the page may still be loading. The timer opens the settings if it never shows.
   }, [structure]); // eslint-disable-line react-hooks/exhaustive-deps
   // preview → editor messages
   useEffect(() => {
@@ -1075,6 +1087,15 @@ export function StudioEditor({ settings, onExit, onPersisted, appearance = "ligh
   };
 
   // ── Find anything (Ctrl/Cmd+K): one search over every control, word, page, section and action ──
+  // Built-in parts of the previewed page (header, buy card, bag…), so they can be found by name.
+  const structureElements = useMemo(() => {
+    if (!structure) return [];
+    const zones: [string, StructureItem[]][] = [["Header", structure.header], ["Page", structure.main], ["Footer", structure.footer], ["Pop-overs", structure.overlay], ["Whole page", structure.page]];
+    const out: { key: string; label: string; where: string; target: string }[] = [];
+    const walk = (items: StructureItem[], where: string) => items.forEach(i => { out.push({ key: i.key, label: i.label, where, target: i.target }); walk(i.children, `${where} › ${i.label}`); });
+    for (const [zone, items] of zones) walk(items, `This page › ${zone}`);
+    return out;
+  }, [structure]);
   const searchIndex = useMemo(() => buildStudioIndex({
     styleGroups: [...STYLE_GROUPS, ...Object.entries(EXTRA_STYLE_CATEGORIES).map(([id, c]) => ({ id, title: c.title, hint: c.blurb, fields: [] }))],
     copySchema: COPY_SCHEMA, templates, pages,
@@ -1083,7 +1104,34 @@ export function StudioEditor({ settings, onExit, onPersisted, appearance = "ligh
       ...Object.fromEntries(templates.map(t => [t.id, getSections(design, { kind: "template", id: t.id })])),
     },
     sectionLabel: (type: string) => getSectionMeta(type)?.label || type,
-  }), [design, templates, pages]);
+    elements: structureElements,
+    books,
+  }), [design, templates, pages, structureElements, books]);
+  // Commands for the current selection, offered first in Find anything.
+  const selectedIndex = selected ? sections.findIndex(x => x.id === selected.id) : -1;
+  const paletteContext = useMemo(() => contextCommands({
+    section: selected && selectedIndex >= 0 ? { id: selected.id, label: sectionTitle(selected).label, visible: selected.visible !== false, first: selectedIndex === 0, last: selectedIndex === sections.length - 1 } : undefined,
+    element: selectedElement ? { label: selectedElement.label || "Page part", hasTheme: elementTabs(selectedElement, device as RegionDevice, design).styleGroups.length > 0 } : undefined,
+    canPasteStyle: Boolean(copiedStyle),
+  }), [selected, selectedIndex, sections.length, selectedElement, copiedStyle, device, design]);
+  const runContext = (id: string) => {
+    const sid = selected?.id;
+    switch (id) {
+      case "section-duplicate": runShortcut("duplicate"); break;
+      case "section-delete": runShortcut("delete"); break;
+      case "section-up": runShortcut("moveUp"); break;
+      case "section-down": runShortcut("moveDown"); break;
+      case "section-hide": if (sid) outlineActions.setVisible([sid], false); break;
+      case "section-show": if (sid) outlineActions.setVisible([sid], true); break;
+      case "section-copy": if (sid) outlineActions.copy(sid); break;
+      case "section-copy-style": if (sid) outlineActions.copyStyle(sid); break;
+      case "section-paste-style": if (sid) outlineActions.pasteStyle([sid]); break;
+      case "section-move-page": if (sid) outlineActions.moveToPage([sid]); break;
+      case "section-save": if (sid) outlineActions.saveForReuse(sid); break;
+      case "element-theme": if (selectedElement) openElementInTheme(selectedElement); break;
+      case "element-close": closeElement(); break;
+    }
+  };
   useEffect(() => { if (leftTab !== "pages") setOpenPage(null); }, [leftTab]);
 
   const flashPanel = (selector: string, focusInside = false) => setTimeout(() => {
@@ -1127,10 +1175,18 @@ export function StudioEditor({ settings, onExit, onPersisted, appearance = "ligh
       case "add-section": setLeftTab("sections"); setAdding(sections.length); break;
     }
   };
-  const goToResult = (entry: SearchEntry) => {
+  const goToResult = (entry: SearchEntry, query = "") => {
     const t = entry.target;
     setMobilePanel("outline");
     if (t.type === "action") { runAction(t.id); return; }
+    if (t.type === "context") { runContext(t.id); return; }
+    if (t.type === "element") {
+      const item = structure && [...structure.header, ...structure.main, ...structure.footer, ...structure.overlay, ...structure.page]
+        .flatMap(function all(i: StructureItem): StructureItem[] { return [i, ...i.children.flatMap(all)]; }).find(i => i.key === t.key);
+      if (item) { setLeftTab("sections"); openStructureItem(item); } else say("err", "That part isn't on the page in the preview any more.");
+      return;
+    }
+    if (t.type === "book") { setSelectedId(null); setBlockId(null); setShowGlobal(false); setProductSlug(t.slug); setTemplateId("productPage"); setLeftTab("sections"); return; }
     if (t.type === "tab") { setLeftTab(t.tab); setStyleFocus(null); setSelectedId(null); setBlockId(null); return; }
     if (t.type === "style") {
       setSelectedId(null); setBlockId(null); setStyleSearch(""); setStyleCategory(t.groupId); setStyleFocus(null); setLeftTab("style");
@@ -1141,8 +1197,11 @@ export function StudioEditor({ settings, onExit, onPersisted, appearance = "ligh
         return key!.startsWith(prefix) && REGION_SUFFIXES.includes(key!.slice(prefix.length));
       }) : undefined;
       if (region && key) {
+        // "…phone padding" opens the phone setting (and the phone preview); otherwise the size being previewed.
+        const asked = searchedDevice(query);
+        if (asked && asked !== device) setDevice(asked);
         const prefix = "regions." + regionKey(region.id, "", regionFieldDevice(key));
-        key = "regions." + regionKey(region.id, key.slice(prefix.length), device);
+        key = "regions." + regionKey(region.id, key.slice(prefix.length), asked || device);
         openRegion(t.groupId, region.label);
       }
       if (key) setFieldFocus({ key, nonce: Date.now() });
@@ -1324,6 +1383,10 @@ export function StudioEditor({ settings, onExit, onPersisted, appearance = "ligh
                     </button>
                   ))}
                 </div>
+                  </div>}
+                  {styleCategory === "schemes" && <div className="px-4 pb-4">
+                    <StudioColorSchemes design={design} change={change} confirm={askConfirm}
+                      onNotice={(text, canUndo) => say("ok", text, canUndo ? { label: "Undo", run: () => setHist(undo) } : undefined)} />
                   </div>}
                   {styleCategory === "paymentIcons" && <div className="px-4 pb-4 space-y-4">
                     <p className="studio-hint">Checkout itself always offers the methods enabled in Settings › Payments.</p>
@@ -1524,6 +1587,7 @@ export function StudioEditor({ settings, onExit, onPersisted, appearance = "ligh
   );
 
   return (
+    <StudioPickerProvider value={pickerData}>
     <div className="rp studio-editor" data-rp-appearance={appearance} data-studio-editor data-mobile-panel={mobilePanel}>
       {/* top bar */}
       <header className="studio-topbar">
@@ -1623,7 +1687,7 @@ export function StudioEditor({ settings, onExit, onPersisted, appearance = "ligh
           </section>)}
         </div>
       </Dialog>
-      <StudioSearch open={findOpen} onClose={() => setFindOpen(false)} index={searchIndex} onPick={goToResult} />
+      <StudioSearch open={findOpen} onClose={() => setFindOpen(false)} index={searchIndex} context={paletteContext} onPick={goToResult} />
       {adding !== null && <AddSectionDialog onPick={addSection} onClose={() => setAdding(null)} presets={design.sectionPresets || []} onPickPreset={addPreset} />}
       <Dialog open={historyOpen} onClose={() => { setHistoryOpen(false); setHistoryPreview(null); }} title="Version history" description="Every saved draft and publish is kept here. Previewing never changes your draft." size="lg">
         <div className="space-y-2 max-h-[60vh] overflow-auto">
@@ -1661,5 +1725,6 @@ export function StudioEditor({ settings, onExit, onPersisted, appearance = "ligh
         <div className="space-y-2">{[...designChecks(design), designSize(design)].map((r, i) => <p key={i} className={`p-3 rounded-lg text-sm ${r.tone === "warn" ? "bg-amber-50 text-amber-900" : "bg-emerald-50 text-emerald-900"}`}>{r.tone === "warn" ? "⚠" : "✓"} {r.text}</p>)}</div>
       </Dialog>
     </div>
+    </StudioPickerProvider>
   );
 }

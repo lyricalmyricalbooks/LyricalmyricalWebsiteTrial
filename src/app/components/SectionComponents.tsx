@@ -1,4 +1,4 @@
-import { motion, useMotionValue, useSpring } from "motion/react";
+import { m, useMotionValue, useSpring } from "motion/react";
 import { quickAddChoice } from "../features/site/buyable";
 import { displayPrice, showsSale } from "../features/site/displayPrice";
 import { createContext, useContext, useEffect, useId, useRef, useState } from "react";
@@ -11,7 +11,8 @@ import { resolveSharedBlocks } from "../features/site/sharedBlocks";
 import { UP_TO } from "../features/site/breakpoints";
 import { fb } from "./sectionFallbacks";
 import { submitContactMessage } from "../features/site/contactMessages";
-import { useSectionCopy } from "./sectionCopy";
+import { useSectionCopy, useSectionDesign } from "./sectionCopy";
+import { pickBook, sectionBookQuery, selectBooks } from "../features/site/merchandising";
 import { aspectRatioValue } from "../features/site/imageAspect";
 import { ResponsiveImage } from "./ResponsiveImage";
 import { mediaKey } from "../features/site/mediaRef";
@@ -23,14 +24,14 @@ import { mediaKey } from "../features/site/mediaRef";
 function AnimationContainer({ children, enabled, delay = 0 }: any) {
   if (!enabled) return children;
   return (
-    <motion.div
+    <m.div
       initial={{ opacity: 0, y: 20 }}
       whileInView={{ opacity: 1, y: 0 }}
       viewport={{ once: true, margin: "-100px" }}
       transition={{ duration: 0.8, delay, ease: [0.215, 0.61, 0.355, 1] }}
     >
       {children}
-    </motion.div>
+    </m.div>
   );
 }
 
@@ -242,7 +243,7 @@ function MagneticButton({ magnetic, children, className, style, onClick, ...rest
   };
 
   return (
-    <motion.button
+    <m.button
       ref={ref}
       className={className}
       style={{ ...style, x: springX, y: springY }}
@@ -252,7 +253,7 @@ function MagneticButton({ magnetic, children, className, style, onClick, ...rest
       {...rest}
     >
       {children}
-    </motion.button>
+    </m.button>
   );
 }
 
@@ -1159,10 +1160,7 @@ export function CollectionListSection({ settings, enableAnimations }: any) {
 
 export function FeaturedProductSection({ settings, books, onProductClick, enableAnimations }: any) {
   const { formatBookPrice } = useCurrency();
-  const target =
-    (books || []).find((b: any) => b.id === settings.productId) ||
-    (books || []).find((b: any) => b.slug === settings.productSlug) ||
-    (books || [])[0];
+  const target: any = pickBook(books, settings);
 
   if (!target) return null;
 
@@ -1207,20 +1205,12 @@ export function FeaturedProductSection({ settings, books, onProductClick, enable
 
 const productSlug = (book: any) => book?.slug || book?.title?.toLowerCase?.().replace(/[^a-z0-9]+/g, "-");
 
-// Shared product-source filter (All / Featured / Manual slugs) used by every
-// catalog-driven section. Note the model field is `isFeatured`; the legacy
-// `featured` key is kept as a fallback for older documents.
-function filterBooksBySource(books: any[], settings: any): any[] {
-  const manualSlugs = String(settings.manualSlugs || "")
-    .split(",")
-    .map((s: string) => s.trim())
-    .filter(Boolean);
-  const source = settings.productSource || "all";
-  return (books || []).filter((book: any) => {
-    if (source === "featured") return (book.isFeatured ?? book.featured) === true;
-    if (source === "manual") return manualSlugs.includes(productSlug(book));
-    return true;
-  });
+// Every catalog-driven section picks its books through one rule
+// (features/site/merchandising.ts `selectBooks`: all / featured / picked / category /
+// newest / on sale / pre-orders, plus sort). The shop's categories come from the page design.
+function useSectionBooks(books: any[], settings: any): any[] {
+  const design = useSectionDesign();
+  return selectBooks(books, sectionBookQuery(settings, design?.categories));
 }
 
 // Inline-SVG film grain (fractal noise) — self-contained data URI, safe under
@@ -1240,7 +1230,7 @@ function GrainOverlay({ opacity }: { opacity?: number }) {
 
 export function ProductGridHeaderSection({ settings, books, onProductClick, enableAnimations }: any) {
   const { formatBookPrice } = useCurrency();
-  const candidates = filterBooksBySource(books, settings);
+  const candidates = useSectionBooks(books, settings);
   const limit = Math.max(1, Math.min(24, settings.productLimit ?? 6));
   const items = candidates.slice(0, limit);
   const cols = Math.max(2, Math.min(6, settings.columnsDesktop ?? 3));
@@ -1301,7 +1291,7 @@ export function ProductGridHeaderSection({ settings, books, onProductClick, enab
                   type="button"
                   onClick={() => onProductClick?.(book)}
                   {...blockEditAttrs({ id: book.id || productSlug(book) }, idx)}
-                  className="group block w-full text-left"
+                  className="fm-card group block w-full text-left"
                 >
                   <div className="relative overflow-hidden bg-white/5" style={{ aspectRatio: aspect }}>
                     {book.photos?.[0]?.url && (
@@ -1349,7 +1339,7 @@ export function ProductGridHeaderSection({ settings, books, onProductClick, enab
 
 export function ProductCoverCarouselSection({ settings, books, onCtaClick }: any) {
   const sc = useSectionCopy();
-  const covers = filterBooksBySource(books, settings)
+  const covers = useSectionBooks(books, settings)
     .map((book: any) => ({ id: book.id || productSlug(book), url: book.photos?.[0]?.url, title: book.title }))
     .filter((c: any) => !!c.url)
     .slice(0, Math.max(1, Math.min(24, settings.productLimit ?? 12)));
@@ -1465,7 +1455,7 @@ export function ProductShowcaseGridSection({ settings, books, onProductClick, en
   const sc = useSectionCopy();
   const { formatBookPrice } = useCurrency();
   const { addToCart } = useCart();
-  const items = filterBooksBySource(books, settings).slice(0, Math.max(1, Math.min(24, settings.productLimit ?? 12)));
+  const items = useSectionBooks(books, settings).slice(0, Math.max(1, Math.min(24, settings.productLimit ?? 12)));
   const cols = Math.max(1, Math.min(4, settings.columnsDesktop ?? 3));
   const mobileCols = Math.max(1, Math.min(2, settings.columnsMobile ?? 1));
   const aspect = aspectRatioValue(settings.imageAspectRatio, "4 / 5");
@@ -1509,7 +1499,7 @@ export function ProductShowcaseGridSection({ settings, books, onProductClick, en
               <AnimationContainer key={book.id || idx} enabled={enableAnimations} delay={idx * 0.05}>
                 <div
                   {...blockEditAttrs({ id: book.id || productSlug(book) }, idx)}
-                  className="group relative cursor-pointer"
+                  className="fm-card group relative cursor-pointer"
                   role="link"
                   tabIndex={0}
                   aria-label={sc("sectionViewBook", { title: book.title })}

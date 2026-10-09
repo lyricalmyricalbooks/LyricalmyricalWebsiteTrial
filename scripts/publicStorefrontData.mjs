@@ -15,7 +15,7 @@ async function publicRead(url) {
   return response.json();
 }
 export async function readPublicStorefront() {
-  const config = await readFile(new URL('../src/lib/firebase.ts', import.meta.url), 'utf8');
+  const config = await readFile(new URL('../src/lib/firebaseApp.ts', import.meta.url), 'utf8');
   const project = config.match(/projectId:\s*"([^"]+)"/)?.[1];
   if (!project) throw new Error('Firebase project ID missing');
   const endpoint = `https://firestore.googleapis.com/v1/projects/${project}/databases/(default)/documents/`;

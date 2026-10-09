@@ -1,5 +1,8 @@
 type Field = { key: string; kind: string };
 
+/** Fields whose filled-in value counts as content. Picker kinds hold the same strings text fields did. */
+const CONTENT_KINDS = ["text", "textarea", "richtext", "html", "image", "link", "book", "books", "category", "page", "video"];
+
 /** Data-only theme checks kept independent of editor components for reliable tests. */
 export function designChecks(
   design: any,
@@ -35,7 +38,7 @@ export function designChecks(
 
   const results: { tone: "ok" | "warn"; text: string }[] = [];
   const empty = sections.filter((section: any) => {
-    const fields = schema.sectionFields(section.type).filter(field => ["text", "textarea", "richtext", "html", "image", "list"].includes(field.kind));
+    const fields = schema.sectionFields(section.type).filter(field => [...CONTENT_KINDS, "list"].includes(field.kind));
     const hasText = (text: string) => Boolean(text.replace(/<[^>]*>/g, " ").replace(/&nbsp;/gi, " ").trim());
     const hasContent = fields.some(field => {
       const value = section.settings?.[field.key];
@@ -43,7 +46,7 @@ export function designChecks(
         ? value.some(item => typeof item === "string" ? hasText(item) : item && Object.values(item).some(v => typeof v === "string" && hasText(v)))
         : false;
     });
-    const blockFields = schema.blockFields(section.type).filter(field => ["text", "textarea", "richtext", "html", "image"].includes(field.kind));
+    const blockFields = schema.blockFields(section.type).filter(field => CONTENT_KINDS.includes(field.kind));
     const hasBlockContent = (blocks: any[]): boolean => (blocks || []).some(block =>
       blockFields.some(field => typeof block[field.key] === "string" && hasText(block[field.key])) || hasBlockContent(block.children || []));
     const key = schema.blocksKey(section.type);

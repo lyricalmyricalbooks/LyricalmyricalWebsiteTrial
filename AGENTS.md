@@ -52,6 +52,10 @@ collections, and deployment. Don't duplicate that here. Quick orientation:
   `unpaid`. Never mark a Stripe order paid, adjust its inventory, or count its discount from
   client code or another Stripe recovery path. Preserve existing PayPal, manual/offline and free-order contracts.
 - **Tracked inventory reservations:** acquire expiring server-only holds transactionally before creating a payment and revalidate them at settlement; reservation-store failures fail closed. Release on payment/cancel and surface any already-captured payment that can no longer reserve stock for admin reconciliation.
+- **Gift-card balances move only with a confirmed payment.** `priceOrder` (functions/index.js) prices every
+  checkout path; gift cards are held with stock (`reserveCheckout`) and debited only inside the paid transaction
+  (`settleGiftCards`), credited back once by a full refund. Never write `giftCards/*` from the browser
+  (CLAUDE.md › Gift cards, box sets, automatic discounts, add-ons and scheduled sales).
 - **Never trust client-computed totals** for the authoritative charge. Prices,
   shipping, tax, and discounts that determine what a customer is charged must be
   computed/validated server-side via the Stripe session. The client may *display*
@@ -125,7 +129,10 @@ The default Settings → Design experience is `studio/StudioEditor.tsx`: its
 section/block outline, inspector, Edit/Browse preview and draft workflow are
 the primary editing surfaces. Custom pages created
 in Studio join the storefront header by default, and their public routes render
-the themed storefront header. The iframe preview receives the unsaved design,
+the themed storefront header. There is one header (`features/site/StoreHeader.tsx`: shop mode in MainSite, page
+mode everywhere else) and one footer (`features/site/StoreFooter.tsx`); wishlist, account, tracking and 404 get them
+through `StoreChrome` (Style › Header › `showStoreChromeOnUtilityPages`). Build header/footer features there only —
+`storeChrome.parity.test.tsx` guards every Studio hook. Checkout keeps its own minimal header. The iframe preview receives the unsaved design,
 settings, catalog and published-page collection as one live snapshot; preserve
 that full-state contract when adding Studio-editable storefront data. Snapshot
 delivery uses `postMessage` plus a same-origin message-event fallback so iframe
@@ -147,8 +154,14 @@ their uploads still land in the library); render section images with `components
 frontend; until then Media explains the library is off and image fields keep URL + plain upload.
 
 Studio's **Find anything** (Ctrl/Cmd+K, `studioSearch.ts`) indexes `STYLE_GROUPS`/`COPY_SCHEMA` automatically — a new control needs a
-plain-English label so shop owners can find it. **Auto-fit for phones** (`autoMobile.ts`) writes phone/tablet overrides; keep it in sync
+plain-English label so shop owners can find it. Selection commands come from `contextCommands` (add one there plus a case in
+`runContext` in `StudioEditor.tsx`); `>` searches commands only. Studio drafts are only ever saved through `admin/themeStore.ts`
+(private `themes/workspace`; no public `draftDesign` fallback since 1.7 — never reintroduce one). **Auto-fit for phones** (`autoMobile.ts`) writes phone/tablet overrides; keep it in sync
 with the phone keys the renderers read (`mobilePadding*`, `mobileColumns`, `mobileHeadingSize`, block `grid.tablet/mobile`).
+Links, books, categories, pages, videos and fonts in section/block fields are **picked, not typed** (Studio 2.3): use the
+field kinds `link` / `book` / `books` / `category` / `page` / `video` / `font` (`studio/StudioPickers.tsx`), which store the
+same strings as before, and choose catalog books only through `selectBooks` in `features/site/merchandising.ts`. Saved
+designs must keep rendering identically (`catalogSources*.test`), and `sectionFieldKinds.test.ts` rejects url-like `text` fields.
 
 1. **Read `docs/THEME_EDITOR.md` first**, plus the whole section/block system —
    `studio/StudioEditor.tsx`, `ThemeEditorExtensions.tsx` (the `SECTION_REGISTRY`),
@@ -248,6 +261,13 @@ The public site defaults to Riso Press on black/white with a flare accent. Keep 
 no literal colours in `RISO_STOREFRONT_CSS`, RGB triplet variables stay comma-separated, and any new
 shopper-facing string needs a `COPY_SCHEMA` entry + `getCopy` call so it is editable in the theme
 editor (see `docs/THEME_EDITOR.md` › Riso Noir). Payment UI stays conventional and legible.
+
+Colour schemes (Studio › Theme settings › Colour schemes) are the way to give one part of the shop
+its own palette: a scheme's roles become `[data-scheme]` token variables (`schemeCss` in
+`features/site/colorSchemes.ts`, emitted by `StorefrontOverrides`). New storefront parts should read
+the shared tokens (`--bg-color`, `rgb(var(--fg-rgb))`, `var(--surface)`, `var(--accent)` …) rather
+than fixed design keys alone, so a scheme reaches them; new book cards carry `fm-card`. Never change
+how a saved scheme without `v: 2` renders — `colorSchemes.test.ts` guards that.
 
 ## Product page
 
@@ -546,7 +566,7 @@ New panels say "Not recorded yet" until data exists — never a made-up zero.
 
 ## reCAPTCHA / App Check
 
-Invisible reCAPTCHA Enterprise initializes before Firestore/Auth in src/lib/firebase.ts.
+Invisible reCAPTCHA Enterprise initializes before Firestore/Auth in src/lib/firebaseApp.ts.
 Use functionFetch from src/app/lib/functionsBase.ts for every browser HTTP Function
 request and onBrowserRequest in functions/index.js for its server handler. Keep signed
 provider webhooks and emailed digital-download links outside browser attestation.

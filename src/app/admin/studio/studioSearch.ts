@@ -5,6 +5,7 @@
 
 import type { Section } from "./studioModel";
 import { regionFieldDevice } from "../../features/site/storefrontRegions";
+import { SHORTCUTS, type ShortcutAction } from "./shortcuts";
 
 export type StudioTab = "sections" | "style" | "text" | "menus" | "pages" | "media";
 export type StudioActionId =
@@ -19,9 +20,18 @@ export type SearchTarget =
   | { type: "template"; id: string }
   | { type: "section"; templateId: string; sectionId: string }
   | { type: "page"; slug: string }
-  | { type: "action"; id: StudioActionId };
+  | { type: "action"; id: StudioActionId }
+  | { type: "element"; key: string }
+  | { type: "book"; slug: string }
+  | { type: "context"; id: ContextCommandId };
 
-export type SearchKind = "action" | "page" | "section" | "style" | "text" | "menu" | "area";
+/** Commands about what is selected right now (offered first in Find anything). */
+export type ContextCommandId =
+  | "section-duplicate" | "section-delete" | "section-up" | "section-down" | "section-hide" | "section-show"
+  | "section-copy" | "section-copy-style" | "section-paste-style" | "section-move-page" | "section-save"
+  | "element-theme" | "element-close";
+
+export type SearchKind = "action" | "page" | "section" | "style" | "text" | "menu" | "area" | "element" | "book";
 export type SearchEntry = {
   id: string;
   kind: SearchKind;
@@ -31,10 +41,13 @@ export type SearchEntry = {
   /** Extra words that should find this entry but aren't shown. */
   keywords: string;
   target: SearchTarget;
+  /** Keyboard shortcut shown beside the result ("Ctrl/⌘ S"). */
+  keys?: string;
 };
 
 export const KIND_LABEL: Record<SearchKind, string> = {
   action: "Action", page: "Page", section: "Section", style: "Style", text: "Text", menu: "Menu", area: "Area",
+  element: "Part", book: "Book",
 };
 
 type StyleGroupLike = { id: string; title: string; hint?: string; fields: { key: string; label: string }[] };
@@ -49,6 +62,10 @@ export type IndexInput = {
   /** Sections per template id; the global (header/footer) stack is under "__global". */
   sectionsByTemplate: Record<string, Section[]>;
   sectionLabel: (type: string) => string;
+  /** Built-in parts of the page being previewed (from the preview's structure scan). */
+  elements?: { key: string; label: string; where: string; target?: string }[];
+  /** Books, to open their product page in the preview. */
+  books?: { slug?: string; title?: string; author?: string }[];
 };
 
 /** "pdpCardBg" → "pdp card bg", "Colour" → "color": the form both index and query are compared in. */
@@ -75,8 +92,14 @@ const SYNONYMS: Record<string, string[]> = {
   pic: ["image"], shipping: ["delivery"], delivery: ["shipping"], search: ["find"], button: ["buttons", "cta"],
 };
 
-const staticEntry = (id: string, kind: SearchKind, title: string, where: string, keywords: string, target: SearchTarget): SearchEntry =>
-  ({ id, kind, title, where, keywords: normalizeSearchText(keywords), target });
+const staticEntry = (id: string, kind: SearchKind, title: string, where: string, keywords: string, target: SearchTarget, keys?: string): SearchEntry =>
+  ({ id, kind, title, where, keywords: normalizeSearchText(keywords), target, ...(keys ? { keys } : {}) });
+
+// The shortcut a command shares with the keyboard handler (shortcuts.ts is the one table of keys).
+const keysFor = (action?: ShortcutAction) => action ? SHORTCUTS.find(s => s.action === action)?.keys.split("  ·  ")[0] : undefined;
+const ACTION_KEYS: Partial<Record<StudioActionId, ShortcutAction>> = {
+  save: "save", undo: "undo", redo: "redo", "device-desktop": "desktop", "device-tablet": "tablet", "device-mobile": "mobile", "mode-toggle": "toggleMode",
+};
 
 const ACTIONS: { id: StudioActionId; title: string; keywords: string }[] = [
   { id: "save", title: "Save draft", keywords: "keep store changes ctrl s" },
@@ -114,7 +137,7 @@ const MENU_PANELS: { panel: string; title: string; keywords: string }[] = [
 export function buildStudioIndex(input: IndexInput): SearchEntry[] {
   const out: SearchEntry[] = [];
 
-  for (const a of ACTIONS) out.push(staticEntry(`action:${a.id}`, "action", a.title, "Studio", a.keywords, { type: "action", id: a.id }));
+  for (const a of ACTIONS) out.push(staticEntry(`action:${a.id}`, "action", a.title, "Studio", a.keywords, { type: "action", id: a.id }, keysFor(ACTION_KEYS[a.id])));
   for (const t of TABS) out.push(staticEntry(`tab:${t.tab}`, "area", t.title, "Studio", t.keywords, { type: "tab", tab: t.tab }));
   for (const m of MENU_PANELS) out.push(staticEntry(m.panel, "menu", m.title, "Menus", m.keywords, { type: "menus", panel: m.panel }));
 
@@ -126,6 +149,16 @@ export function buildStudioIndex(input: IndexInput): SearchEntry[] {
     if (!p.slug || seenSlug.has(p.slug)) continue;
     seenSlug.add(p.slug);
     out.push(staticEntry(`page:${p.slug}`, "page", p.title || p.slug, `Pages › ${p.status === "published" ? "Published" : "Draft"}`, `write edit content custom page ${p.slug}`, { type: "page", slug: p.slug }));
+  }
+
+  for (const el of input.elements || []) {
+    out.push(staticEntry(`element:${el.key}`, "element", el.label, el.where, `part of the page ${el.target || ""}`, { type: "element", key: el.key }));
+  }
+  const seenBook = new Set<string>();
+  for (const b of input.books || []) {
+    if (!b.slug || seenBook.has(b.slug)) continue;
+    seenBook.add(b.slug);
+    out.push(staticEntry(`book:${b.slug}`, "book", b.title || b.slug, "Book pages", `product page ${b.author || ""} ${b.slug}`, { type: "book", slug: b.slug }));
   }
 
   const nameOf = (id: string) => id === "__global" ? "Header / footer sections" : input.templates.find(t => t.id === id)?.label || id;
@@ -159,7 +192,7 @@ export function buildStudioIndex(input: IndexInput): SearchEntry[] {
   return out;
 }
 
-const KIND_ORDER: Record<SearchKind, number> = { action: 0, area: 1, page: 2, section: 3, menu: 4, style: 5, text: 6 };
+const KIND_ORDER: Record<SearchKind, number> = { action: 0, area: 1, element: 2, page: 3, section: 4, book: 5, menu: 6, style: 7, text: 8 };
 
 const expand = (token: string): string[] => [token, ...(SYNONYMS[token] || []).map(normalizeSearchText)];
 
@@ -178,19 +211,20 @@ function tokenScore(entry: { t: string; w: string; k: string }, token: string): 
   return best;
 }
 
-export type SearchOptions = { limit?: number };
+export type SearchOptions = {
+  limit?: number;
+  /** Commands about the current selection (`contextCommands`): offered first. */
+  context?: SearchEntry[];
+  /** Ids of recently opened results, newest first. */
+  recent?: string[];
+};
 
-/**
- * Ranks the index for a query. Every typed word must match somewhere; titles that start with the
- * query rank first, then more title hits, then the area (actions before pages before settings).
- * An empty query returns the shortcuts worth showing before anyone types.
- */
-export function searchStudio(index: SearchEntry[], query: string, { limit = 24 }: SearchOptions = {}): SearchEntry[] {
-  const q = normalizeSearchText(query);
-  if (!q) return index.filter(e => e.kind === "action" || e.kind === "area" || e.kind === "page").slice(0, limit);
+const isCommand = (e: SearchEntry) => e.kind === "action" || e.kind === "area" || e.target.type === "context";
+
+function rank(entries: SearchEntry[], q: string, boost: (e: SearchEntry) => number): SearchEntry[] {
   const tokens = q.split(" ");
   const scored: { e: SearchEntry; score: number }[] = [];
-  for (const e of index) {
+  for (const e of entries) {
     const prepared = { t: normalizeSearchText(e.title), w: normalizeSearchText(e.where), k: e.keywords };
     let score = 0, ok = true;
     for (const token of tokens) {
@@ -202,8 +236,103 @@ export function searchStudio(index: SearchEntry[], query: string, { limit = 24 }
     if (prepared.t === q) score += 12;
     else if (prepared.t.startsWith(q)) score += 6;
     else if (prepared.t.includes(q)) score += 3;
-    scored.push({ e, score });
+    scored.push({ e, score: score + boost(e) });
   }
   scored.sort((a, b) => b.score - a.score || KIND_ORDER[a.e.kind] - KIND_ORDER[b.e.kind] || a.e.title.localeCompare(b.e.title));
-  return scored.slice(0, limit).map(s => s.e);
+  return scored.map(s => s.e);
+}
+
+export type PaletteGroup = { title: string; entries: SearchEntry[] };
+
+/**
+ * What Find anything shows, in titled groups. Before typing: commands for the selection, recent
+ * results, then shortcuts. A query starting with ">" searches commands only. Otherwise every typed
+ * word must match; selection commands and recent results get a small lift.
+ */
+export function paletteGroups(index: SearchEntry[], query: string, { limit = 24, context = [], recent = [] }: SearchOptions = {}): PaletteGroup[] {
+  const commandsOnly = query.trimStart().startsWith(">");
+  const q = normalizeSearchText(commandsOnly ? query.trimStart().slice(1) : query);
+  const byId = new Map(index.map(e => [e.id, e]));
+  const recentEntries = recent.map(id => byId.get(id)).filter((e): e is SearchEntry => Boolean(e));
+  if (!q) {
+    const groups: PaletteGroup[] = [];
+    if (context.length) groups.push({ title: "For what you selected", entries: context });
+    if (commandsOnly) {
+      groups.push({ title: "Commands", entries: index.filter(e => isCommand(e)) });
+    } else {
+      if (recentEntries.length) groups.push({ title: "Recent", entries: recentEntries.slice(0, 5) });
+      const shown = new Set(groups.flatMap(g => g.entries.map(e => e.id)));
+      groups.push({ title: "Shortcuts", entries: index.filter(e => (e.kind === "action" || e.kind === "area" || e.kind === "page") && !shown.has(e.id)) });
+    }
+    return trim(groups, limit);
+  }
+  const pool = commandsOnly ? [...context, ...index.filter(isCommand)] : [...context, ...index];
+  const recentSet = new Set(recent);
+  const ranked = rank(pool, q, e => (e.target.type === "context" ? 3 : 0) + (recentSet.has(e.id) ? 2 : 0));
+  return trim([{ title: commandsOnly ? "Commands" : "Results", entries: ranked }], limit);
+}
+
+function trim(groups: PaletteGroup[], limit: number): PaletteGroup[] {
+  let left = limit;
+  const out: PaletteGroup[] = [];
+  for (const g of groups) {
+    if (left <= 0) break;
+    const entries = g.entries.slice(0, left);
+    if (entries.length) { out.push({ ...g, entries }); left -= entries.length; }
+  }
+  return out;
+}
+
+/**
+ * Ranks the index for a query (a flat list; see `paletteGroups` for the grouped palette). Every
+ * typed word must match somewhere; titles that start with the query rank first, then more title
+ * hits, then the area. An empty query returns the shortcuts worth showing before anyone types.
+ */
+export function searchStudio(index: SearchEntry[], query: string, { limit = 24 }: SearchOptions = {}): SearchEntry[] {
+  return paletteGroups(index, query, { limit }).flatMap(g => g.entries);
+}
+
+/** Selection-aware commands: what can be done to the selected section or page part right now. */
+export function contextCommands(ctx: {
+  section?: { id: string; label: string; visible: boolean; first: boolean; last: boolean };
+  element?: { label: string; hasTheme: boolean };
+  canPasteStyle?: boolean;
+}): SearchEntry[] {
+  const out: SearchEntry[] = [];
+  const cmd = (id: ContextCommandId, title: string, where: string, keywords: string, keys?: ShortcutAction) =>
+    out.push(staticEntry(`context:${id}`, "action", title, where, keywords, { type: "context", id }, keysFor(keys)));
+  if (ctx.section) {
+    const s = ctx.section, where = `Selected section › ${s.label}`;
+    cmd("section-duplicate", "Duplicate this section", where, "copy clone again", "duplicate");
+    if (!s.first) cmd("section-up", "Move this section up", where, "reorder higher earlier", "moveUp");
+    if (!s.last) cmd("section-down", "Move this section down", where, "reorder lower later", "moveDown");
+    if (s.visible) cmd("section-hide", "Hide this section", where, "invisible turn off");
+    else cmd("section-show", "Show this section", where, "visible turn on unhide");
+    cmd("section-copy", "Copy this section", where, "clipboard paste later another page");
+    cmd("section-copy-style", "Copy this section's style", where, "look colours fonts spacing");
+    if (ctx.canPasteStyle) cmd("section-paste-style", "Paste style onto this section", where, "apply copied look");
+    cmd("section-move-page", "Move this section to another page", where, "transfer relocate");
+    cmd("section-save", "Save this section for reuse", where, "preset library saved sections");
+    cmd("section-delete", "Delete this section", where, "remove trash", "delete");
+  }
+  if (ctx.element) {
+    const where = `Selected part › ${ctx.element.label}`;
+    if (ctx.element.hasTheme) cmd("element-theme", `Open ${ctx.element.label} in Theme settings`, where, "all style settings category");
+    cmd("element-close", `Close ${ctx.element.label}`, where, "deselect done", "deselect");
+  }
+  return out;
+}
+
+/** Remember a picked result: newest first, no repeats, at most `max`. */
+export function pushRecent(list: string[], id: string, max = 8): string[] {
+  return [id, ...list.filter(x => x !== id)].slice(0, max);
+}
+
+/** The screen size a query names ("button phone padding" → mobile), if any. */
+export function searchedDevice(query: string): "mobile" | "tablet" | "desktop" | null {
+  const words = normalizeSearchText(query).split(" ");
+  if (words.some(w => w === "phone" || w === "mobile" || w === "phones")) return "mobile";
+  if (words.some(w => w === "tablet" || w === "ipad" || w === "tablets")) return "tablet";
+  if (words.some(w => w === "desktop" || w === "computer")) return "desktop";
+  return null;
 }

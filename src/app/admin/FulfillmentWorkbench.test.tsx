@@ -125,3 +125,24 @@ it("allows the final local delivery transition after the driver departs", () => 
   expect(html).not.toContain("Buy Shippo label");
   expect(html).not.toContain("I made my own label");
 });
+
+describe("special order lines on the packing checklist", () => {
+  it("shows add-ons with inscription wording, box-set contents, gift cards and the free gift", () => {
+    const o = base();
+    o.operations.addressReviewed = addressKey(o);
+    o.items = [
+      { id: "book", title: "Book", quantity: 1, addOns: [{ id: "sig", label: "Signed copy", price: 5 }, { id: "ins", label: "Personal inscription", price: 10, text: "For Sam" }] } as any,
+      { id: "box", title: "Trilogy", quantity: 1, bundle: true, components: [{ id: "a", quantity: 2, title: "Title A" }, { id: "b", quantity: 1, title: "Title B", variantName: "Hardcover" }] } as any,
+      { id: "gc", title: "Gift card", quantity: 1, giftCard: true, giftCardDetails: { recipientEmail: "sam@x.com" } } as any,
+      { id: "gift", title: "Bookmark", quantity: 1, promoGift: true } as any,
+    ];
+    const html = render(o);
+    expect(html).toContain("Signed copy");
+    expect(html).toContain("Personal inscription: “For Sam”");
+    expect(html).toContain("Box set — includes 2 × Title A, 1 × Title B (Hardcover)");
+    expect(html).toContain("Gift card for sam@x.com");
+    expect(html).toContain("Free gift");
+    // The gift card is emailed: no packing checkbox for it.
+    expect(html).not.toContain("Packed 1 × Gift card");
+  });
+});
