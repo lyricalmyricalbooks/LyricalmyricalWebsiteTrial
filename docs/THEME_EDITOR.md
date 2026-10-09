@@ -513,7 +513,17 @@ the image; existing images are not migrated into the library.
   nothing unsaved here → their version comes in (toast); unsaved edits → a banner: **Bring in their changes** (different
   settings) / **Bring in theirs, keep mine** (both changed some — `mergeDesigns` keeps this tab's value, the banner names
   them), **Use their version** (asks first) or **Later** (the next save combines as before). A Publish elsewhere updates
-  the live copy at once. Remote drafts are normalised before comparing. Same rules (admin read); no index or Function. - [ ] 3.3 Studio Health. - [ ] 3.4 Themes workspace + share previews.
+  the live copy at once. Remote drafts are normalised before comparing. Same rules (admin read); no index or Function. - [x] 3.3 Studio Health. Theme actions › **Studio Health** (`studio/StudioHealth.tsx`, replaces "Pre-publish check"; Find
+  anything "check") audits the page the preview rendered — the same-origin iframe document, read only — with
+  `studio/healthAudit.ts` `auditDocument`: WCAG text contrast (3:1 large / 4.5:1; skipped over background pictures),
+  pictures without `alt`, oversized/blurry/heavy (>400 KB, Resource Timing) pictures, links/buttons with no name, empty
+  links and links to unpublished books/pages/collections, tap targets (24 px desktop, 44 px tablet/phone; inline sentence
+  links exempt), heading outline (no/multiple H1, skipped levels), failed or many fonts, page size and title/description.
+  Findings carry the preview bridge's node key: **Show me** scrolls and outlines the element (Back to Health in the toast),
+  **Edit this part** opens its section or element inspector. Repeats fold per part. Whole-draft `designChecks` stay
+  below; their two "not measured" placeholders became one line pointing at the measured checks. The Publish dialog shows
+  "Studio Health on <page> (<size>): N issues · M tips" with **Review**. Deviation: a dialog, not a rail tab; the audit
+  runs in Studio rather than via a bridge `RUN_AUDIT` message (same-origin iframe). - [ ] 3.4 Themes workspace + share previews.
 - [ ] 3.5 Scheduling & campaigns.
 
 **Phase 4 — Performance (continuous).**

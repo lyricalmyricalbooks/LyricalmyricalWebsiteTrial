@@ -66,6 +66,10 @@ import { Panel, PanelGroup, PanelResizeHandle } from "react-resizable-panels";
 import { StudioRail } from "./StudioRail";
 import { MediaPickerDialog, StudioMediaPanel, useMediaLibrary } from "./StudioMedia";
 import { StudioHistory, versionName, type ThemeVersion } from "./StudioHistory";
+import { StudioHealth } from "./StudioHealth";
+import { POLICY_KEYS, policySlug } from "../../features/site/policyPages";
+import { auditDocument, summarise, type HealthFinding } from "./healthAudit";
+import { categoryOptions } from "./pickers";
 import { diffDesigns, restoreItem, summariseDiff, type DiffContext, type DiffItem } from "./designDiff";
 import { MediaLibraryButton, MediaPickerContext } from "./mediaPicker";
 import type { UsagePlace } from "./mediaLibrary";
@@ -769,6 +773,53 @@ export function StudioEditor({ settings, onExit, onPersisted, appearance = "ligh
     setSelectedId(null); setBlockId(null); setSelectedElement(el); setMobilePanel("settings");
     postPreview({ type: "SELECT_NODE", key: el.key, scroll });
   };
+  // ── Studio Health (3.3): audit the page the preview rendered ─────────────────────────────────
+  const runHealth = (): HealthFinding[] | null => {
+    const doc = iframeRef.current?.contentDocument;
+    if (!doc?.body || !doc.defaultView) return null;
+    const known = {
+      books: new Set(books.flatMap((b: any) => [b.slug, b.id].filter(Boolean).map(String))),
+      // Published custom pages, plus the shop policy pages (/page/policy-<key>; the footer only links the written ones).
+      pages: new Set([
+        ...pages.filter((p: any) => p.status === "published" || !p.status).map((p: any) => String(p.slug)),
+        ...POLICY_KEYS.map(policySlug),
+      ]),
+      ...(Array.isArray(design.categories) && design.categories.length
+        ? { collections: new Set(["publications", ...categoryOptions(design.categories).map(o => slugify(o.value))]) } : {}),
+    };
+    try { return auditDocument(doc, doc.defaultView, { device, base: import.meta.env.BASE_URL, known }); }
+    catch (err) { console.warn("[Studio] health check failed", err); return null; }
+  };
+  /** Opens a section wherever it lives (a page or a shared group), as clicking it in the preview does. */
+  const openSectionAnywhere = (sectionId: string) => {
+    const owner = findSectionOwner(designRef.current, sectionId);
+    if (!owner) return false;
+    if (isGroupSurface(owner.surface)) { setShowGlobal(true); setGlobalGroup(owner.surface); }
+    else if (templates.some(t => t.id === owner.surface)) { setShowGlobal(false); setTemplateId(owner.surface); }
+    else return false;
+    setLeftTab("sections"); setSelectedElement(null); setSelectedId(sectionId); setBlockId(null); setMobilePanel("settings");
+    postPreview({ type: "HIGHLIGHT_SECTION", instanceId: sectionId, blockId: null, scroll: true });
+    return true;
+  };
+  const showFinding = (f: HealthFinding) => {
+    const el = f.element as HTMLElement | null | undefined;
+    if (!el || !el.isConnected) { say("err", "That part isn't on the page any more. Choose Check again."); return; }
+    setChecksOpen(false);
+    el.scrollIntoView({ block: "center", behavior: "smooth" });
+    const previous = el.style.outline, offset = el.style.outlineOffset;
+    el.style.outline = "3px solid #e8402a"; el.style.outlineOffset = "2px";
+    setTimeout(() => { el.style.outline = previous; el.style.outlineOffset = offset; }, 2400);
+    say("ok", `Showing: ${f.title}`, { label: "Back to Health", run: () => setChecksOpen(true) });
+  };
+  const fixFinding = (f: HealthFinding) => {
+    if (!f.owner) return;
+    setChecksOpen(false);
+    if (f.owner.sectionId && openSectionAnywhere(f.owner.sectionId)) return;
+    openElement({ key: f.owner.key, label: f.owner.label || "This part", target: f.owner.target, region: f.owner.region || undefined }, true);
+  };
+  // The Publish confirmation says how the page in the preview checks out.
+  const [publishHealth, setPublishHealth] = useState<ReturnType<typeof summarise> | null>(null);
+  useEffect(() => { if (confirmAction === "publish") { const found = runHealth(); setPublishHealth(found ? summarise(found) : null); } }, [confirmAction]); // eslint-disable-line react-hooks/exhaustive-deps
   const openStructureItem = (item: StructureItem) =>
     openElement({ key: item.key, label: item.label, target: item.target, region: item.region || undefined }, true);
   const closeElement = () => { setSelectedElement(null); postPreview({ type: "SELECT_NODE", key: null }); setMobilePanel("outline"); };
@@ -1733,7 +1784,7 @@ export function StudioEditor({ settings, onExit, onPersisted, appearance = "ligh
         <div className="studio-tools-menu"><span>Theme actions</span><ActionMenu label="Theme actions" actions={[
           { label: "Preview in new tab", icon: <ExternalLink size={14} />, onSelect: openPreviewTab },
           { label: "Version history", icon: <History size={14} />, onSelect: () => { setHistoryOpen(true); loadVersions(); } },
-          { label: "Check before publishing", icon: <ShieldCheck size={14} />, onSelect: () => setChecksOpen(true) },
+          { label: "Studio Health", icon: <ShieldCheck size={14} />, onSelect: () => setChecksOpen(true) },
           { label: "Show Studio tips", onSelect: () => setTipsNonce(n => n + 1) },
           ...(unpublished && busy === null && !inlineEditing ? [{ label: "Discard saved draft…", tone: "danger" as const, onSelect: () => setConfirmAction("discard") }] : []),
         ]} /></div>
@@ -1839,6 +1890,10 @@ export function StudioEditor({ settings, onExit, onPersisted, appearance = "ligh
         <div className="space-y-4">
           <p className="text-sm">{confirmAction === "publish" ? "These changes will become visible to shoppers immediately:" : "These draft changes will be permanently replaced by the current live design:"}</p>
           <ul className="list-disc pl-5 text-sm space-y-1">{confirmAction !== null && publishSummary(confirmAction === "publish" ? published : design, confirmAction === "publish" ? design : published).map(x => <li key={x}>{x}</li>)}</ul>
+          {confirmAction === "publish" && publishHealth && <p className="studio-health-publish" data-publish-health>
+            <ShieldCheck size={14} aria-hidden /> Studio Health on {template.label} ({REGION_DEVICE_LABELS[device].toLowerCase()}): {publishHealth.text}
+            {(publishHealth.issues > 0 || publishHealth.tips > 0) && <button type="button" className="studio-link-button" onClick={() => { setConfirmAction(null); setChecksOpen(true); }}>Review</button>}
+          </p>}
           <div className="flex justify-end gap-2"><button className={btn} onClick={() => setConfirmAction(null)}>Cancel</button><button className={confirmAction === "publish" ? btnPrimary : `${btn} border-red-300 text-red-700`} onClick={() => { const action = confirmAction; setConfirmAction(null); action === "publish" ? publish() : discard(); }}>{confirmAction === "publish" ? "Publish now" : "Discard draft"}</button></div>
         </div>
       </Dialog>
@@ -1856,9 +1911,9 @@ export function StudioEditor({ settings, onExit, onPersisted, appearance = "ligh
           </div>
         </div>}
       </Dialog>
-      <Dialog open={checksOpen} onClose={() => setChecksOpen(false)} title="Pre-publish check" description="A quick accessibility, content and performance review of this draft.">
-        <div className="space-y-2">{[...designChecks(design), designSize(design)].map((r, i) => <p key={i} className={`p-3 rounded-lg text-sm ${r.tone === "warn" ? "bg-amber-50 text-amber-900" : "bg-emerald-50 text-emerald-900"}`}>{r.tone === "warn" ? "⚠" : "✓"} {r.text}</p>)}</div>
-      </Dialog>
+      <StudioHealth open={checksOpen} onClose={() => setChecksOpen(false)} run={runHealth}
+        pageLabel={showGlobal ? `Every page · ${groupLabel(globalGroup)}` : template.label} deviceLabel={REGION_DEVICE_LABELS[device].toLowerCase()}
+        designResults={checksOpen ? [...designChecks(design), designSize(design)] : []} onShow={showFinding} onFix={fixFinding} />
       {/* Last, so a question asked from inside another dialog (History, Media…) opens on top of it. */}
       {confirmNode}
       {promptNode}

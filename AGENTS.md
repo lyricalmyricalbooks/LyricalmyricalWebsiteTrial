@@ -199,6 +199,12 @@ ignores revisions not newer than this tab's, takes another tab's save when nothi
 **This design was saved in another tab or device** banner (Bring in / Use their version / Later). Remote drafts go through
 `normalize` before any comparison. Never auto-overwrite unsaved edits.
 
+**Studio Health (3.3):** Theme actions › **Studio Health** runs `studio/healthAudit.ts` `auditDocument` on the preview
+iframe's own document (contrast, picture descriptions/size/weight, link names and targets, tap targets, headings, fonts,
+page size, title/description) and lists findings with **Show me** / **Edit this part** (owner = the bridge's node key,
+`ownerOf`). New storefront parts are covered automatically when they carry the usual `data-fm-section` /
+`data-studio-target` hooks. The audit only reads the DOM; never change the preview from it except the brief Show me outline.
+
 **Media library (2.4).** Studio › **Media** (`studio/StudioMedia.tsx`) lists admin-only `media/{id}` records; library
 uploads (`uploadMediaImage`) store WebP copies at 480/960/1600 px under `assets/media/<id>/`. Picking a picture for a
 section/block field writes its URL plus a public `${field}__media` record (Theme settings images get the URL only, but

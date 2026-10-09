@@ -692,6 +692,31 @@ await check("a save in another tab shows a live banner, and both sets of changes
   if (kept.length !== 1 || kept[0] !== "NewsletterSection") throw new Error(`Home sections saved as ${kept.join(", ")}`);
 });
 
+await check("Studio Health checks the previewed page, shows a finding and opens its part", desktop, async page => {
+  await expectText(page, "Preview connected", 30000);
+  await page.getByRole("button", { name: "Theme actions" }).click();
+  await page.getByRole("menuitem", { name: "Studio Health" }).click();
+  const dialog = page.getByRole("dialog", { name: "Studio Health" });
+  await dialog.getByText("Checking Home at desktop size").waitFor({ timeout: 5000 });
+  const finding = dialog.locator("[data-health-id]").filter({ has: page.getByRole("button", { name: "Edit this part" }) }).first();
+  await finding.waitFor({ timeout: 5000 });
+  // Show me closes Health, scrolls the preview to it and offers the way back.
+  await finding.getByRole("button", { name: "Show me" }).click();
+  await page.getByRole("button", { name: "Back to Health" }).click();
+  await dialog.locator("[data-health-id]").first().waitFor({ timeout: 5000 });
+  await dialog.locator("[data-health-id]").filter({ has: page.getByRole("button", { name: "Edit this part" }) }).first().getByRole("button", { name: "Edit this part" }).click();
+  await page.locator("[data-studio-element-inspector], [data-studio-panel='section-inspector'], .studio-inspector [role=tab]").first().waitFor({ timeout: 5000 });
+  if (await page.getByText("Nothing selected").isVisible()) throw new Error("Edit this part opened nothing");
+  // Publish says how the page checks out.
+  await page.keyboard.press("Escape");
+  await page.getByRole("button", { name: "Add section" }).first().click();
+  await page.getByRole("button", { name: /^Newsletter/ }).first().click();
+  await page.getByRole("button", { name: "Publish", exact: true }).click();
+  const line = page.locator("[data-publish-health]");
+  await line.waitFor({ timeout: 5000 });
+  if (!/Studio Health on Home \(desktop\)/.test(await line.textContent())) throw new Error(`publish line reads "${await line.textContent()}"`);
+});
+
 await check("phone-sized editor loads without errors", { width: 390, height: 844 }, async page => {
   await page.waitForTimeout(1500);
   const overflow = await page.evaluate(() => document.documentElement.scrollWidth - window.innerWidth);

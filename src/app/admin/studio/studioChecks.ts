@@ -60,8 +60,8 @@ export function designChecks(
   results.push({ tone: empty ? "warn" : "ok", text: empty ? `${empty} section${empty === 1 ? " is" : "s are"} empty or may lack meaningful content.` : "No obviously empty sections." });
   const missingAlt = images.filter(image => !image.alt.trim()).length;
   results.push({ tone: missingAlt ? "warn" : "ok", text: missingAlt ? `${missingAlt} image${missingAlt === 1 ? " needs" : "s need"} a description.` : "All configured section and block images have descriptions." });
-  results.push({ tone: "warn", text: "Image file sizes are not measured here. Check large hero images before publishing." });
-  results.push({ tone: "warn", text: "Contrast is not automatically measured here. Check that text stays easy to read on its background in the preview, on desktop and phone, before publishing." });
+  // Contrast, picture weight and size, tap targets and links are measured on the rendered page (Studio Health, healthAudit.ts).
+  results.push({ tone: "warn", text: "Contrast, picture sizes, tap targets and links are measured on the page in the preview. Check your other pages and the phone size too." });
   return results;
 }
 

@@ -507,6 +507,12 @@ ignores revisions not newer than this tab's, takes another tab's save when nothi
 **This design was saved in another tab or device** banner (Bring in / Use their version / Later). Remote drafts go through
 `normalize` before any comparison. Never auto-overwrite unsaved edits.
 
+**Studio Health (3.3):** Theme actions › **Studio Health** runs `studio/healthAudit.ts` `auditDocument` on the preview
+iframe's own document (contrast, picture descriptions/size/weight, link names and targets, tap targets, headings, fonts,
+page size, title/description) and lists findings with **Show me** / **Edit this part** (owner = the bridge's node key,
+`ownerOf`). New storefront parts are covered automatically when they carry the usual `data-fm-section` /
+`data-studio-target` hooks. The audit only reads the DOM; never change the preview from it except the brief Show me outline.
+
 **Colour schemes (2.5):** Studio › Theme settings › **Colour schemes** (`StudioColorSchemes.tsx`, pure edits in
 `studio/colorSchemeOps.ts`) edits `design.colorSchemes` — ten roles (background, surface, text, muted, accent, onAccent,
 border, buttonBg, buttonText, link) with a live swatch and WCAG badges. `features/site/colorSchemes.ts` `schemeCss()`

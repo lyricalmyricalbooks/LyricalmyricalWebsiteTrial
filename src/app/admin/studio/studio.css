@@ -459,3 +459,19 @@
 
 /* Live sync (3.2): a save from another tab or device. */
 .studio-incoming { background: var(--rp-primary-tint); color: var(--rp-text); border-bottom: 1px solid var(--rp-border); }
+
+/* Studio Health (3.3). */
+.studio-health { display: grid; gap: 12px; max-height: 64vh; overflow: auto; }
+.studio-health-bar { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 8px; font-size: 13px; position: sticky; top: 0; z-index: 1; background: var(--rp-surface); padding-bottom: 8px; border-bottom: 1px solid var(--rp-divider); }
+.studio-health-summary { display: flex; flex-wrap: wrap; gap: 8px; margin: 0; }
+.studio-health h3 { margin: 4px 0; font-size: 11px; letter-spacing: .06em; text-transform: uppercase; color: var(--rp-text-subtle); font-family: var(--rp-font-mono); }
+.studio-health-list { list-style: none; margin: 0; padding: 0; }
+.studio-health-item { display: flex; flex-wrap: wrap; align-items: flex-start; justify-content: space-between; gap: 6px 12px; padding: 10px 0; border-bottom: 1px solid var(--rp-divider); }
+.studio-health-item > div:first-child { display: grid; gap: 3px; min-width: 0; flex: 1 1 280px; font-size: 13px; }
+.studio-health-item strong { overflow-wrap: anywhere; }
+.studio-health-item small { font-size: 12px; color: var(--rp-text-subtle); overflow-wrap: anywhere; }
+.studio-health-cat { font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: .04em; color: var(--rp-text-muted); }
+.studio-health-where { font-weight: 700; }
+.studio-health-actions { display: flex; flex-wrap: wrap; gap: 6px; }
+.studio-health-publish { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; font-size: 13px; font-weight: 700; margin: 0; }
+.studio-health-publish .studio-link-button { width: auto; min-height: 28px; padding: 0 6px; display: inline-flex; align-items: center; font-size: 13px; text-decoration: underline; }
