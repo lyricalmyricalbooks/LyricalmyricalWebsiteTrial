@@ -5,73 +5,30 @@ The original project is available at https://www.figma.com/design/NzVBBNBNBtFNCY
 
 ## Local development
 
-1. Install dependencies:
+1. Install dependencies (pnpm pins the React versions; see `CLAUDE.md` › Verification):
    ```bash
-   npm install
+   pnpm install
    ```
-2. Start the frontend:
+2. Start the storefront + admin (one Vite single-page app):
    ```bash
    npm run dev
    ```
-3. Start the backend (in another terminal):
-   ```bash
-   npm run dev:backend
-   ```
 
-If you want to run both together:
+## Backend + Admin (publisher)
 
-```bash
-npm run dev:all
-```
+There is no separate Node/Express server any more (the old `backend/server.js` and its
+`ADMIN_PASSWORD` login were removed). The site talks directly to **Firebase**:
 
-## Backend API + Admin (publisher)
+- **Data & files:** Firestore (catalog, orders, settings, pages…) and Firebase Storage, guarded
+  by `firestore.rules` / `storage.rules`.
+- **Server work:** Firebase Cloud Functions in `functions/` (Stripe checkout and webhook, emails,
+  shipping/Shippo, downloads, scheduled sweeps). Run them locally with
+  `cd functions && npm install && npm run serve` (emulator); deploy with `npm run deploy` there or
+  the `Deploy Firebase` workflow.
+- **Admin:** open `/admin` on the site and sign in with **Google**. Access is restricted to the
+  shop's allow-listed account (checked in the app and again by `requireAdmin` in the Functions).
 
-A password-protected backend is available at `http://localhost:4000` by default.
-
-### Setup
-
-1. Copy backend environment file:
-   ```bash
-   cp backend/.env.example backend/.env
-   ```
-2. Set a secure `ADMIN_PASSWORD` (and optionally `BACKEND_PORT`).
-3. Start backend:
-   ```bash
-   npm run dev:backend
-   ```
-
-### Admin UI
-
-- Open `http://localhost:4000/admin`.
-- Login with the password from `ADMIN_PASSWORD`.
-- From this admin UI you can:
-  - Add/edit shipping profiles.
-  - Add authors.
-  - Add books and assign shipping profiles/authors.
-  - Add up to 10 photos per book.
-  - Update website settings (featured books, announcements, SEO defaults).
-  - View quick dashboard counts and audit log activity.
-
-### Authentication
-
-- `POST /api/auth/login` with `{ "password": "..." }`
-- Use returned bearer token in `Authorization: Bearer <token>` header.
-
-### Core API features
-
-- **Books CRUD** with publisher fields (ISBN, SKU, pub date, format, inventory, pricing, SEO, featured flag, draft/published status).
-- **Shipping profiles CRUD** and assignment of one profile per book.
-- **Photo management** (URL-based) with per-book maximum of **10 photos**.
-- **Author management** for linking books to author profiles.
-- **Website settings** for homepage featured books, bestseller curation, announcements, and default SEO.
-- **Dashboard stats** for quick editorial/commercial overview.
-- **Audit log** of admin actions (book/shipping/author/settings changes).
-
-### File storage
-
-- Book photos are stored as URLs in `backend/data/store.json` (works with CDN/S3/media library links).
-- Data is persisted in `backend/data/store.json`.
-- `backend/.env` is loaded automatically by `backend/server.js`.
+See `CLAUDE.md` for the full architecture, commands and deployment notes.
 
 ## Production build
 
@@ -103,7 +60,8 @@ This repo now includes a GitHub Actions workflow at `.github/workflows/deploy-pa
 - The workflow installs dependencies, builds with Vite, uploads `dist/`, and deploys to GitHub Pages.
 - You can also run it manually from **Actions → Deploy to GitHub Pages → Run workflow**.
 
-> Note: GitHub Pages only hosts the frontend static site. The backend (`backend/server.js`) must be deployed on a Node host (Render/Railway/Fly.io/VM) and pointed to by your frontend.
+> Note: GitHub Pages only hosts the frontend static site. Firestore rules/indexes, Storage rules and
+> Cloud Functions are deployed to Firebase separately (`.github/workflows/deploy-firebase.yml`).
 
 ## Going live checklist (e-commerce)
 

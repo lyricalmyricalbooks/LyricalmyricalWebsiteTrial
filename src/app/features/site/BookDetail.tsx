@@ -69,7 +69,7 @@ export default function BookDetail() {
   const { slug } = useParams<{ slug: string }>();
   const navigate = useNavigate();
   const location = useLocation();
-  const { books, settings, pages, loading } = useSiteData();
+  const { books, settings, pages, loading: siteLoading, fresh } = useSiteData();
   const { addToCart, setIsCartOpen, cartCount, cart } = useCart();
   const { currency, formatPrice, formatBookPrice, getBookPrice, convertPrice } = useCurrency();
 
@@ -95,6 +95,9 @@ export default function BookDetail() {
   const [giftError, setGiftError]     = useState("");
 
   const book: Book | undefined = findProduct(books, slug, new URLSearchParams(window.location.search).get("preview") === "true");
+  // A book published after this browser cached the catalog isn't in that cache yet: keep showing
+  // Loading (and stay indexable) until this mount's fresh read, rather than a false "not found" + noindex.
+  const loading = siteLoading || (!book && !fresh);
   const sectionPage = useMemo(() => ({ book }), [book]);
 
   // Keyed on the book's id: a background catalog refresh hands us a new book

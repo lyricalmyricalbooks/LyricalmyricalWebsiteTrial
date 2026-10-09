@@ -172,16 +172,24 @@ export function useSiteData() {
 
     window.addEventListener("message", handleMessage);
 
-    // BroadcastChannel for cross-tab updates
-    const bc = new BroadcastChannel("site_preview_updates");
-    bc.onmessage = (event) => {
-      handleMessage(event);
-    };
+    // BroadcastChannel for cross-tab updates. Preview only (shoppers never need it), and guarded
+    // because some browsers have no BroadcastChannel — a throw here would take down the whole page.
+    let bc: BroadcastChannel | null = null;
+    if (isPreviewUrl() && typeof BroadcastChannel !== "undefined") {
+      try {
+        bc = new BroadcastChannel("site_preview_updates");
+        bc.onmessage = (event) => {
+          handleMessage(event);
+        };
+      } catch {
+        bc = null;
+      }
+    }
 
     return () => {
       cancelled = true;
       window.removeEventListener("message", handleMessage);
-      bc.close();
+      try { bc?.close(); } catch { /* already closed */ }
     };
   }, []);
 

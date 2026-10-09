@@ -7,7 +7,10 @@ export function routeOutputPath(route) {
   if (parts.length !== 3 || !['books', 'page', 'collections'].includes(parts[1])) throw new Error(`Unsupported snapshot route: ${route}`);
   const slug = decodeURIComponent(parts[2]);
   if (!slug || slug === '.' || slug === '..' || /[\\/%\x00-\x1f<>:"|?*]/.test(slug) || /[. ]$/.test(slug)) throw new Error(`Unsafe snapshot route: ${route}`);
-  return `${parts[1]}/${slug}/index.html`;
+  // `<route>.html`, not `<route>/index.html`: GitHub Pages serves /books/x from books/x.html with 200,
+  // whereas a folder makes it 301-redirect to /books/x/ — a URL that no longer matches the slash-less
+  // canonical, og:url, JSON-LD and sitemap entries. /books/x/ falls through to the 404.html SPA fallback.
+  return `${parts[1]}/${slug}.html`;
 }
 
 export function publicRoutes(xml, siteUrl) {
