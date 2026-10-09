@@ -7,7 +7,7 @@ export type StudioUiState = {
   device?: "desktop" | "tablet" | "mobile"; zoom?: Zoom; productSlug?: string; collectionSlug?: string;
 };
 
-const TABS = new Set(["sections", "shared", "style", "text", "menus", "pages"]);
+const TABS = new Set(["sections", "style", "text", "menus", "pages"]);
 const DEVICES = new Set(["desktop", "tablet", "mobile"]);
 const ZOOMS = new Set<Zoom>(["fit", 100, 75, 50]);
 const text = (v: any) => (typeof v === "string" && v.length < 200 ? v : undefined);
@@ -16,7 +16,7 @@ export function parseUiState(raw: string | null): StudioUiState {
   try {
     const v = JSON.parse(raw || "{}") || {};
     return {
-      leftTab: TABS.has(v.leftTab) ? v.leftTab : undefined,
+      leftTab: TABS.has(v.leftTab) ? v.leftTab : v.leftTab === "shared" ? "sections" : undefined,
       templateId: text(v.templateId),
       showGlobal: v.showGlobal === true ? true : undefined,
       device: DEVICES.has(v.device) ? v.device : undefined,

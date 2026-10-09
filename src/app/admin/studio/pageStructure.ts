@@ -105,3 +105,23 @@ export function primaryTarget(target: string): string {
   const list = target.split("|").filter(Boolean);
   return list.find(t => t.startsWith("style:")) || list[0] || "";
 }
+
+const ZONE_NAMES: Record<string, string> = { header: "Header", main: "Page", footer: "Footer", overlay: "Pop-overs", page: "Page" };
+
+/** Where a part sits, for the inspector's breadcrumb: its zone, then the parts around it. */
+export function structurePath(structure: PageStructure | null, key: string): string[] {
+  if (!structure) return [];
+  const walk = (items: StructureItem[], trail: string[]): string[] | null => {
+    for (const item of items) {
+      if (item.key === key) return trail;
+      const inner = walk(item.children, [...trail, item.label]);
+      if (inner) return inner;
+    }
+    return null;
+  };
+  for (const zone of ["header", "main", "footer", "overlay", "page"] as const) {
+    const found = walk(structure[zone], [ZONE_NAMES[zone]]);
+    if (found) return found;
+  }
+  return [];
+}

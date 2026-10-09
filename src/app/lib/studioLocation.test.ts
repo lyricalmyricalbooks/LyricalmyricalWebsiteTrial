@@ -23,4 +23,8 @@ describe("Studio links", () => {
     expect(locationForPath("/LyricalmyricalWebsiteTrial/collections/zines", base)).toEqual({ templateId: "collectionPage", collectionSlug: "zines" });
     expect(locationForPath("/LyricalmyricalWebsiteTrial/", base)).toEqual({ templateId: "heroPage" });
   });
+
+  it("sends links to the retired Shared layout tab to Page layout", () => {
+    expect(parseStudioLocation("#designer?tab=shared")?.leftTab).toBe("sections");
+  });
 });

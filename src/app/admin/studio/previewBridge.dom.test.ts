@@ -52,6 +52,19 @@ describe("preview bridge page structure", () => {
     expect(sent.filter(m => m.type === "NODE_HOVER").map(m => m.key)).toEqual(["t:style:logo|Logo"]);
   });
 
+  it("selects a built-in part on click and reports its text, without a pop-up menu", () => {
+    document.querySelector("[data-studio-label=Logo]")!.dispatchEvent(new MouseEvent("click", { bubbles: true, cancelable: true }));
+    const msg = sent.find(m => m.type === "STUDIO_ELEMENT");
+    expect(msg).toMatchObject({ key: "t:style:logo|Logo", label: "Logo", target: "style:logo", text: "L" });
+    expect(document.querySelector("[role=menu]")).toBeNull();
+    expect(sent.some(m => m.type === "STUDIO_TARGET")).toBe(false);
+  });
+
+  it("selects a part Studio asks for and answers with its details", () => {
+    fromStudio({ type: "SELECT_NODE", key: "r:footerPanel" });
+    expect(sent.find(m => m.type === "ELEMENT_INFO")).toMatchObject({ key: "r:footerPanel", region: "footerPanel", label: "Footer" });
+  });
+
   it("ignores messages from other origins", () => {
     window.dispatchEvent(new MessageEvent("message", { data: { type: "SCAN_STRUCTURE" }, origin: "https://evil.example", source: window }));
     expect(sent.some(m => m.type === "STRUCTURE")).toBe(false);

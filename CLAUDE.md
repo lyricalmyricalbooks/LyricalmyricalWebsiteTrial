@@ -168,7 +168,7 @@ profile, rate dialog).
 
 > [!IMPORTANT]
 > **The default Admin → Settings → Design editor is the new Studio editor**
-> (`src/app/admin/studio/StudioEditor.tsx`; left rail **Page layout / Shared layout / Theme settings /
+> (`src/app/admin/studio/StudioEditor.tsx`; left rail **Page layout / Theme settings /
 > Text & labels / Navigation / Pages**). It is the **only** designer: the old `ThemeEditor.tsx`,
 > `ThemeEditorPro.tsx`, `ThemeEditorBuilder.tsx`, `NewSectionLibraryModal` and `?editor=legacy` no
 > longer exist. **Add or change every theme/design feature in Studio** — the user only sees Studio.
@@ -241,8 +241,8 @@ shared content updates everywhere while placement stays local. The preview
 supports section and block drag/reorder plus schema-derived inline editing for
 safe text fields.
 
-Studio's **Shared layout** workspace groups announcement, header, navigation,
-footer and shared-section controls. In Edit mode, double-click plain text in the
+Studio's announcement, header, navigation and footer are listed in **Page layout**'s Header / Footer groups
+(the separate Shared layout tab was retired in 1.5; old `tab=shared` links open Page layout). In Edit mode, double-click plain text in the
 iframe (or focus its edit hook and press Enter), then choose **Done** to commit
 one undoable draft change or **Cancel** / Escape to restore it. Typing keeps the
 preview stable; Save, Publish and Exit wait until the edit finishes. Announcement,
@@ -400,7 +400,7 @@ font/size px (desktop + phone)/weight and top spacing are `pageTitleFont`, `page
 > only in the Studio preview (`sampleInPreview`/`sampleHtml`, guarded by `components/noSampleContent.test.tsx`).
 > Footer policy link/page titles are Text & labels › Footer (`policyTitle*`).
 
-**Click-to-edit in the preview:** sections carry `data-fm-section`; every other storefront region carries `data-studio-target="style:<groupId>|copy:<Group>|menus:<panel>|pages"` + `data-studio-label`. In Edit mode the preview bridge (`studio/previewBridge.ts`) outlines it, and a click sends `STUDIO_TARGET` (several targets → a small in-preview menu); `StudioEditor.tsx` switches tab and opens/flashes the matching `Group id` / `data-studio-panel`. New storefront regions must carry a target — `studioTargets.test.ts` checks every target points at a real panel.
+**Click-to-edit in the preview:** sections carry `data-fm-section`; every other storefront region carries `data-studio-target="style:<groupId>|copy:<Group>|menus:<panel>|pages"` + `data-studio-label`. In Edit mode the preview bridge (`studio/previewBridge.ts`) outlines it, and a click selects that part (`STUDIO_ELEMENT`): the right-hand inspector opens it with **Words · Style · Layout · Visibility** tabs (`studio/elementCatalog.ts` picks the existing controls, `StudioElementInspector.tsx` renders them) — no pop-up menu. **Open in Theme settings** still reaches the full category (`openTarget`). New storefront regions must carry a target — `studioTargets.test.ts` checks every target points at a real panel.
 
 **Category drop-downs:** a shop category can sit under another (`parentId`, Studio › Menus › Shop categories ›
 **Sits under**, one level deep — `navItems.ts` `parentOf`/`childCategories`). A parent with sub-categories renders as
@@ -435,7 +435,7 @@ its own click-to-edit target (Bag heading, Free-shipping bar, Bag line items, Ba
 
 **Small print:** Studio › Style › **Small print & labels** (`smallPrint*` keys, `features/site/smallPrint.ts`) sets a minimum size, colour, case, letter spacing and font for every tiny `text-[8px]…text-[11px]` label at once.
 
-**Click focus:** clicking a preview region pins an "Editing: <label>" card at the top of Studio › Style with only that element's controls (`STYLE_TARGET_FIELDS` in `styleSchema.ts` gathers fields across groups by key; labels not listed show their whole group). **Show all style settings** returns to the full list.
+**Element inspector (1.5):** clicking a built-in part (preview or Page layout) opens it in the right-hand inspector — Words (the strings shown inside it, else its whole Text & labels group), Style, Layout (per previewed device) and Visibility (none for `required` regions). Controls come from `STYLE_TARGET_FIELDS` / the region manifest / its `style:` targets (`elementCatalog.ts`); `elementCatalog.test.ts` fails if a clickable part opens nothing or a style category is unreachable (site-wide ones are `GLOBAL_STYLE_GROUPS`). Theme settings › element focus ("Editing: <label>") still exists via **Open in Theme settings**. Sections get **Content · Style · Layout · Visibility** tabs from `studio/sectionStyleSchema.ts` (`StudioSectionStyle.tsx`; the old hand-written `SectionSettingsPanel` is gone — `sectionStyleSchema.test.ts` pins its keys), including **Hide on tablets** (`hideOnTablet`, 768–1023px).
 
 **Fonts:** Studio › Style › **Typography** has Google Fonts pickers (heading, body, header & menu `navFont`, logo `wordmarkFont`) fed by the curated list in `features/site/fonts.ts` (Riso trio Anton / Archivo / DM Mono first; `googleFontHref` uses only weights each family serves).
 

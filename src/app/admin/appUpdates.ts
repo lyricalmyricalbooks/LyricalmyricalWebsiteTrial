@@ -10,6 +10,11 @@ export type AppUpdate = {
 // Newest first. Every PR adds an entry; links open the affected admin workspace.
 export const APP_UPDATES: AppUpdate[] = [
   {
+    id: "studio-2-one-inspector", date: "2026-10-09", title: "Click any part of your shop to edit it in one place",
+    summary: "In the Design studio, clicking any part of the preview — the header, the category bar, the buy card, the shopping bag, the footer — now opens its settings on the right, in tabs: Words (the words shown in that part), Style, Layout and Visibility. You no longer get a small \"what do you want to edit?\" menu or get sent to another tab. Sections have the same tabs (Content, Style, Layout, Visibility), with a new switch to hide a section on tablets only. The separate Shared layout tab is gone: the header and footer are listed in Page layout. Deleting from the preview's toolbar now happens straight away with an Undo button.",
+    links: [{ label: "Open Page layout", tab: "settings", settingsTab: "designer", studio: "#designer?tab=sections" }],
+  },
+  {
     id: "studio-2-page-structure", date: "2026-10-08", title: "See every part of a page in one list",
     summary: "Page layout in the Design studio now lists the whole page you're previewing, top to bottom: the header and its parts, the parts built into the page (like the catalog heading and product grid) and your sections, the footer, and pop-overs. Point at a row and the preview outlines that part; point at the preview and the row lights up. Click a row to open its settings. Built-in parts have an eye button to hide them on the size you're previewing (parts shoppers need, like the newsletter button, show a lock instead). Pop-overs has \"Open in preview\" for the shopping bag and search, so you can style them without adding a book first. You can also rename a section (Section actions › Rename) — the name is only shown in the studio. When you click a part with several kinds of settings, the choices are now clearly named (for example \"Style: Header & announcement bar\" or \"Words: Header\"). Also fixed: on a slow connection, a section you selected before the preview finished loading no longer gets unselected when it does.",
     links: [{ label: "Open Page layout", tab: "settings", settingsTab: "designer", studio: "#designer?tab=sections" }],

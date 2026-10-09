@@ -61,7 +61,7 @@ The editor is **not** a blank slate. It already supports:
 
 | File | Owns |
 |------|------|
-| `src/app/admin/studio/StudioEditor.tsx` | Studio shell: top bar (page picker, device, Edit/Browse, undo/redo, Save draft, Publish, Theme actions), left rail (Page layout, Shared layout, Theme settings, Text & labels, Navigation, Pages), preview iframe wiring and the single `change(fn)` edit entry point. |
+| `src/app/admin/studio/StudioEditor.tsx` | Studio shell: top bar (page picker, device, Edit/Browse, undo/redo, Save draft, Publish, Theme actions), left rail (Page layout, Theme settings, Text & labels, Navigation, Pages), preview iframe wiring and the single `change(fn)` edit entry point. |
 | `src/app/admin/studio/StudioOutline.tsx` / `StudioInspector.tsx` | Section/block outline and the section/block inspector (Content, Layout & style). |
 | `src/app/admin/studio/styleSchema.ts` / `settingsMap.ts` | Every Theme settings control (`STYLE_GROUPS`, region groups) and where each one lives. |
 | `src/app/admin/studio/previewBridge.ts` / `canvasBridge.ts` | Script injected into the preview: click-to-edit, inline text, canvas toolbar, spacing handles. |
@@ -258,7 +258,18 @@ assistant, personalization/A-B tests, author/series/event pages, multi-language 
       shopping bag or search inside the preview, and Footer links to the every-page sections. Sections can be renamed
       (`section.label`, Studio-only, searchable). Still to do with 1.5: multi-select, a right-click menu, dragging blocks
       between sections and "move to another page".
-- [ ] 1.5 Unified inspector (Content / Style / Layout / Visibility) for any element, section or block.
+- [x] 1.5 Unified inspector. Clicking a built-in part in the preview (`STUDIO_ELEMENT`, no more multi-target pop-up)
+      or in Page layout's structure list (`SELECT_NODE` → `ELEMENT_INFO`) opens it in the right-hand inspector:
+      **Words** (the strings visible inside the part, matched on its text, else its whole Text & labels group),
+      **Style**, **Layout** (sizes/spacing for the previewed device) and **Visibility** (none for required parts),
+      with breadcrumb, All pages / This page only and links to Theme settings and all words. Controls are picked
+      from existing schemas by `studio/elementCatalog.ts`; site-wide categories (buttons, small print, motion, Riso,
+      custom code) stay in Theme settings (`GLOBAL_STYLE_GROUPS`). The preview keeps a selection outline on the part.
+      Sections: **Content · Style · Layout · Visibility** from the declarative `studio/sectionStyleSchema.ts`
+      (`StudioSectionStyle.tsx`), replacing the ~700-line `SectionSettingsPanel` (same keys, frozen in a parity
+      test) and adding **Hide on tablets** (`hideOnTablet`). The canvas Delete no longer uses `confirm()` — it acts
+      at once with Undo. The **Shared layout** rail tab is retired; `tab=shared` links open Page layout.
+      Still to do (1.5b): structure multi-select, a right-click menu, dragging blocks between sections, "move to page".
 - [ ] 1.6 Theme settings as the global design system; slimmer search.
 - [ ] 1.7 Command palette 2.0; legacy draft path cleanup.
 
@@ -512,7 +523,7 @@ library → verify), then check it off.
       labels route to the inspector; product data and composite labels remain
       inspector-only. Linked block edits update their shared source and preserve
       local placement. Browse mode removes editing focus/tooltip hooks.
-- [x] Shared layout workspace groups announcement, header, navigation, footer
+- [x] (Retired in Studio 2.0 · 1.5 — now Page layout's Header/Footer groups.) Shared layout workspace groups announcement, header, navigation, footer
       and shared-section controls with direct links to existing settings and
       text groups. This organizes the controls; header/footer section placement
       remains a separate roadmap item.

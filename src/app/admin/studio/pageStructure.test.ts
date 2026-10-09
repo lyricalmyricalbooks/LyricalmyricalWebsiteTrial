@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { buildPageStructure, primaryTarget, readStructure, structureKeys, structureLabel, type StructureNode } from "./pageStructure";
+import { buildPageStructure, primaryTarget, readStructure, structureKeys, structureLabel, structurePath, type StructureNode } from "./pageStructure";
 
 const node = (key: string, extra: Partial<StructureNode> = {}): StructureNode => ({
   key, label: "", target: "", region: "", section: "", parent: "", zone: "main", hidden: false, count: 1, ...extra,
@@ -68,5 +68,14 @@ describe("page structure", () => {
     expect(structureLabel({ label: "", region: "footerPanel", target: "" })).toBe("Footer Panel");
     expect(primaryTarget("copy:Footer|style:footer")).toBe("style:footer");
     expect(primaryTarget("menus:footer|copy:Footer")).toBe("menus:footer");
+  });
+
+  it("gives each part a breadcrumb of where it sits", () => {
+    const s = buildPageStructure(SCAN);
+    expect(structurePath(s, "t:style:logo|Logo")).toEqual(["Header", "Header"]);
+    expect(structurePath(s, "t:copy:Footer|Footer links")).toEqual(["Footer", "Footer"]);
+    expect(structurePath(s, "t:style:products|Product grid")).toEqual(["Page"]);
+    expect(structurePath(s, "missing")).toEqual([]);
+    expect(structurePath(null, "x")).toEqual([]);
   });
 });

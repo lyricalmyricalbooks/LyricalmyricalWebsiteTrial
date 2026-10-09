@@ -213,3 +213,19 @@ export function imageObjectPositionFromFocal(focalX?: number, focalY?: number): 
   const y = Math.max(0, Math.min(100, focalY ?? 50));
   return `${x}% ${y}%`;
 }
+
+// Font choices offered for per-section overrides (matches the editor's core set).
+export const SECTION_FONT_OPTIONS = [
+  "Inter", "Outfit", "DM Sans", "Montserrat", "Syne", "Fraunces",
+  "Cormorant", "Playfair Display", "Lora", "EB Garamond", "Space Mono", "Bebas Neue",
+];
+
+export const SECTION_ANIMATIONS = [
+  { value: "", label: "Inherit (default)" },
+  { value: "none", label: "None" },
+  { value: "fade-up", label: "Fade up" },
+  { value: "fade", label: "Fade in" },
+  { value: "slide-left", label: "Slide from right" },
+  { value: "slide-right", label: "Slide from left" },
+  { value: "zoom", label: "Zoom in" },
+];

@@ -34,6 +34,7 @@ describe("remembered Studio layout", () => {
     expect(parseUiState(JSON.stringify({ leftTab: "style", device: "tablet", zoom: 75, templateId: "page:about" })))
       .toMatchObject({ leftTab: "style", device: "tablet", zoom: 75, templateId: "page:about" });
     expect(parseUiState(JSON.stringify({ leftTab: "hack", device: "watch", zoom: 33 }))).toMatchObject({ leftTab: undefined, device: undefined, zoom: undefined });
+    expect(parseUiState(JSON.stringify({ leftTab: "shared" })).leftTab).toBe("sections");
     expect(parseUiState("not json")).toEqual({});
   });
   it("fits a preview into the canvas without enlarging it", () => {
