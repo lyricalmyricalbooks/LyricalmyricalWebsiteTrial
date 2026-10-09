@@ -56,19 +56,21 @@ const GIFT_CARD_MESSAGES = {
   held: "This gift card's balance is being used in another checkout. Try again in a few minutes.",
 };
 
-function activeHolds(holds, now, exceptOrderId) {
+// `owner` (stockHolds.holdOwner): the same shopper's other checkout attempts never block them.
+function activeHolds(holds, now, exceptOrderId, owner = "") {
   const out = {};
   for (const [orderId, hold] of Object.entries(holds || {})) {
     if (orderId === exceptOrderId) continue;
     if (!hold || Number(hold.expiresAt) <= now) continue;
+    if (owner && hold.owner === owner) continue;
     out[orderId] = hold;
   }
   return out;
 }
 
 // Cents a checkout may use from this card: the balance minus other checkouts' live holds.
-function availableMinor(card, orderId = "", now = Date.now()) {
-  const held = Object.values(activeHolds(card && card.holds, now, orderId)).reduce((sum, hold) => sum + (Number(hold.minor) || 0), 0);
+function availableMinor(card, orderId = "", now = Date.now(), owner = "") {
+  const held = Object.values(activeHolds(card && card.holds, now, orderId, owner)).reduce((sum, hold) => sum + (Number(hold.minor) || 0), 0);
   return Math.max(0, Math.floor(Number(card && card.balanceMinor) || 0) - held);
 }
 
@@ -100,7 +102,7 @@ class GiftCardError extends Error {
 
 // Holds each redemption's amount on its card for HOLD_MS (renewing this order's own hold).
 // redemptions: [{ id, minor }]. Throws GiftCardError when a card can no longer cover it.
-async function reserveGiftCards(db, orderId, redemptions, { now = Date.now(), testMode = false } = {}) {
+async function reserveGiftCards(db, orderId, redemptions, { now = Date.now(), testMode = false, owner = "" } = {}) {
   const list = (redemptions || []).filter(r => r && r.id && r.minor > 0);
   if (!list.length) return;
   await db.runTransaction(async tx => {
@@ -111,9 +113,10 @@ async function reserveGiftCards(db, orderId, redemptions, { now = Date.now(), te
       const card = snaps[i].exists ? snaps[i].data() : null;
       const problem = giftCardProblem(card, { now: new Date(now), testMode });
       if (problem) throw new GiftCardError(problem);
-      if (availableMinor(card, orderId, now) < redemption.minor) throw new GiftCardError("held");
-      const others = activeHolds(card.holds, now, orderId);
-      writes.push([refs[i], { holds: { ...others, [orderId]: { minor: redemption.minor, expiresAt: now + HOLD_MS } }, updatedAt: new Date(now).toISOString() }]);
+      if (availableMinor(card, orderId, now, owner) < redemption.minor) throw new GiftCardError("held");
+      // The shopper's newer attempt replaces their earlier holds, so holds never add up past the balance.
+      const others = activeHolds(card.holds, now, orderId, owner);
+      writes.push([refs[i], { holds: { ...others, [orderId]: { minor: redemption.minor, expiresAt: now + HOLD_MS, ...(owner ? { owner } : {}) } }, updatedAt: new Date(now).toISOString() }]);
     });
     // update (not merge) replaces the whole holds map, so expired holds drop out.
     for (const [ref, data] of writes) tx.update(ref, data);
@@ -208,7 +211,15 @@ function cardsForOrder(orderId, order, { now = new Date().toISOString(), makeCod
   return out;
 }
 
+// The gift-card amounts the order's live payment was created for (saved with expectedAmountMinor).
+// A later re-pricing (a retry refused because a payment is already in progress) can't change them.
+function chargedRedemptions(order) {
+  if (Array.isArray(order && order.chargedGiftCards)) return order.chargedGiftCards;
+  return Array.isArray(order && order.giftCardRedemptions) ? order.giftCardRedemptions : [];
+}
+
 module.exports = {
+  chargedRedemptions,
   HOLD_MS, MAX_CARDS_PER_ORDER, GIFT_CARD_MESSAGES, GiftCardError,
   newGiftCardCode, normalizeGiftCardCode, giftCardId, last4, giftCardProblem,
   activeHolds, availableMinor, allocateGiftCards, historyEntry, withHistory,

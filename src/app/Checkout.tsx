@@ -206,6 +206,7 @@ export function Checkout() {
   const [isCompleting, setIsCompleting] = useState(false);
   const submitPurchase = useRef(createCheckoutSubmission());
   const purchaseNavigating = useRef(false);
+  const serverSaysFree = useRef(false);
   const [orderNote, setOrderNote] = useState("");
   // Announced inline message (replaces alert()); tone drives colour, glyph + words carry the meaning.
   const [notice, setNotice] = useState<null | { tone: "error" | "info"; text: string }>(null);
@@ -1107,7 +1108,7 @@ export function Checkout() {
     if (data?.code === "gift_card_rejected") {
       return Object.assign(new Error(message), { giftCardRejected: true, reason: message.replace(/^Gift card error:\s*/i, "") || c("coGiftCardInvalid") });
     }
-    if (data?.code === "nothing_to_charge") return new CopyError(checkoutDesign, "coGiftCardCovers");
+    if (data?.code === "nothing_to_charge") return Object.assign(new CopyError(checkoutDesign, "coGiftCardCovers"), { nothingToCharge: true });
     if (!/^Discount code error:/i.test(message)) return null;
     return Object.assign(new Error(message), { discountRejected: true, reason: message.replace(/^Discount code error:\s*/i, "") });
   };
@@ -1270,7 +1271,9 @@ export function Checkout() {
 
       // A $0 order (100% discount, free e-book) has nothing to charge: the server prices it
       // and completes it only when its own total is zero.
-      if (finalTotal === 0) {
+      // The server said gift cards (or an offer only it could see) cover everything: complete without a card.
+      if (finalTotal === 0 || serverSaysFree.current) {
+        serverSaysFree.current = false;
         const freeOrderId = await adminApi.createOrder({ ...orderData, paymentMethod: "Free" });
         const response = await functionFetch("createStripeCheckoutSession", {
           method: "POST",
@@ -1399,6 +1402,12 @@ export function Checkout() {
       }
 
     } catch (err: any) {
+      if (err?.nothingToCharge) {
+        // Pressing Pay again places the order with nothing to charge (the server checks its own total).
+        serverSaysFree.current = true;
+        setNotice({ tone: "info", text: c("coGiftCardCovers") });
+        return;
+      }
       if (err?.giftCardRejected) {
         // The server refused a gift card (used up, disabled…): take the cards off so the shopper can retry.
         setGiftCards([]);

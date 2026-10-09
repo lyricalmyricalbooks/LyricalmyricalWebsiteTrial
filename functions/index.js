@@ -31,7 +31,7 @@ const { discountedPhysicalSubtotal, resolveLocalSelection, isPhysicalItem, bogoP
 const { catalogUnitPrice } = require("./catalogPrice");
 const { discountableItems, discountAmountFor, pickAutomaticDiscount } = require("./discountMath");
 const { addOnSelection, bundleComponents, bundleAvailable, isGiftCardProduct, giftCardDetails } = require("./promotions");
-const { MAX_CARDS_PER_ORDER, GIFT_CARD_MESSAGES, GiftCardError, newGiftCardCode, normalizeGiftCardCode, giftCardId, last4, giftCardProblem, availableMinor, allocateGiftCards, reserveGiftCards, releaseGiftCards, readGiftCards, debitShortfall, writeGiftCardChange, cardsForOrder, withHistory } = require("./giftCards");
+const { MAX_CARDS_PER_ORDER, GIFT_CARD_MESSAGES, GiftCardError, newGiftCardCode, normalizeGiftCardCode, giftCardId, last4, giftCardProblem, availableMinor, allocateGiftCards, chargedRedemptions, reserveGiftCards, releaseGiftCards, readGiftCards, debitShortfall, writeGiftCardChange, cardsForOrder, withHistory } = require("./giftCards");
 const { readBooks, writeStock } = require("./inventory");
 const { resolveCountry } = require("./shippingGeo");
 const { REQUIRED_WEBHOOK_EVENTS, modesToTry, intentAsSession, paidIntentOrderId, webhookEndpointReport, signingSecrets, reversalState, ordersDueReversalCheck } = require("./stripeRecovery");
@@ -817,6 +817,15 @@ function catalogDigital(book, variant) {
   return variant?.digital === true || variant?.isDigital === true || (!variant && (book.digital === true || book.isDigital === true));
 }
 
+// One line's pre-order state from several catalog books (a box set and its parts): on pre-order
+// when any is; the release date is the latest, and "date to be announced" when any has none.
+function combinedPreorder(books) {
+  const lines = books.filter(Boolean).map(b => preorderLine(b)).filter(line => line.preorder);
+  if (!lines.length) return { preorder: false, releaseDate: null };
+  if (lines.some(line => !line.releaseDate)) return { preorder: true, releaseDate: null };
+  return { preorder: true, releaseDate: lines.map(line => line.releaseDate).sort().at(-1) };
+}
+
 // A checkout refusal the shopper can act on (sold out, discount refused…): answered with 400.
 class PricingError extends Error {
   constructor(message, code) {
@@ -914,8 +923,9 @@ async function priceOrder(order, { orderId = "", settings: knownSettings = null 
       isDigital: catalogDigital(book, variant),
       shippingProfileId: book.shippingProfileId || null,
       weightGrams: itemWeightGrams(book, variant) ?? bundleWeight,
-      // Pre-order state comes from the catalog at checkout (never from the browser).
-      ...preorderLine(book),
+      // Pre-order state comes from the catalog at checkout (never from the browser). A box set
+      // waits for the latest pre-order book inside it.
+      ...combinedPreorder([book, ...components.map(part => booksById[part.id])]),
     });
   }
   if (!items.length) throw new PricingError("Order has no items.");
@@ -1020,13 +1030,16 @@ async function priceOrder(order, { orderId = "", settings: knownSettings = null 
   if (codes.length > MAX_CARDS_PER_ORDER) throw new PricingError(`Use up to ${MAX_CARDS_PER_ORDER} gift cards on one order.`, "gift_card_rejected");
   const cardsAvailable = [];
   const nowMs = Date.now();
+  const owner = holdOwner(order);
+  let testCardUsed = false;
   for (const code of codes) {
     const id = giftCardId(code);
     const snap = await db.collection("giftCards").doc(id).get();
     const card = snap.exists ? snap.data() : null;
     const problem = giftCardProblem(card, { testMode });
     if (problem) throw new PricingError(`Gift card error: ${GIFT_CARD_MESSAGES[problem]}`, "gift_card_rejected");
-    cardsAvailable.push({ id, last4: last4(code), availableMinor: availableMinor(card, orderId, nowMs) });
+    if (card.isTest === true) testCardUsed = true;
+    cardsAvailable.push({ id, last4: last4(code), availableMinor: availableMinor(card, orderId, nowMs, owner) });
   }
   const redemptions = allocateGiftCards(cardsAvailable, coverableMinor).map(r => ({ ...r, last4: cardsAvailable.find(c => c.id === r.id).last4 }));
   const giftCardAmount = redemptions.reduce((sum, r) => sum + r.minor, 0) / 100;
@@ -1034,7 +1047,7 @@ async function priceOrder(order, { orderId = "", settings: knownSettings = null 
   return {
     items, booksById, settings, testMode, subtotal, discount, appliedDiscount, verifiedDiscount,
     shipping, shippingMethod: shipResult.method || null, shippingEstimate: shipResult.estimate || null, fulfillment: shipResult.fulfillment || null,
-    tax, giftCardAmount, giftCardRedemptions: redemptions, total,
+    tax, giftCardAmount, giftCardRedemptions: redemptions, total, testCardUsed,
   };
 }
 
@@ -1054,7 +1067,7 @@ async function recalculateOrder(orderRef, order, checkoutCurrency, orderId = "")
     updatedAt: new Date().toISOString(),
   };
   await orderRef.update(update);
-  return { ...update, convertedTotal, settings, testMode: priced.testMode };
+  return { ...update, convertedTotal, settings, testMode: priced.testMode, testCardUsed: priced.testCardUsed };
 }
 
 // A shopper who retries (switches card ↔ PayPal ↔ e-Transfer, or edits the bag) gets a new
@@ -1082,7 +1095,7 @@ async function releaseSupersededAttempt(req, email, currentOrderId) {
       if (intent && !["requires_payment_method", "canceled"].includes(intent.status)) return;
     }
     await releaseStock(db, prevId, prev.items || []);
-    await releaseGiftCards(db, prevId, prev.giftCardRedemptions);
+    await releaseGiftCards(db, prevId, [...chargedRedemptions(prev), ...(prev.giftCardRedemptions || [])]);
   } catch (err) {
     console.warn(`Could not release superseded attempt ${prevId}:`, err.message);
   }
@@ -1094,7 +1107,7 @@ async function reserveCheckout(orderId, items, order, giftCardRedemptions, testM
   await reserveStock(db, orderId, items, Date.now(), holdOwner(order));
   if (!(giftCardRedemptions || []).length) return;
   try {
-    await reserveGiftCards(db, orderId, giftCardRedemptions, { testMode });
+    await reserveGiftCards(db, orderId, giftCardRedemptions, { testMode, owner: holdOwner(order) });
   } catch (err) {
     await releaseStock(db, orderId, items);
     throw err;
@@ -1105,7 +1118,7 @@ async function reserveCheckout(orderId, items, order, giftCardRedemptions, testM
 // cards once. Returns false (and records giftCardConflict) when a card can no longer pay its part:
 // the order is then not marked paid, exactly like a stock conflict.
 function settleGiftCards(transaction, orderRef, orderId, order, cards, provider, now) {
-  const redemptions = order.giftCardRedemptions || [];
+  const redemptions = chargedRedemptions(order);
   if (!redemptions.length || order.giftCardsDebitedAt) return true;
   const short = debitShortfall(redemptions, cards);
   if (short) {
@@ -1291,6 +1304,7 @@ exports.createPayPalOrder = onBrowserRequest(
         paypalMode: config.testMode ? "test" : "live",
         // Capture marks the order paid only for exactly this amount and currency.
         expectedAmountMinor: toMinor(priced.convertedTotal.toFixed(2)), expectedCurrency: currency,
+        chargedGiftCards: priced.giftCardRedemptions,
         updatedAt: new Date().toISOString(),
       });
       res.json({ orderToken: paypalOrder.id, approvalUrl });
@@ -1515,11 +1529,14 @@ exports.createStripeCheckoutSession = onBrowserRequest(
         if (freeOrder.paymentStatus !== "unpaid" || freeOrder.paymentMethod !== "Free" || freeOrder.isTest === true || checkoutRefusal(freeOrder)) {
           return res.status(400).json({ error: "This order can't be completed without payment." });
         }
-        const priced = await recalculateOrder(freeRef, freeOrder, checkoutCurrencyOf(req.body.currency) || "cad", freeId);
-        if (Math.round(Number(priced.total) * 100) !== 0) {
-          return res.status(400).json({ error: "This order has a total to pay. Review your bag and choose a payment method." });
-        }
+        // The shopper's own earlier attempt gives back its holds first, so it can't block this one.
         await releaseSupersededAttempt(req, freeOrder.customer?.email, freeId);
+        const priced = await recalculateOrder(freeRef, freeOrder, checkoutCurrencyOf(req.body.currency) || "cad", freeId);
+        // A test-mode gift card is a rehearsal: it can't pay for a real order on its own.
+        if (priced.testCardUsed) return res.status(400).json({ error: "Gift card error: This test gift card can only be used with a test card payment.", code: "gift_card_rejected" });
+        if (Math.round(Number(priced.total) * 100) !== 0) {
+          return res.status(400).json({ error: "This order has a total to pay. Review your bag and choose a payment method.", code: "total_changed" });
+        }
         const paidNow = await completeOrderWithoutCard(freeId, priced.giftCardAmount > 0 ? "Order paid in full with a gift card." : "Free order completed — nothing to charge.");
         if (!paidNow) return res.status(409).json({ error: "Your gift card balance changed. Review your order and try again.", code: "gift_card_rejected" });
         return res.status(200).json({ paid: true });
@@ -1758,7 +1775,7 @@ exports.createStripeCheckoutSession = onBrowserRequest(
           metadata: { order_id: orderId, checkout: "payment_element" },
         }, { idempotencyKey: stripeIntentKey(orderId, amount, checkoutCurrency, order.stripePaymentIntentId) });
         // The webhook marks the order paid only for exactly this amount and currency.
-        await orderRef.update({ stripePaymentIntentId: intent.id, expectedAmountMinor: amount, expectedCurrency: checkoutCurrency, updatedAt: new Date().toISOString() });
+        await orderRef.update({ stripePaymentIntentId: intent.id, expectedAmountMinor: amount, expectedCurrency: checkoutCurrency, chargedGiftCards: giftCardRedemptions, updatedAt: new Date().toISOString() });
         // stripeMode lets the browser check its card form uses the same Stripe mode.
         res.status(200).json({ clientSecret: intent.client_secret, amount, currency: checkoutCurrency, stripeMode: testMode ? "test" : "live" });
         return;
@@ -1779,6 +1796,7 @@ exports.createStripeCheckoutSession = onBrowserRequest(
       await orderRef.update({
         expectedAmountMinor: lineItems.reduce((sum, li) => sum + li.price_data.unit_amount * li.quantity, 0),
         expectedCurrency: checkoutCurrency,
+        chargedGiftCards: giftCardRedemptions,
         updatedAt: new Date().toISOString(),
       });
       // Same order, amount and minute = the same session (a double click can't open two).
@@ -2305,13 +2323,14 @@ async function applyOrderRefund(orderId, { provider, refundId = null, amountMino
     const discountRef = shouldReverseDiscount ? db.collection("discounts").doc(order.appliedDiscount.id) : null;
     const discountDoc = discountRef ? await transaction.get(discountRef) : null;
     // A full refund also gives back what gift cards paid, once.
-    const shouldRestoreGiftCards = !!order.giftCardsDebitedAt && !order.giftCardsRestoredAt && (order.giftCardRedemptions || []).length > 0;
-    const giftCards = shouldRestoreGiftCards ? await readGiftCards(transaction, db, order.giftCardRedemptions) : new Map();
+    const charged = chargedRedemptions(order);
+    const shouldRestoreGiftCards = !!order.giftCardsDebitedAt && !order.giftCardsRestoredAt && charged.length > 0;
+    const giftCards = shouldRestoreGiftCards ? await readGiftCards(transaction, db, charged) : new Map();
     // Gift cards this order bought stop working once their purchase is refunded.
     const issuedCards = !order.giftCardsVoidedAt ? await readGiftCards(transaction, db, order.giftCardsIssued) : new Map();
 
     if (shouldRestock) writeStock(transaction, db, itemList, books, 1, now);
-    if (shouldRestoreGiftCards) writeGiftCardChange(transaction, db, orderId, order.giftCardRedemptions, giftCards, 1, now);
+    if (shouldRestoreGiftCards) writeGiftCardChange(transaction, db, orderId, charged, giftCards, 1, now);
     for (const [cardId, card] of issuedCards) {
       if (card.enabled === false) continue;
       transaction.update(db.collection("giftCards").doc(cardId), { enabled: false, history: withHistory(card, { type: "disabled", minor: 0, orderId, reason: "Purchase refunded", at: now }), updatedAt: now });
@@ -2348,7 +2367,7 @@ async function applyOrderRefund(orderId, { provider, refundId = null, amountMino
       updatedAt: now,
       activity: [...(order.activity || []), {
         type: "event",
-        message: `${label} refund ${done ? "completed" : "started"}${amountText}${shouldRestock ? "; inventory restocked" : ""}${shouldRestoreGiftCards ? `; ${(order.giftCardRedemptions || []).reduce((sum, r) => sum + (Number(r.minor) || 0), 0) / 100} CAD put back on gift cards` : ""}${note ? ` — ${note}` : ""}.`,
+        message: `${label} refund ${done ? "completed" : "started"}${amountText}${shouldRestock ? "; inventory restocked" : ""}${shouldRestoreGiftCards ? `; ${charged.reduce((sum, r) => sum + (Number(r.minor) || 0), 0) / 100} CAD put back on gift cards` : ""}${note ? ` — ${note}` : ""}.`,
         createdAt: now,
         actor,
       }],
@@ -2400,6 +2419,13 @@ async function syncStripeReversal(orderId, { charge, dispute = null, source }) {
       update["paymentMismatch.resolvedAt"] = now;
       update["paymentMismatch.resolvedBy"] = "stripe-refund";
       notes.push(`The unexpected Stripe payment was refunded (${source}).`);
+    }
+
+    // The card payment for an order whose gift card fell short, now refunded: nothing left to settle.
+    if (r.fullyRefunded && order.giftCardConflict && !order.giftCardConflict.resolvedAt && order.paymentStatus !== "paid") {
+      update["giftCardConflict.resolvedAt"] = now;
+      update["giftCardConflict.resolvedBy"] = "stripe-refund";
+      notes.push(`The payment for this order (gift card couldn't cover its part) was refunded (${source}).`);
     }
 
     if ((r.fullyRefunded || r.disputeStatus === "lost") && ["paid", "refund_pending"].includes(order.paymentStatus)) {
@@ -2540,7 +2566,7 @@ async function handleCancelOrder(req, res) {
       console.warn(`cancelOrder ${orderId}: could not stop the Stripe payment:`, err.message);
     }
     await releaseStock(db, orderId, order.items || []);
-    await releaseGiftCards(db, orderId, order.giftCardRedemptions);
+    await releaseGiftCards(db, orderId, [...chargedRedemptions(order), ...(order.giftCardRedemptions || [])]);
     return res.status(200).json({ cancelled: true, stopped });
   } catch (err) {
     return res.status(err.status || 500).json({ error: err.message, code: err.code });
@@ -2555,10 +2581,14 @@ async function handleResolveMismatch(req, res) {
   if (typeof orderId !== "string" || !orderId || orderId.includes("/")) return res.status(400).json({ error: "Missing orderId" });
   const ref = db.collection("orders").doc(orderId);
   const snap = await ref.get();
-  if (!snap.exists || !snap.data().paymentMismatch) return res.status(404).json({ error: "Nothing to resolve on this order." });
+  const current = snap.exists ? snap.data() : null;
+  if (!current || (!current.paymentMismatch && !current.giftCardConflict)) return res.status(404).json({ error: "Nothing to resolve on this order." });
   const now = new Date().toISOString();
+  const by = adminUser.email || adminUser.uid;
   await ref.update({
-    "paymentMismatch.resolvedAt": now, "paymentMismatch.resolvedBy": adminUser.email || adminUser.uid, updatedAt: now,
+    ...(current.paymentMismatch ? { "paymentMismatch.resolvedAt": now, "paymentMismatch.resolvedBy": by } : {}),
+    ...(current.giftCardConflict ? { "giftCardConflict.resolvedAt": now, "giftCardConflict.resolvedBy": by } : {}),
+    updatedAt: now,
     activity: admin.firestore.FieldValue.arrayUnion({ type: "event", message: `Payment problem marked as refunded/resolved by ${adminUser.email || "administrator"}.`, createdAt: now }),
   });
   return res.status(200).json({ resolved: true });
@@ -3123,6 +3153,19 @@ exports.refundOrder = onBrowserRequest(
         // A request the shop hasn't approved (e-book orders, goodwill refunds) can be refunded directly.
         if (current.customerRequest?.type === "return" && current.customerRequest.status === "open" && ["approved", "received"].includes(current.returnProgress?.state)) {
           const error = new Error("Receive and inspect the returned books before refunding this return."); error.status = 409; throw error;
+        }
+        // A gift card this order bought that has since been spent can't be taken back by a refund.
+        const issued = Array.isArray(current.giftCardsIssued) ? current.giftCardsIssued : [];
+        if (issued.length) {
+          const cards = await Promise.all(issued.map(card => transaction.get(db.collection("giftCards").doc(card.id))));
+          const spentMinor = cards.reduce((sum, cardSnap) => {
+            const card = cardSnap.exists ? cardSnap.data() : null;
+            return card ? sum + Math.max(0, Math.floor(Number(card.initialMinor) || 0) - Math.floor(Number(card.balanceMinor) || 0)) : sum;
+          }, 0);
+          if (spentMinor > 0) {
+            const error = new Error(`CA$${(spentMinor / 100).toFixed(2)} of the gift cards this order bought has already been spent. A full refund would give that money back twice. Refund only the unused part in Stripe or PayPal directly, then disable the card in Gift cards.`);
+            error.status = 409; throw error;
+          }
         }
         transaction.update(orderRef, { refundRequest: { restock: restock !== false, reason: reasonText, actor, at: claimedAt } });
         return current;
@@ -3857,7 +3900,7 @@ exports.onOrderUpdated = onDocumentUpdated(
     // A cancelled order frees any copies it was holding at checkout.
     if (before.status !== "cancelled" && after.status === "cancelled") {
       await releaseStock(db, orderId, after.items || []);
-      await releaseGiftCards(db, orderId, after.giftCardRedemptions);
+      await releaseGiftCards(db, orderId, [...chargedRedemptions(after), ...(after.giftCardRedemptions || [])]);
     }
     const becameCancelled = before.status !== "cancelled" && after.status === "cancelled"
       && after.paymentStatus !== "refunded" && after.paymentStatus !== "refund_pending"
