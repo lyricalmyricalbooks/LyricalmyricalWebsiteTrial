@@ -22,11 +22,19 @@ export function previewPrices(books: any[], mode: PriceMode, value: number): Pri
   return out;
 }
 
+/**
+ * The Books › Export CSV file. Its headings are the ones Import CSV reads (catalogImport.ts), so an
+ * exported file can be edited in a spreadsheet and imported back; an unedited file changes nothing.
+ */
 export function catalogToCsv(books: any[]): string {
   const cell = (v: unknown) => `"${String(v ?? "").replace(/"/g, '""').replace(/^([=+\-@])/, "'$1")}"`;
-  const head = ["Title", "Author", "Format", "ISBN", "SKU", "Status", "Featured", "Price", "Stock"];
+  const money = (v: unknown) => (v === undefined || v === null || v === "" || !Number.isFinite(Number(v)) ? "" : Number(v).toFixed(2));
+  const head = ["ID", "Title", "Author", "Format", "ISBN", "SKU", "Status", "Featured", "Price", "Sale price", "Stock",
+    "Categories", "Publisher", "Publication date", "Pages", "Edition", "Language", "Image URL", "Description"];
   return [head.map(cell).join(","), ...books.map((b) => [
-    b.title, b.authorName, b.format, b.isbn, b.sku, b.status || "published", (b.isFeatured ?? b.featured) ? "yes" : "no",
-    Number(b.retailPrice || 0).toFixed(2), b.stockLevel ?? "",
+    b.id, b.title, b.subtitle || b.authorName, b.format, b.isbn, b.sku, b.status || "published", (b.isFeatured ?? b.featured) ? "yes" : "no",
+    money(b.retailPrice ?? 0), b.isOnSale && Number(b.salePrice) > 0 ? money(b.salePrice) : "", b.stockLevel ?? "",
+    (b.categories || b.genres || []).join("; "), b.publisher, b.publishDate, Number(b.pageCount) > 0 ? b.pageCount : "", b.edition, b.language,
+    b.photos?.[0]?.url || b.photoUrl || "", b.description,
   ].map(cell).join(","))].join("\n");
 }
