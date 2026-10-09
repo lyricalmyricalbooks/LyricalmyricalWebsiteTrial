@@ -84,7 +84,8 @@ export function launchReadiness({ settings, books, shippingProfiles, emailLog, o
     : { id: "policies", label: "Store policy content is present", detail: "Shipping, returns, privacy and terms contain text. Review their public pages for accuracy.", status: "ok", tab: "general", action: "Open General" });
 
   // Email
-  const lastEmail = (emailLog || [])[0];
+  // A "fallback" row only says Gmail missed and the backup sender was tried; the outcome is its own row.
+  const lastEmail = (emailLog || []).find(e => e?.status !== "fallback");
   items.push(!lastEmail
     ? { id: "email", label: "No emails sent yet", detail: "Send a test from Notifications, then verify receipt in the destination inbox.", status: "warn", tab: "notifications", action: "Open Notifications" }
     : lastEmail.status === "failed"

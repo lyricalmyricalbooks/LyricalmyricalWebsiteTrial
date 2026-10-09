@@ -56,12 +56,20 @@ describe("orderMoney", () => {
 
 describe("totalNeedsConfirming", () => {
   it("lets rounding and exchange-rate drift through", () => {
-    expect(totalNeedsConfirming(7310, 7308)).toBe(false); // USD 5 × 19.99, per-line rounding
-    expect(totalNeedsConfirming(15276, 15274)).toBe(false); // CAD 6 × 29.95 with 15% off
-    expect(totalNeedsConfirming(7350, 7308)).toBe(false); // under 1% rate change
+    expect(totalNeedsConfirming(7310, 7308, "USD")).toBe(false); // USD 5 × 19.99, per-line rounding
+    expect(totalNeedsConfirming(15276, 15274, "CAD")).toBe(false); // CAD 6 × 29.95 with 15% off
+    expect(totalNeedsConfirming(7350, 7308, "USD")).toBe(false); // under 1% rate change
+    expect(totalNeedsConfirming(7350, 7308, "eur")).toBe(false);
   });
   it("stops a real price change", () => {
-    expect(totalNeedsConfirming(9000, 7308)).toBe(true);
-    expect(totalNeedsConfirming(120, 100)).toBe(true);
+    expect(totalNeedsConfirming(9000, 7308, "USD")).toBe(true);
+    expect(totalNeedsConfirming(120, 100, "CAD")).toBe(true);
+  });
+  it("allows only 5 cents of rounding in CAD: no exchange rate can drift", () => {
+    // A 30-cent CAD change on a $73 order is a real price change, not a rate wobble.
+    expect(totalNeedsConfirming(7338, 7308, "CAD")).toBe(true);
+    expect(totalNeedsConfirming(7338, 7308)).toBe(true); // no currency = CAD
+    expect(totalNeedsConfirming(7313, 7308, "CAD")).toBe(false);
+    expect(totalNeedsConfirming(7338, 7308, "USD")).toBe(false);
   });
 });

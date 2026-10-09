@@ -25,3 +25,16 @@ export function filterReviews(reviews: any[], opts: { status: string; rating: st
     return `${r.authorName || ""} ${r.email || ""} ${r.title || ""} ${r.body || ""} ${opts.titles[r.bookId] || ""}`.toLowerCase().includes(q);
   });
 }
+
+/** Result of approving/rejecting several reviews at once: which went through, which failed, what to say. */
+export function moderationOutcome(ids: string[], results: PromiseSettledResult<unknown>[], status: string) {
+  const done = ids.filter((_, i) => results[i]?.status === "fulfilled");
+  const failed = ids.filter((_, i) => results[i]?.status !== "fulfilled");
+  const plural = (n: number) => `${n} review${n === 1 ? "" : "s"}`;
+  const message = !failed.length
+    ? `${plural(done.length)} ${status}`
+    : !done.length
+      ? `Could not update ${failed.length === 1 ? "the review" : `any of the ${failed.length} reviews`}. Please try again.`
+      : `${plural(done.length)} ${status}; ${failed.length} failed and ${failed.length === 1 ? "stays" : "stay"} selected — try again.`;
+  return { done, failed, message };
+}

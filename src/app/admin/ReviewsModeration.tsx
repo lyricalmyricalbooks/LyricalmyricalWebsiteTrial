@@ -2,7 +2,7 @@ import { useEffect, useMemo, useState } from "react";
 import { collection, getDocs, query, orderBy, limit, where } from "firebase/firestore";
 import { Check, MessageSquare, Star, Trash2, X } from "lucide-react";
 import { adminApi } from "./api";
-import { filterReviews, reviewStats } from "./reviewInsights";
+import { filterReviews, moderationOutcome, reviewStats } from "./reviewInsights";
 import { db } from "../../lib/firebase";
 import { reviewsApi, type Review } from "../lib/reviews";
 import {
@@ -57,7 +57,7 @@ function Queue() {
   useEffect(() => { load(); }, []);
   // Book titles are a nicety: if they fail to load, fall back to the raw book ID.
   useEffect(() => {
-    adminApi.getBooks(500).then((bs: any[]) => setTitles(Object.fromEntries(bs.map((b) => [b.id, b.title || b.id])))).catch(() => {});
+    adminApi.getAllBooks().then((bs: any[]) => setTitles(Object.fromEntries(bs.map((b) => [b.id, b.title || b.id])))).catch(() => {});
   }, []);
   const stats = useMemo(() => reviewStats(reviews), [reviews]);
 
@@ -72,16 +72,20 @@ function Queue() {
 
   const moderate = async (ids: string[], status: Review["status"]) => {
     const previous = new Map(reviews.filter((r) => ids.includes(r.id)).map((r) => [r.id, r.status]));
-    try {
-      await Promise.all(ids.map((id) => reviewsApi.setStatus(id, status)));
-    } catch { toast("Could not update the review. Please try again."); return; }
-    setSelected(new Set());
-    toast(`${ids.length} review${ids.length === 1 ? "" : "s"} ${status}`, {
-      actionLabel: "Undo",
-      onAction: async () => {
-        await Promise.all(ids.map((id) => reviewsApi.setStatus(id, previous.get(id) || "pending")));
-        load();
-      },
+    // Each review is its own write: some can succeed while others fail. Report both and
+    // always reload, so the list never shows a state that isn't saved.
+    const results = await Promise.allSettled(ids.map((id) => reviewsApi.setStatus(id, status)));
+    const { done, failed, message } = moderationOutcome(ids, results, status);
+    setSelected(new Set(failed));
+    toast(message, {
+      ...(failed.length ? { tone: done.length ? "warn" as const : "err" as const } : {}),
+      ...(done.length ? {
+        actionLabel: "Undo",
+        onAction: async () => {
+          await Promise.allSettled(done.map((id) => reviewsApi.setStatus(id, previous.get(id) || "pending")));
+          load();
+        },
+      } : {}),
     });
     load();
   };

@@ -1,5 +1,11 @@
 import { describe, expect, it } from "vitest";
-import { addressIssues, addressKey, packingKey, queueOf, dispatchProblem, buildPickList, fulfillmentMethod } from "./fulfillment";
+import { addressIssues, addressKey, packingKey, queueOf, dispatchProblem, buildPickList, fulfillmentMethod, defaultRestockOnRefund } from "./fulfillment";
+describe("refund restock default", () => {
+ it("restocks by default only while the books are still in the shop", () => {
+  for (const status of ["shipped", "out_for_delivery", "delivered", "collected"]) expect(defaultRestockOnRefund({ fulfillmentStatus: status })).toBe(false);
+  for (const status of [undefined, "", "processing", "ready_for_pickup", "ready_for_delivery"]) expect(defaultRestockOnRefund({ fulfillmentStatus: status })).toBe(true);
+ });
+});
 const order = () => ({ id: "a", paymentStatus: "paid", status: "open", customer: { address: { street: "1 Main", city: "Toronto", state: "ON", zip: "M6G3H1", country: "Canada" } }, items: [{ id: "book", title: "Book", quantity: 2 }] });
 const reviewed = () => { const o: any = order(); o.operations = { addressReviewed: addressKey(o) }; return o; };
 const packed = () => { const o = reviewed(); o.operations.packed = packingKey(o); return o; };

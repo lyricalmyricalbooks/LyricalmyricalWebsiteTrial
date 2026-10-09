@@ -31,8 +31,27 @@ export async function readPublicStorefront() {
     } while (token);
     return documents;
   }
-  const [books, pages, settings] = await Promise.all([collection('books'), collection('pages'), publicRead(endpoint + 'settings/website').then(decodeDocument)]);
+  const [books, pages, settings] = await Promise.all([collection('books'), readPublishedPages(endpoint), publicRead(endpoint + 'settings/website').then(decodeDocument)]);
   return { books, pages, settings };
+}
+// firestore.rules let the public read only published pages, so an unfiltered listing of
+// `pages` is refused: ask for exactly the published ones (a status == "published" query).
+export const publishedPagesQuery = () => ({
+  structuredQuery: {
+    from: [{ collectionId: 'pages' }],
+    where: { fieldFilter: { field: { fieldPath: 'status' }, op: 'EQUAL', value: { stringValue: 'published' } } },
+  },
+});
+export async function readPublishedPages(endpoint, fetchImpl = fetch) {
+  const response = await fetchImpl(endpoint.replace(/\/$/, '') + ':runQuery', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(publishedPagesQuery()),
+    signal: AbortSignal.timeout(30000),
+  });
+  if (!response.ok) throw new Error(`Public data read failed: ${response.status}`);
+  const rows = await response.json();
+  return (Array.isArray(rows) ? rows : []).filter(row => row && row.document).map(row => decodeDocument(row.document));
 }
 const stable = value => Array.isArray(value) ? value.map(stable) : value && typeof value === 'object' ? Object.fromEntries(Object.keys(value).sort().filter(key => !['updatedAt', '_updateTime'].includes(key)).map(key => [key, stable(value[key])])) : value;
 // Only the published design counts: scheduled designs and campaigns are published into `design` by the server

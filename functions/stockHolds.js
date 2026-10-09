@@ -11,6 +11,16 @@ const { stockLines } = require("./promotions");
 
 const HOLD_MS = 30 * 60 * 1000; // matches the hosted Stripe session lifetime
 
+// Caps on what one shopper can hold at once, so a script can't lock the catalogue by opening
+// checkouts it never pays for (holds cost nothing). Counted across every active hold of the
+// same holder in the server-only `stock-hold-owners/{key}` docs: "e_<holdOwner>" (email hash)
+// and "ip_<sha256(ip)>". Only books whose stock is actually held (tracked, no backorders) count.
+// The connection caps are looser because homes, schools and offices share one address.
+const HOLD_LIMITS = {
+  owner: { perBook: 10, units: 50, orders: 3 },
+  ip: { perBook: 20, units: 100, orders: 10 },
+};
+
 // Who a hold belongs to: a hash of the shopper's email (never the address itself). A shopper
 // who fixes a typo or changes delivery after a declined card gets a new order; their earlier
 // order's hold must not lock them out of the copy they were already buying.
@@ -71,17 +81,72 @@ class StockHoldError extends Error {
   }
 }
 
+// Refused because this shopper (email or connection) already holds as much as one shopper may.
+// The storefront shows its own Studio words for the "hold_limit" code (Text & labels › Checkout).
+class HoldLimitError extends StockHoldError {
+  constructor(limit) {
+    super("", 0);
+    this.message = "You already have as many copies set aside as one shopper can at a time. Finish or cancel your other checkouts, lower the quantity, or contact us for a larger order.";
+    this.code = "hold_limit";
+    this.limit = limit;
+  }
+}
+
+// The holder docs one checkout is counted in: the shopper's email hash and, when the request
+// came from a known address, a hash of that address (never the address itself).
+function holderKeys(owner, ip) {
+  const keys = [];
+  if (owner) keys.push({ key: `e_${owner}`, limits: HOLD_LIMITS.owner });
+  const addr = String(ip || "").trim();
+  if (addr && addr !== "unknown") keys.push({ key: `ip_${crypto.createHash("sha256").update(addr).digest("hex").slice(0, 32)}`, limits: HOLD_LIMITS.ip });
+  return keys;
+}
+
+// Pure: a holder's other orders still holding something at `now`.
+function liveHolderOrders(orders, now, exceptOrderId) {
+  const out = {};
+  for (const [id, entry] of Object.entries(orders || {})) {
+    if (id === exceptOrderId || !entry || Number(entry.expiresAt) <= now) continue;
+    out[id] = entry;
+  }
+  return out;
+}
+
+// Pure: which limit (if any) holding `books` ({ bookId: units }) as one more order would
+// break for a holder whose other active orders are `orders`.
+function holderLimitProblem(orders, books, limits) {
+  const entries = [...Object.values(orders || {}), { books }];
+  if (entries.length > limits.orders) return "orders";
+  let units = 0;
+  const perBook = {};
+  for (const entry of entries) {
+    for (const [bookId, qty] of Object.entries(entry.books || {})) {
+      const n = Number(qty) || 0;
+      units += n;
+      perBook[bookId] = (perBook[bookId] || 0) + n;
+    }
+  }
+  if (Object.values(perBook).some(n => n > limits.perBook)) return "perBook";
+  if (units > limits.units) return "units";
+  return "";
+}
+
 // Holds the order's tracked stock for HOLD_MS (renewing its own earlier hold). Throws
-// StockHoldError when someone else's active holds leave too little.
-async function reserveStock(db, orderId, items, now = Date.now(), owner = "") {
+// StockHoldError when someone else's active holds leave too little. With `limits: true`
+// (a shopper starting a checkout) it also throws HoldLimitError when the shopper's email or
+// connection (`ip`) would hold more than HOLD_LIMITS; renewals at payment time pass no limits.
+async function reserveStock(db, orderId, items, now = Date.now(), owner = "", { limits = false, ip = "" } = {}) {
   const byBook = linesByBook(items);
   if (!byBook.size) return;
   const ids = [...byBook.keys()].sort(); // stable lock order
+  const holders = limits ? holderKeys(owner, ip) : [];
   await db.runTransaction(async tx => {
     const bookRefs = ids.map(id => db.collection("books").doc(id));
     const holdRefs = ids.map(id => db.collection("stock-holds").doc(id));
-    const snaps = await Promise.all([...bookRefs, ...holdRefs].map(ref => tx.get(ref)));
+    const holderRefs = holders.map(h => db.collection("stock-hold-owners").doc(h.key));
+    const snaps = await Promise.all([...bookRefs, ...holdRefs, ...holderRefs].map(ref => tx.get(ref)));
     const writes = [];
+    const heldBooks = {};
     ids.forEach((id, i) => {
       const bookSnap = snaps[i];
       const holdSnap = snaps[ids.length + i];
@@ -99,8 +164,27 @@ async function reserveStock(db, orderId, items, now = Date.now(), owner = "") {
           throw new StockHoldError(variant?.name ? `${book.title} (${variant.name})` : book.title || "This book", available);
         }
       }
-      writes.push([holdRefs[i], { holds: { ...others, [orderId]: { lines, expiresAt: now + HOLD_MS, ...(owner ? { owner } : {}) } }, updatedAt: new Date(now).toISOString() }]);
+      heldBooks[id] = Object.values(lines).reduce((sum, qty) => sum + qty, 0);
+      writes.push([holdRefs[i], { holds: { ...others, [orderId]: { lines, expiresAt: now + HOLD_MS, ...(owner ? { owner } : {}), ...(holders.length ? { holders: holders.map(h => h.key) } : {}) } }, updatedAt: new Date(now).toISOString() }]);
     });
+    if (Object.keys(heldBooks).length) {
+      holders.forEach((holder, i) => {
+        const snap = snaps[ids.length * 2 + i];
+        const orders = liveHolderOrders(snap.exists ? snap.data().orders : {}, now, orderId);
+        // The same shopper's earlier attempts give up these books (as the per-book holds just
+        // did), and an attempt left holding nothing drops out: a retry never counts twice.
+        for (const [id, entry] of Object.entries(orders)) {
+          if (!owner || entry.owner !== owner) continue;
+          const books = { ...(entry.books || {}) };
+          for (const bookId of Object.keys(heldBooks)) delete books[bookId];
+          if (Object.keys(books).length) orders[id] = { ...entry, books };
+          else delete orders[id];
+        }
+        const problem = holderLimitProblem(orders, heldBooks, holder.limits);
+        if (problem) throw new HoldLimitError(problem);
+        writes.push([holderRefs[i], { orders: { ...orders, [orderId]: { books: heldBooks, expiresAt: now + HOLD_MS, ...(owner ? { owner } : {}) } }, updatedAt: new Date(now).toISOString() }]);
+      });
+    }
     for (const [ref, data] of writes) tx.set(ref, data);
   });
 }
@@ -114,10 +198,19 @@ async function releaseStock(db, orderId, items) {
     await db.runTransaction(async tx => {
       const refs = ids.map(id => db.collection("stock-holds").doc(id));
       const snaps = await Promise.all(refs.map(ref => tx.get(ref)));
+      // The holder docs this order was counted in (every read before any write).
+      const holderIds = [...new Set(snaps.flatMap(snap => (snap.exists && snap.data().holds?.[orderId]?.holders) || []))];
+      const holderRefs = holderIds.map(key => db.collection("stock-hold-owners").doc(key));
+      const holderSnaps = await Promise.all(holderRefs.map(ref => tx.get(ref)));
+      const now = Date.now();
       snaps.forEach((snap, i) => {
         if (!snap.exists || !snap.data().holds?.[orderId]) return;
-        const rest = activeHolds(snap.data().holds, Date.now(), orderId);
-        tx.set(refs[i], { holds: rest, updatedAt: new Date().toISOString() });
+        const rest = activeHolds(snap.data().holds, now, orderId);
+        tx.set(refs[i], { holds: rest, updatedAt: new Date(now).toISOString() });
+      });
+      holderSnaps.forEach((snap, i) => {
+        if (!snap.exists || !snap.data().orders?.[orderId]) return;
+        tx.set(holderRefs[i], { orders: liveHolderOrders(snap.data().orders, now, orderId), updatedAt: new Date(now).toISOString() });
       });
     });
   } catch (err) {
@@ -134,4 +227,4 @@ async function releaseStockForOrder(db, orderId) {
   }
 }
 
-module.exports = { HOLD_MS, holdOwner, activeHolds, heldUnits, linesByBook, reserveStock, releaseStock, releaseStockForOrder, StockHoldError };
+module.exports = { HOLD_MS, HOLD_LIMITS, holdOwner, holderKeys, holderLimitProblem, activeHolds, heldUnits, linesByBook, reserveStock, releaseStock, releaseStockForOrder, StockHoldError, HoldLimitError };

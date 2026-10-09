@@ -46,6 +46,16 @@ describe("orders CSV export", () => {
     expect(rows.find(r => r.includes("LM-REF"))).toContain('"2026-09-21"');
   });
 
+  it("exports the exact amount the payment was created for as ChargedAmount", () => {
+    // 15 CAD × 0.7299 = 10.95, but the PaymentIntent (rounded per line) was 1096 cents.
+    const csv = orderApi.exportToCsv([{ ...base, orderId: "LM-EXACT", checkoutCurrency: "USD", exchangeRate: 0.7299, expectedAmountMinor: 1096, expectedCurrency: "usd" }]);
+    const [header, row] = csv.split("\n");
+    const cells = (line: string) => line.split(",").map(c => c.replace(/^"|"$/g, ""));
+    const at = cells(header).indexOf("ChargedAmount");
+    expect(cells(row)[at]).toBe("10.96");
+    expect(cells(row)[at + 1]).toBe("USD");
+  });
+
   it("includes unpaid orders only when asked, and never runs cells as formulas", () => {
     const csv = orderApi.exportToCsv([{ ...base, orderId: "LM-U", paymentStatus: "unpaid", customer: { name: "=HYPERLINK(1)", email: "a@x.com" } }], { paidOnly: false });
     expect(csv).toContain("LM-U");

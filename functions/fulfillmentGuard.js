@@ -24,4 +24,16 @@ function labelProblem(order, operations = {}) {
  if (operations.packed !== packingKey(order)) return "Complete the packing checklist before buying a label.";
  return "";
 }
-module.exports = { labelProblem, addressKey, packingKey };
+// A Shippo label transaction that did not succeed. Only status "ERROR" is a definite
+// refusal (nothing bought); QUEUED / WAITING may still turn into a paid label.
+function shippoTransactionOutcome(transaction = {}) {
+ const status = String(transaction?.status || "UNKNOWN");
+ const reasons = (Array.isArray(transaction?.messages) ? transaction.messages : [])
+  .map(m => String(m?.text || m?.message || "").trim()).filter(Boolean).join("; ");
+ const definiteFailure = status === "ERROR";
+ const message = definiteFailure
+  ? `Shippo could not buy the label${reasons ? `: ${reasons}` : "."} Fix the problem and try again.`
+  : `Shippo has not confirmed the label (status ${status})${reasons ? `: ${reasons}` : ""}. Check Shippo before trying again.`;
+ return { status, definiteFailure, reasons, message };
+}
+module.exports = { labelProblem, addressKey, packingKey, shippoTransactionOutcome };

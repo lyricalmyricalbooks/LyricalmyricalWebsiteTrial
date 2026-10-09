@@ -99,7 +99,10 @@ export const orderApi = {
     const rows = kept.map(o => {
       const address = o.customer?.address || o.customer?.billingAddress || {};
       const rate = Number(o.exchangeRate);
-      const charged = o.checkoutCurrency && o.checkoutCurrency !== "CAD" && rate > 0 ? money(Number(o.total || 0) * rate) : money(o.total);
+      // The card/PayPal payment was created for exactly expectedAmountMinor in expectedCurrency.
+      const exact = o.expectedAmountMinor != null && Number.isFinite(Number(o.expectedAmountMinor)) && o.expectedCurrency;
+      const charged = exact ? money(Number(o.expectedAmountMinor) / 100)
+        : o.checkoutCurrency && o.checkoutCurrency !== "CAD" && rate > 0 ? money(Number(o.total || 0) * rate) : money(o.total);
       return [
         o.orderId || o.id,
         o.createdAt || "",
@@ -121,7 +124,7 @@ export const orderApi = {
         money(o.total),
         "CAD",
         charged,
-        o.checkoutCurrency || "CAD",
+        exact ? String(o.expectedCurrency).toUpperCase() : o.checkoutCurrency || "CAD",
         o.refundedAt || "",
         // A partial refund (Stripe/PayPal Dashboard) keeps the order paid and only records refundedAmountMinor.
         o.refund?.amount != null ? money(o.refund.amount) : Number(o.refundedAmountMinor) > 0 ? money(Number(o.refundedAmountMinor) / 100) : "",

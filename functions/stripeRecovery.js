@@ -12,6 +12,8 @@ const REQUIRED_WEBHOOK_EVENTS = [
   "checkout.session.async_payment_failed",
   "checkout.session.expired",
   "charge.refunded",
+  // A refund the bank or card network rejects after Stripe accepted it (status "failed").
+  "charge.refund.updated",
   "charge.dispute.created",
   "charge.dispute.updated",
   "charge.dispute.closed",
@@ -121,4 +123,17 @@ function ordersDueReversalCheck(orders, nowMs = Date.now(), limit = 40) {
     .slice(0, limit);
 }
 
-module.exports = { reversalState, ordersDueReversalCheck, REQUIRED_WEBHOOK_EVENTS, modesToTry, intentAsSession, paidIntentOrderId, webhookEndpointReport, signingSecrets };
+// A refund that ended without moving money ("failed" / "canceled"). Stripe accepted it at first,
+// so the order went to refund_pending; it must go back to paid. Returns the failed refund's id,
+// or null while any refund on the charge is still pending or went through.
+const FAILED_REFUND = ["failed", "canceled"];
+function failedRefundId(order, charge, refunds) {
+  if (!order || order.paymentStatus !== "refund_pending") return null;
+  if (!charge || Number(charge.amount_refunded) !== 0) return null;
+  const list = (refunds || []).filter(Boolean);
+  if (list.some((r) => !FAILED_REFUND.includes(String(r.status)))) return null;
+  const mine = order.refund && order.refund.id ? list.find((r) => r.id === order.refund.id) : list[0];
+  return mine && FAILED_REFUND.includes(String(mine.status)) ? mine.id || "unknown" : null;
+}
+
+module.exports = { failedRefundId, reversalState, ordersDueReversalCheck, REQUIRED_WEBHOOK_EVENTS, modesToTry, intentAsSession, paidIntentOrderId, webhookEndpointReport, signingSecrets };

@@ -51,6 +51,7 @@ import { stripeSecretKeyProblem } from "./privateKeys";
 import { StripeWebhookHealth } from "./StripeWebhookHealth";
 import { PrivacyRequestsCard } from "./PrivacyRequestsCard";
 import { assignedCountryNames, countryName, groupedCountries, remainingCountryNames, toCountryCodes } from "./shippingCountries";
+import { saveSectionsInOrder } from "./settingsSave";
 
 const PURPLE = "#A855F7";
 
@@ -144,8 +145,8 @@ function GeneralSettings({ settings, setSettings, originalSettings, hasChanges, 
   const set = (section: string, patch: any) => setSettings({ ...settings, [section]: { ...settings[section], ...patch } });
 
   const saveAll = async () => {
-    for (const k of dirty) if (!(await saveSection(k, { [k]: settings[k] }))) break;
-    toast.success("Store settings saved");
+    // A failed section already shows its own error; only announce success when all saved.
+    if (await saveSectionsInOrder(dirty, (k) => saveSection(k, { [k]: settings[k] }))) toast.success("Store settings saved");
   };
   const discard = () => {
     const next = { ...settings };

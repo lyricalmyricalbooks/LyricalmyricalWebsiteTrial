@@ -71,6 +71,13 @@ describe("launch readiness: test-only email sender", () => {
     expect(email.status).toBe("block");
     expect(email.label).toMatch(/only reach you/);
   });
+  it("reads past a Gmail→backup 'fallback' row to the real outcome", () => {
+    const fallback = { status: "fallback", error: "Gmail SMTP rejected the send" };
+    const sandbox = launchReadiness({ settings: {}, books: [], shippingProfiles: [], orders: [], emailLog: [fallback, { status: "sent", from: "onboarding@resend.dev" }] });
+    expect(sandbox.find(i => i.id === "email")!.label).toMatch(/only reach you/);
+    const ok = launchReadiness({ settings: {}, books: [], shippingProfiles: [], orders: [], emailLog: [fallback, { status: "sent", from: "shop@example.com" }] });
+    expect(ok.find(i => i.id === "email")!.status).not.toBe("block");
+  });
 });
 
 import { uncoveredTaxRegions } from "../features/site/taxRate";

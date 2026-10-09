@@ -5,6 +5,7 @@ import { functionFetch } from "../lib/functionsBase";
 import toast from "react-hot-toast";
 import { risoButton, risoLayout } from "./emailTheme";
 import { GmailSendingCard } from "./GmailSendingCard";
+import { emailLogBadge, emailLogDetail } from "./emailLogDisplay";
 import { adminApi } from "./api";
 import {
   DataTable, GhostButton, LoadingState, PrimaryButton, SaveBar, SectionCard, SectionHead, SecondaryButton, SelectField, StatusBadge, Tabs, TextArea, TextField, Toggle,
@@ -23,9 +24,11 @@ type EmailLogEntry = {
   at?: string;
   to?: string;
   subject?: string;
-  status?: "sent" | "failed";
+  /** "fallback" = Gmail missed and the backup sender (Resend) was tried; the next row has the outcome. */
+  status?: "sent" | "failed" | "fallback" | "bounced" | "complained";
   error?: string;
   note?: string;
+  keySource?: string;
 };
 
 type NotificationSettings = {
@@ -106,7 +109,7 @@ const DEFAULT_SETTINGS: NotificationSettings = {
   },
   contact_reply: {
     subject: "We got your message",
-    body: "Hi {{customer_name}},\n\nThanks for getting in touch with Lyricalmyrical Books! We've received your message and will reply as soon as we can.\n\nYour message:\n{{message}}",
+    body: "Hi {{customer_name}},\n\nThanks for getting in touch with Lyricalmyrical Books! We've received your message and will reply as soon as we can.",
     buttonText: "",
     signoff: "Warmly,\nThe Lyricalmyrical Team",
     enabled: true
@@ -398,7 +401,7 @@ export function NotificationEditor() {
     order_refunded: ["{{customer_name}}", "{{order_id}}", "{{total_price}}"],
     customer_welcome: ["{{customer_name}}", "{{email}}"],
     delivery_update: ["{{customer_name}}", "{{order_id}}", "{{status}}", "{{tracking_carrier}}", "{{tracking_number}}", "{{tracking_url}}"],
-    contact_reply: ["{{customer_name}}", "{{email}}", "{{subject}}", "{{message}}"],
+    contact_reply: ["{{customer_name}}", "{{email}}"],
     gift_card: ["{{recipient_name}}", "{{sender_name}}", "{{amount}}", "{{code}}", "{{message}}", "{{expires}}", "{{shop_url}}"]
   };
 
@@ -515,11 +518,11 @@ export function NotificationEditor() {
           rowState={(r) => (r.status === "failed" ? "failed" : undefined)}
           empty={<p className="rp-hint" style={{ margin: 0, padding: 16 }}>{deliveriesError || (deliveries === null ? "Loading…" : "No emails recorded yet. Send a test to check the setup.")}</p>}
           columns={[
-            { key: "status", header: "Status", render: (r) => <StatusBadge tone={r.status === "failed" ? "danger" : r.note ? "warning" : "success"}>{r.status === "failed" ? "Failed" : r.note ? "Sent (sandbox)" : "Sent"}</StatusBadge> },
+            { key: "status", header: "Status", render: (r) => { const badge = emailLogBadge(r); return <StatusBadge tone={badge.tone}>{badge.label}</StatusBadge>; } },
             { key: "when", header: "When", render: (r) => (r.at ? new Date(r.at).toLocaleString() : "—") },
             { key: "to", header: "To", lead: true, render: (r) => r.to || "—" },
             { key: "subject", header: "Subject", render: (r) => r.subject || "—" },
-            { key: "detail", header: "Detail", render: (r) => <span style={{ whiteSpace: "normal" }}>{r.error || r.note || "Accepted by Resend"}</span> },
+            { key: "detail", header: "Detail", render: (r) => <span style={{ whiteSpace: "normal" }}>{emailLogDetail(r)}</span> },
           ]} />
       </SectionCard>
 

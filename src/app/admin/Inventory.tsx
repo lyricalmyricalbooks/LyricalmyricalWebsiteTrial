@@ -29,7 +29,7 @@ export function Inventory() {
   const load = async () => {
     setFailed(false); setLoading(true);
     try {
-      const [b, o] = await Promise.all([adminApi.getBooks(500), adminApi.getOrders(500)]);
+      const [b, o] = await Promise.all([adminApi.getAllBooks(), adminApi.getOrders(500)]);
       setBooks(b); setOrders(o.filter((x: any) => x.paymentStatus === "paid" && x.isTest !== true));
     } catch (e) { console.error(e); setFailed(true); toast.error("Inventory could not be loaded"); }
     finally { setLoading(false); }
