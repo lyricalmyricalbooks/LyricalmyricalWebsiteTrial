@@ -381,7 +381,7 @@ export function OrderDetail({
   };
 
   const perform = async (
-    action: "review" | "pack" | "hold" | "release" | "local_transition",
+    action: "review" | "pack" | "hold" | "release" | "release_preorder" | "local_transition",
     payload: any = {},
   ) => {
     if (working) return;
@@ -399,7 +399,9 @@ export function OrderDetail({
                 ? "Order held"
                 : action === "release"
                   ? "Hold released"
-                  : "Local fulfillment updated",
+                  : action === "release_preorder"
+                    ? "Pre-order ready to pack"
+                    : "Local fulfillment updated",
       );
     } catch (err: any) {
       toast.error(err.message || "Could not save fulfillment.");
@@ -620,6 +622,7 @@ export function OrderDetail({
             setLocalStep(next);
           }}
           onRelease={() => perform("release")}
+          onReleasePreorder={() => perform("release_preorder")}
         />
         <aside className="rp-stack" aria-label="Order summary">
           {order.paymentMismatch && !order.paymentMismatch.resolvedAt && order.paymentStatus !== "paid" && (

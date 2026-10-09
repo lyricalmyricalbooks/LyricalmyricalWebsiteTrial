@@ -9,6 +9,11 @@ export type AppUpdate = {
 // Newest first. Every PR adds an entry; links open the affected admin workspace.
 export const APP_UPDATES: AppUpdate[] = [
   {
+    id: "preorders", date: "2026-10-08", title: "Take pre-orders for upcoming books",
+    summary: "Turn on Pre-order in Books › edit › Inventory and set the publication date. Shoppers see a Pre-order button, badge and release date on the book page, bag, checkout and order tracking; the book becomes a normal one on release day. Paid pre-orders wait in Orders › Pre-orders until release (or press Ready to ship now), pre-ordered e-books unlock on release day, and order emails explain the timing. Every label is editable in Studio. Deploy Functions with this release so checkout, emails and downloads follow the pre-order rules.",
+    links: [{ label: "Set up a pre-order in Books", tab: "catalog" }, { label: "See waiting pre-orders", tab: "orders" }, { label: "Edit pre-order words in Studio", tab: "settings", settingsTab: "designer" }],
+  },
+  {
     id: "bug-sweep-7", date: "2026-10-08", title: "Stock, discounts and prices stay correct",
     summary: "Saving a book no longer puts back a stock count from before a sale, and editing a discount no longer resets how many times it was used. Two discounts can't share a code, and dates show the shop's own day. Books sold in editions show the price shoppers pay, backorder books can be ordered past their stock, and release dates open at midnight in Toronto. Bulk Feature now shows books as featured on the shop, Approve selected only acts on the reviews you can see, and the Orders CSV includes partial refunds. Functions need deploying with this release for the PayPal refund, discount code and email fixes to apply.",
     links: [{ label: "Review books", tab: "catalog" }, { label: "Review discounts", tab: "discounts" }, { label: "Moderate reviews", tab: "reviews" }],

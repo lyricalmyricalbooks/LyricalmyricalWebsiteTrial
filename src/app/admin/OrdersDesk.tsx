@@ -70,6 +70,7 @@ export function OrdersDesk({ selectedId, onSelect }: { selectedId: string | null
 
   const tabs: Array<{ id: DeskView; label: string; n: number }> = [
     { id: "needs", label: "Needs me", n: counts.needs },
+    ...(counts.preorders > 0 || view === "preorders" ? [{ id: "preorders" as DeskView, label: "Pre-orders", n: counts.preorders }] : []),
     { id: "shipped", label: "Shipped", n: counts.shipped },
     { id: "all", label: "All", n: counts.all },
   ];

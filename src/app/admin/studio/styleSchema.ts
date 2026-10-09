@@ -32,7 +32,7 @@ export const STYLE_TARGET_FIELDS: Record<string, RegExp> = {
   "Breadcrumb": /^(pdpShowBreadcrumb|pdpShowBackLink|pdpMeta)/,
   "Bag heading": /^(cartDrawer(Title|Meta|ShowCount|Padding|Edge))/,
   "Free-shipping bar": /^(showFreeShipBar|cartDrawerProgress)/,
-  "Bag line items": /^(cartDrawer(ShowItemNumbers|Thumb|GrayscaleThumbs|ItemTitleSize|ShowUnitPrice|ShowLineTotal|QtyStyle|RemoveStyle|Border|Muted))/,
+  "Bag line items": /^(cartDrawer(ShowItemNumbers|ShowPreorder|Thumb|GrayscaleThumbs|ItemTitleSize|ShowUnitPrice|ShowLineTotal|QtyStyle|RemoveStyle|Border|Muted))/,
   "Bag suggestion": /^(cartDrawer(ShowUpsell|UpsellShadow|Surface|GrayscaleThumbs))/,
   "Bag total & checkout": /^(cartDrawer(ShowSummary|TotalSize|Checkout|ShowCheckoutArrow|ShowDeliveryNote)|showCartTrustBadges)/,
 };
@@ -446,6 +446,7 @@ export const STYLE_GROUPS: StyleGroup[] = [
       { key: "showNewBadge", label: "New badge", kind: "toggle" },
       { key: "newBadgeLabel", label: "New badge text", kind: "text" },
       { key: "newBadgeDays", label: "“New” for how many days", kind: "range", defaultValue: 30, min: 1, max: 180, step: 1 },
+      { key: "showPreorderBadge", label: "Pre-order badge (words: Text & labels › Product page)", kind: "toggle", defaultValue: true },
       { key: "soldOutLabel", label: "Sold-out text", kind: "text" },
       { key: "cartLabel", label: "Cart label", kind: "text" },
     ],
@@ -533,6 +534,7 @@ export const STYLE_GROUPS: StyleGroup[] = [
       { key: "cartDrawerItemTitleSize", label: "Book title size", kind: "range", defaultValue: 14, min: 10, max: 20, step: 1, suffix: "px" },
       { key: "cartDrawerShowUnitPrice", label: "Show price per copy", kind: "toggle", defaultValue: true },
       { key: "cartDrawerShowLineTotal", label: "Show line total (price × quantity)", kind: "toggle", defaultValue: true },
+      { key: "cartDrawerShowPreorder", label: "Pre-order note under pre-ordered books", kind: "toggle", defaultValue: true },
       { key: "cartDrawerQtyStyle", label: "Quantity buttons", kind: "select", defaultValue: "boxes", options: [{ value: "boxes", label: "Outlined boxes" }, { value: "pill", label: "Soft pill" }] },
       { key: "cartDrawerRemoveStyle", label: "Remove button", kind: "select", defaultValue: "text", options: [{ value: "text", label: "Word (Text & labels › Cart)" }, { value: "icon", label: "Bin icon" }] },
       // Upsell

@@ -45,6 +45,7 @@ import { readSiteCache } from "./features/site/siteCache";
 import { loadCatalog } from "./features/site/loadCatalog";
 import { quoteLocalFulfillment } from "./features/site/localFulfillment";
 import { catalogFulfillmentItems, discountedPhysicalSubtotal, bogoPercent } from "./features/site/checkoutFulfillment";
+import { bagPreorder, linePreorderNote, formatReleaseDate } from "./features/site/preorder";
 import { FulfillmentMethodPicker, bestFirst, type FulfillmentSelection } from "./features/site/FulfillmentMethodPicker";
 
 // ─── State / province drop-down for countries with a fixed list ──────────────
@@ -863,6 +864,8 @@ export function Checkout() {
   }, [appliedDiscount, cart, cartTotal, booksMap]);
 
   const physicalItems = useMemo(() => catalogItems?.filter(item => item.physical) || [], [catalogItems]);
+  // Pre-ordered printed books hold the parcel until the latest release (functions/preorder.js).
+  const preorderShip = useMemo(() => bagPreorder(cart.filter(i => !catalogItems || catalogItems.some(ci => ci.id === i.id && (ci.variantId || "") === (i.variantId || "") && ci.physical))), [cart, catalogItems]);
   // Known to be e-books only (not just "catalog still loading").
   const digitalOnly = Boolean(catalogItems && catalogItems.length && !physicalItems.length);
   const availableFulfillmentMethods = useMemo<FulfillmentSelection["method"][]>(() => {
@@ -1932,6 +1935,7 @@ export function Checkout() {
                   <div className="min-w-0 flex-1">
                     <p className="truncate text-sm font-medium text-slate-900">{item.title}</p>
                     {item.variantName && <p className="mt-0.5 text-xs text-slate-500">{item.variantName}</p>}
+                    {linePreorderNote(item, c) && <p className="mt-0.5 text-xs font-medium text-slate-700">{linePreorderNote(item, c)}</p>}
                     {!checkoutDesign.hideCheckoutLowStock && typeof item.stockLimit === "number" && item.stockLimit > 0 && item.stockLimit <= designNumber(checkoutDesign, "lowStockProductThreshold", 3) && (
                       <p className="mt-0.5 text-xs font-medium" style={{ color: "var(--warning, #b45309)" }}>{c("coOnlyLeft", { count: item.stockLimit })}</p>
                     )}
@@ -1940,6 +1944,12 @@ export function Checkout() {
                 </div>
               ))}
             </div>
+
+            {preorderShip.count > 0 && (
+              <p {...regionProps("checkoutPreorder")} role="note" className="mt-5 border border-slate-200 bg-white px-4 py-3 text-xs leading-relaxed text-slate-700">
+                {preorderShip.shipDate ? c("coPreorderNotice", { date: formatReleaseDate(preorderShip.shipDate) }) : c("coPreorderNoticeTba")}
+              </p>
+            )}
 
             <div className="my-7 border-t border-slate-200" />
 

@@ -1,4 +1,5 @@
 import { createContext, useContext, useState, useEffect, useMemo, ReactNode } from "react";
+import { preorderActive, releaseDateOf } from "./features/site/preorder";
 
 interface CartItem {
   id: string;
@@ -11,6 +12,9 @@ interface CartItem {
   stripePriceId?: string;
   stockLimit?: number;
   shippingProfileId?: string;
+  /** Display only: the book was on pre-order when last checked (the server decides at checkout). */
+  preorder?: boolean;
+  releaseDate?: string;
 }
 
 interface CartContextType {
@@ -77,9 +81,13 @@ export function repriceCart(cart: CartItem[], books: any[]): { cart: CartItem[];
       continue;
     }
     const quantity = Math.min(line.quantity, lineQuantityCap(stockLimit));
+    // Pre-order wording follows the live catalog: a book released since it was added loses it.
+    const preorder = preorderActive(book);
+    const releaseDate = preorder ? releaseDateOf(book) : "";
+    if (!!line.preorder !== preorder || (line.releaseDate || "") !== releaseDate) changed = true;
     if (Math.abs(price - line.price) > 0.0001) repriced.push(line.title || line.id);
     if (Math.abs(price - line.price) > 0.0001 || quantity !== line.quantity || stockLimit !== line.stockLimit) changed = true;
-    out.push({ ...line, price, quantity, stockLimit });
+    out.push({ ...line, price, quantity, stockLimit, preorder, releaseDate });
   }
   return { cart: changed ? out : cart, changed, removed, repriced };
 }
@@ -198,6 +206,8 @@ export function CartProvider({ children }: { children: ReactNode }) {
         stripePriceId: variant?.stripePriceId || product.stripePriceId || "",
         stockLimit: typeof stockLimit === "number" ? stockLimit : undefined,
         shippingProfileId: product.shippingProfileId || "",
+        preorder: preorderActive(product),
+        releaseDate: preorderActive(product) ? releaseDateOf(product) : "",
       }];
     });
     setIsCartOpen(true);

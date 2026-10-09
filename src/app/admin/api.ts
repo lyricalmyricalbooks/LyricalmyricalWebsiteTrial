@@ -1,6 +1,7 @@
 import { keepLiveStock } from "./bookStockMerge";
 import { newOrderAccessKey, rememberOrderAccess, savedOrderAccess, orderAccessHeaders } from "../lib/orderAccessClient";
 import { addressKey, addressIssues, packingKey, dispatchProblem, disputeOpen, queueOf, fulfillmentMethod, trackingFields } from "./fulfillment";
+import { restampPreorderItems } from "../features/site/preorder";
 import { themeWrite } from "./themeWrite";
 import { splitWebsiteSecrets, splitNotificationSecrets, type SecretPatch } from "./privateKeys";
 import { toCountryCodes } from "./shippingCountries";
@@ -236,6 +237,22 @@ export const adminApi = {
     }
     await adminApi.recordAuditLog("catalog", `Updated book: ${dataToSave.title}`);
     return { id, ...dataToSave };
+  },
+
+  // The publisher changed a book's pre-order switch or Publication date: carry the new release date
+  // onto that book's pre-order lines in paid, unsent orders, so their queue, emails and the customer's
+  // tracking page follow it. Returns how many orders changed.
+  syncPreorderOrders: async (bookId: string, book: any): Promise<number> => {
+    const orders = await adminApi.getAllOrders();
+    let changed = 0;
+    for (const o of orders) {
+      const items = restampPreorderItems(o, bookId, book);
+      if (!items) continue;
+      await updateDoc(doc(db, "orders", o.id), { items, updatedAt: new Date().toISOString() });
+      changed++;
+    }
+    if (changed) await adminApi.recordAuditLog("orders", `Pre-order release date for ${book?.title || bookId} updated on ${changed} order(s).`);
+    return changed;
   },
 
   deleteBook: async (id: string) => {
@@ -838,7 +855,7 @@ export const adminApi = {
     });
   },
 
-  fulfillmentAction: async (id: string, action: "review" | "pack" | "hold" | "release" | "dispatch" | "local_transition" | "edit_tracking" | "delivery_status" | "resend_shipping_email", payload: any = {}) => {
+  fulfillmentAction: async (id: string, action: "review" | "pack" | "hold" | "release" | "release_preorder" | "dispatch" | "local_transition" | "edit_tracking" | "delivery_status" | "resend_shipping_email", payload: any = {}) => {
     await runTransaction(db, async tx => {
       const ref = doc(db, "orders", id);
       const privateRef = doc(db, "order-operations", id);
@@ -865,6 +882,13 @@ export const adminApi = {
         if (!String(payload.reason || "").trim()) throw new Error("Enter a hold reason.");
         operations.hold = String(payload.reason).trim().slice(0, 500); message = `Order held: ${operations.hold}`;
       } else if (action === "release") { operations.hold = ""; message = "Fulfillment hold released.";
+      } else if (action === "release_preorder") {
+        // The pre-ordered books arrived before their release date: let this order be packed now.
+        if (queueOf(o) !== "Awaiting release") throw new Error("This order is not waiting for a pre-order release.");
+        operations.preorderReleased = true; operations.preorderReleasedAt = now;
+        // Public too, so the customer's tracking page stops promising the later date.
+        tx.update(ref, { preorderReleasedAt: now, updatedAt: now });
+        message = "Pre-order released early by publisher: ready to pack and ship.";
       } else if (action === "dispatch") {
         const problem = dispatchProblem(o); if (problem) throw new Error(problem);
         const tracking = trackingFields(payload);
@@ -894,6 +918,7 @@ export const adminApi = {
         const current = String(o.fulfillmentStatus || "");
         if (current !== String(payload.expectedStatus || "")) throw new Error("This order changed. Reload before continuing.");
         if (operations.hold) throw new Error("Release the fulfillment hold before continuing.");
+        if (queueOf(o) === "Awaiting release") throw new Error("This pre-order hasn't been released yet. Press \"Ready to ship now\" if the books have arrived.");
         // Books already on their way may still be marked delivered (proof for the dispute).
         if (disputeOpen(o) && current !== "out_for_delivery") throw new Error("This payment is disputed. Don't hand over the books until the dispute is settled in Stripe.");
         if (operations.packed !== packingKey(o)) throw new Error("Complete the packing checklist first.");

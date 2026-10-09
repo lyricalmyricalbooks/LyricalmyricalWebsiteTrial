@@ -13,7 +13,7 @@ function canViewOrder(order, { key, identity } = {}) {
   const email = normEmail(identity.email);
   return !!email && (email === normEmail(order.customer?.email) || email === "lyricalmyricalbooks@gmail.com");
 }
-const PUBLIC_FIELDS = ["orderId", "createdAt", "updatedAt", "status", "paymentStatus", "fulfillmentStatus",
+const PUBLIC_FIELDS = ["preorderReleasedAt", "orderId", "createdAt", "updatedAt", "status", "paymentStatus", "fulfillmentStatus",
   "paidAt", "shippedAt", "deliveredAt", "readyForPickupAt", "collectedAt", "readyForDeliveryAt", "outForDeliveryAt",
   "subtotal", "discount", "shipping", "tax", "total", "checkoutCurrency", "exchangeRate", "paymentMethod",
   "paymentInstructions", "shippingMethod", "shippingEstimate", "trackingNumber", "trackingCarrier", "trackingUrl",
@@ -24,7 +24,7 @@ function publicOrderView(id, order) {
   if (order.returnProgress) out.returnProgress = pick(order.returnProgress, ["state", "instructions", "approvedAt", "receivedAt", "inspectedAt", "rejectedAt", "updatedAt"]);
   out.customer = pick(order.customer, ["name", "email", "phone"]);
   out.customer.address = pick(order.customer?.address, ["street", "unit", "city", "state", "zip", "country"]);
-  out.items = (order.items || []).map(item => pick(item, ["id", "variantId", "variantName", "title", "price", "quantity", "photoUrl"]));
+  out.items = (order.items || []).map(item => pick(item, ["id", "variantId", "variantName", "title", "price", "quantity", "photoUrl", "preorder", "releaseDate", "digital", "isDigital", "format"]));
   return out;
 }
 module.exports = { canViewOrder, publicOrderView, normEmail };

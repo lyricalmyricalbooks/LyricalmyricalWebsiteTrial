@@ -680,3 +680,10 @@ Grouped footer navigation defaults to Explore and Participate & connect, with po
   format mix uses each line's sold edition.
 - **Account:** email-link sign-in survives blocked storage; order rows count copies.
 - Deploy Functions with this frontend. No Firestore rule or index changes.
+
+## Pre-orders
+
+A published book with `preorder: true` sells before its `publishDate` (see CLAUDE.md › Pre-orders). Keep
+`functions/preorder.js` and `features/site/preorder.ts` identical (`preorder.parity.test.ts`). Pre-orders never change
+stock, price or payment authority; the server stamps `preorder`/`releaseDate` on order lines from the catalog, and the
+**Awaiting release** queue plus `labelProblem` keep parcels back until release or **Ready to ship now**.

@@ -18,6 +18,7 @@ import { getCopy, CopyError, copyErrorText } from "./storeCopy";
 import { GlobalSections, TemplateSections } from "../../components/sectionRender";
 import { orderStage, orderStep, shippingDays, stepDates } from "./orderStatus";
 import { OrderRequestBox, PrivacyRequestBox } from "./OrderRequests";
+import { waitingPreorderLines, shipDateOf, formatReleaseDate, linePreorderNote } from "./preorder";
 
 export default function OrderTracking() {
   const [orderIdInput, setOrderIdInput] = useState("");
@@ -329,6 +330,14 @@ export default function OrderTracking() {
                 </div>
               )}
 
+              {stage === "active" && order.paymentStatus === "paid" && !["shipped", "out_for_delivery", "delivered", "collected", "ready_for_pickup", "ready_for_delivery"].includes(order.fulfillmentStatus) && waitingPreorderLines(order).length > 0 && (
+                <p {...regionProps("trackingPreorder")} role="note" className="fm-track-notice" data-tone="info">
+                  {shipDateOf(waitingPreorderLines(order))
+                    ? getCopy(settings?.design, "trackPreorder", { date: formatReleaseDate(shipDateOf(waitingPreorderLines(order))) })
+                    : getCopy(settings?.design, "trackPreorderTba")}
+                </p>
+              )}
+
               {stage === "active" && (
                 <section {...regionProps("trackingTimeline")} aria-label={getCopy(settings?.design, "trackTimeline")}>
                   <p className="fm-track-mono mb-4">{getCopy(settings?.design, "trackTimeline")}</p>
@@ -431,6 +440,7 @@ export default function OrderTracking() {
                       <div className="flex-1 min-w-0">
                         <p className="text-sm sm:text-base font-bold uppercase tracking-wide truncate">{item.title}</p>
                         {item.variantName && <p className="fm-track-mono mt-1">{item.variantName}</p>}
+                        {order.paymentStatus === "paid" && !["shipped", "out_for_delivery", "delivered", "collected"].includes(order.fulfillmentStatus) && linePreorderNote(item, (k, v) => getCopy(settings?.design, k, v)) && <p className="fm-track-mono mt-1">{linePreorderNote(item, (k, v) => getCopy(settings?.design, k, v))}</p>}
                         <p className="fm-track-mono mt-2">{getCopy(settings?.design, "qtyLine", { qty: item.quantity })} × {orderFormatPrice(item.price)}</p>
                       </div>
                       <span className="font-mono text-sm sm:text-base font-bold shrink-0">{orderFormatPrice(item.price * item.quantity)}</span>
