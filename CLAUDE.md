@@ -333,7 +333,7 @@ section/block contract, and the Studio 2.0 roadmap.
   (every Theme settings control), `settingsMap.ts` (where controls live), `studioModel.ts`
   (immutable design ops + undo), `previewBridge.ts` / `canvasBridge.ts` (in-preview editing),
   `useStudioPersistence.ts` (Save draft / Publish / recovery).
-- `src/app/admin/ThemeEditorExtensions.tsx` — the `SECTION_REGISTRY` (34 section types),
+- `src/app/admin/ThemeEditorExtensions.tsx` — the `SECTION_REGISTRY` (41 section types),
   `getSectionFields`/`getBlockFields`, the shared field editors (`SectionFieldEditor`,
   `BlockFieldEditor`) and the per-section **Layout & style** panel (`SectionSettingsPanel`).
   It also exports `buildPageTemplates(pages)` — static `PAGE_TEMPLATES` plus one
@@ -461,6 +461,14 @@ Style › **Pop-up** (delay, how often, position, width, shading, colours, hide 
 request. Announcement bar messages (`announcements`, link + show-from/until Toronto days) are edited in Theme settings ›
 Header & announcement bar › **Announcement messages**; without a list the single `announcementText` is unchanged. Header
 links with sub-links have **Show sub-links as a mega menu (columns)** + featured card in Navigation › Header menu.
+
+**Section library (2.6):** Add section is a panel in Page layout (`studio/StudioSectionLibrary.tsx`); pointing at a card
+shows it on the page through a preview-only `__studio-candidate` section (`studio/sectionLibrary.ts` `withCandidate` —
+never saved). The canvas toolbar's **+ Section above / below** sends `INSERT_AT`. A registry entry's `bestIn`
+(`{ group | template, note }`) powers **Add it there instead**. Thumbnails are code-drawn (`studio/sectionThumbs.tsx`; map
+new types in `KIND`). Saved sections and shared blocks are renamed/deleted there (`deleteSharedBlock` bakes content into
+placements). Product-page sections can read the current book with `useSectionPage()` (`components/sectionCopy.ts`).
+Newsletter forms sign up through `features/site/newsletterSignup.ts` and never write from the preview.
 
 **Colour schemes (2.5):** Studio › Theme settings › **Colour schemes** (`StudioColorSchemes.tsx`, pure edits in
 `studio/colorSchemeOps.ts`) edits `design.colorSchemes` — ten roles (background, surface, text, muted, accent, onAccent,

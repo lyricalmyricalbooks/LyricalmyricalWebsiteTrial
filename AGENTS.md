@@ -154,6 +154,14 @@ request. Announcement bar messages (`announcements`, link + show-from/until Toro
 Header & announcement bar › **Announcement messages**; without a list the single `announcementText` is unchanged. Header
 links with sub-links have **Show sub-links as a mega menu (columns)** + featured card in Navigation › Header menu.
 
+**Section library (2.6):** Add section is a panel in Page layout (`studio/StudioSectionLibrary.tsx`); pointing at a card
+shows it on the page through a preview-only `__studio-candidate` section (`studio/sectionLibrary.ts` `withCandidate` —
+never saved). The canvas toolbar's **+ Section above / below** sends `INSERT_AT`. A registry entry's `bestIn`
+(`{ group | template, note }`) powers **Add it there instead**. Thumbnails are code-drawn (`studio/sectionThumbs.tsx`; map
+new types in `KIND`). Saved sections and shared blocks are renamed/deleted there (`deleteSharedBlock` bakes content into
+placements). Product-page sections can read the current book with `useSectionPage()` (`components/sectionCopy.ts`).
+Newsletter forms sign up through `features/site/newsletterSignup.ts` and never write from the preview.
+
 **Media library (2.4).** Studio › **Media** (`studio/StudioMedia.tsx`) lists admin-only `media/{id}` records; library
 uploads (`uploadMediaImage`) store WebP copies at 480/960/1600 px under `assets/media/<id>/`. Picking a picture for a
 section/block field writes its URL plus a public `${field}__media` record (Theme settings images get the URL only, but

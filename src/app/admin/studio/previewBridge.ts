@@ -20,7 +20,7 @@ export const PREVIEW_BRIDGE_SOURCE = String.raw`(function(){
   function place(b,n,label){if(mode!=='edit'||!n){b.style.display='none';return;}
     var r=n.getBoundingClientRect();b.style.display='block';b.style.top=r.top+'px';b.style.left=r.left+'px';b.style.width=r.width+'px';b.style.height=r.height+'px';b.firstChild.textContent=label||'Section';}
   function selectedNode(){if(!selected&&selectedKey)return findNode(selectedKey);var s=find(SEC,selected,sid);return block&&s?find(BLK,block,bid,s)||s:s;}
-  function draw(){var n=selectedNode();place(selection,n,!selected&&selectedKey&&n?nodeLabel(n):block?'Selected block':'Selected section');drawCanvasTools();}
+  function draw(){var n=selectedNode();place(selection,n,selected==='__studio-candidate'?'Preview · not added yet':!selected&&selectedKey&&n?nodeLabel(n):block?'Selected block':'Selected section');drawCanvasTools();}
   var scheduled=false;
   function redraw(){if(scheduled)return;scheduled=true;requestAnimationFrame(function(){scheduled=false;draw();});}
   function route(){send({type:'STUDIO_ROUTE',href:location.pathname+location.search});send({type:'PREVIEW_READY'});scheduleScan();}

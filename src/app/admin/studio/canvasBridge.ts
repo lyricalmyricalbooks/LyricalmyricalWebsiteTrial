@@ -26,7 +26,7 @@ export const CANVAS_TOOLS_SOURCE = String.raw`
     var focusedKey=document.activeElement&&document.activeElement.getAttribute('data-spacing-key');
     if(canvasBar)canvasBar.remove();canvasBar=null;
     if(spacingOverlay&&!spacingSession){spacingOverlay.remove();spacingOverlay=null;}
-    var node=selectedNode(),meta=canvasMeta();if(mode!=='edit'||!selected||!node||editing||spacingSession)return;
+    var node=selectedNode(),meta=canvasMeta();if(mode!=='edit'||!selected||selected==='__studio-candidate'||!node||editing||spacingSession)return;
     canvasBar=overlay('toolbar',block?'Selected block actions':'Selected section actions');
     canvasBar.style.cssText='position:fixed;z-index:100000;display:flex;flex-wrap:wrap;gap:4px;max-width:calc(100vw - 16px);padding:5px;background:#fff;color:#111;border:2px solid #059669;box-shadow:2px 2px 0 #111;';
     var action=function(name){send({type:'CONTEXT_ACTION',sectionId:selected,blockId:block,action:name});};
@@ -34,6 +34,7 @@ export const CANVAS_TOOLS_SOURCE = String.raw`
     if(meta&&meta.actions){canvasBar.appendChild(toolButton('Move up',function(){action('up');},!meta.actions.up));canvasBar.appendChild(toolButton('Move down',function(){action('down');},!meta.actions.down));
       ['Duplicate','Hide','Delete'].forEach(function(label){canvasBar.appendChild(toolButton(label,function(){action(label.toLowerCase());}));});}
     if(meta&&meta.addBlock&&!block)canvasBar.appendChild(toolButton('+ Block',function(){send({type:'ADD_BLOCK',sectionId:selected});}));
+    if(!block){canvasBar.appendChild(toolButton('+ Section above',function(){send({type:'INSERT_AT',sectionId:selected,position:'before'});}));canvasBar.appendChild(toolButton('+ Section below',function(){send({type:'INSERT_AT',sectionId:selected,position:'after'});}));}
     if(!block)canvasBar.appendChild(toolButton(spacingOpen?'Close spacing':'Spacing',function(){spacingOpen=!spacingOpen;draw();}));
     var r=node.getBoundingClientRect(),bar=canvasBar.getBoundingClientRect();canvasBar.style.left=Math.max(8,Math.min(r.left,innerWidth-bar.width-8))+'px';canvasBar.style.top=(innerWidth<600?innerHeight-bar.height-8:Math.max(8,Math.min(r.top-bar.height-4,innerHeight-bar.height-8)))+'px';
     if(spacingOpen&&!block){drawSpacing(node,meta);if(focusedKey){var focus=spacingOverlay.querySelector('[data-spacing-key="'+focusedKey+'"]');if(focus)focus.focus({preventScroll:true});}}

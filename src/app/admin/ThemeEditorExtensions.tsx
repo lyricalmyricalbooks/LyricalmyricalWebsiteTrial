@@ -45,6 +45,8 @@ export type SectionTypeMeta = {
   blockType?: string;
   blockDefaults?: Record<string, any>;
   blockLabel?: string;
+  /** Where the section works best (Add section shows it, and offers to add it there). */
+  bestIn?: { group?: "headerSections" | "globalSections" | "overlaySections"; template?: string; note: string };
 };
 
 export const SECTION_REGISTRY: SectionTypeMeta[] = [
@@ -607,6 +609,65 @@ export const SECTION_REGISTRY: SectionTypeMeta[] = [
     blockDefaults: { kind: "spine", label: "", color: "#A855F7", rotation: -3 },
     blockLabel: "Ephemera object",
   },
+  // ── Studio 2.6 section library ──
+  {
+    type: "FeaturedCollectionSection",
+    label: "Featured collection",
+    description: "Books from one shop category with a “View all” link to that collection.",
+    category: "Commerce",
+    defaults: { eyebrow: "", title: "From the collection", productCategory: "", productSort: "", productLimit: 4, columnsDesktop: 4, columnsMobile: 2, showPrices: true, viewAllText: "View all", align: "left" },
+  },
+  {
+    type: "BookSpotlightSection",
+    label: "Book spotlight",
+    description: "One book, large: cover, a line of praise, price and a button. On a book page it can show that book.",
+    category: "Commerce",
+    defaults: { eyebrow: "Spotlight", productSlug: "", quote: "", quoteSource: "", showDescription: true, showPrice: true, ctaText: "View the book", imagePosition: "left" },
+  },
+  {
+    type: "PraiseQuotesSection",
+    label: "Praise & press quotes",
+    description: "Reviews and blurbs from the press or other writers, each with its source.",
+    category: "Trust",
+    defaults: { eyebrow: "", title: "Praise", layout: "stacked", quoteSize: "lg", align: "center", items: [] },
+    blockType: "quote",
+    blockDefaults: { quote: "A quote about the book.", source: "Name", publication: "", linkUrl: "" },
+    blockLabel: "Quote",
+  },
+  {
+    type: "ImageCollageSection",
+    label: "Image collage",
+    description: "Three to five pictures arranged as a mosaic, a staggered row or a strip, with optional captions.",
+    category: "Media",
+    defaults: { title: "", layout: "mosaic", gap: 12, showCaptions: true, items: [] },
+    blockType: "image",
+    blockDefaults: { imageUrl: "", alt: "", caption: "", linkUrl: "" },
+    blockLabel: "Picture",
+  },
+  {
+    type: "PromoStripSection",
+    label: "Promo strip",
+    description: "A slim line of text with a link — made for the space under the header on every page.",
+    category: "Promo",
+    defaults: { text: "New releases every month", linkText: "Shop now", linkUrl: "", align: "center", size: "sm" },
+    bestIn: { group: "headerSections", note: "Best under the header (every page)" },
+  },
+  {
+    type: "NewsletterPopupSection",
+    label: "Newsletter sign-up (pop-up)",
+    description: "A picture, a short invitation and an email box that really signs people up — made for the Pop-up group.",
+    category: "Engagement",
+    defaults: { imageUrl: "", imageAlt: "", eyebrow: "Newsletter", title: "Stay in touch", description: "New books, events and the occasional discount.", placeholder: "Your email", buttonLabel: "Sign up", successMessage: "Thank you — you're on the list.", errorMessage: "Please check your email address and try again.", smallPrint: "No spam. Unsubscribe any time." },
+    bestIn: { group: "overlaySections", note: "Best in the Pop-up group" },
+  },
+  {
+    type: "StickyAddToBagSection",
+    label: "Sticky add-to-bag bar",
+    description: "On a book page, a bar with the book and an Add to bag button that stays at the bottom of the screen once the buy box scrolls away.",
+    category: "Commerce",
+    defaults: { ctaText: "Add to bag", optionsText: "Choose options", soldOutText: "Sold out", addedText: "Added to your bag", showPrice: true, showOnPhonesOnly: false },
+    bestIn: { template: "productPage", note: "Book pages only" },
+  },
 ];
 
 export function getSectionMeta(type: string): SectionTypeMeta | undefined {
@@ -772,6 +833,18 @@ const BLOCK_FIELDS: Record<string, BlockField[]> = {
     { key: "label", label: "Label text", kind: "text" },
     { key: "color", label: "Color", kind: "color" },
     { key: "rotation", label: "Rotation (deg)", kind: "number", min: -12, max: 12, step: 1 },
+  ],
+  PraiseQuotesSection: [
+    { key: "quote", label: "Quote", kind: "textarea", rows: 3 },
+    { key: "source", label: "Who said it", kind: "text" },
+    { key: "publication", label: "Publication or title (optional)", kind: "text" },
+    { key: "linkUrl", label: "Link to the review (optional)", kind: "link" },
+  ],
+  ImageCollageSection: [
+    { key: "imageUrl", label: "Picture", kind: "image" },
+    { key: "alt", label: "Picture description (for screen readers)", kind: "text" },
+    { key: "caption", label: "Caption (optional)", kind: "text" },
+    { key: "linkUrl", label: "Link (optional)", kind: "link" },
   ],
 };
 
@@ -1529,6 +1602,8 @@ const SECTION_FIELDS: Record<string, SectionFieldSchema[]> = {
     { key: "description", label: "Description", kind: "textarea", rows: 3 },
     { key: "placeholder", label: "Input placeholder", kind: "text" },
     { key: "buttonLabel", label: "Button label", kind: "text" },
+    { key: "successMessage", label: "Message after signing up", kind: "text" },
+    { key: "errorMessage", label: "Message when the email isn't valid", kind: "text" },
     { key: "align", label: "Alignment", kind: "select", options: ALIGN_OPTIONS },
   ],
   TextContentSection: [
@@ -1838,6 +1913,70 @@ const SECTION_FIELDS: Record<string, SectionFieldSchema[]> = {
     { key: "colFormatLabel", label: "Format column label", kind: "text" },
     { key: "colNoteLabel", label: "Note column label", kind: "text" },
     { key: "fallbackLimit", label: "Books shown when no notes are added", kind: "range", min: 1, max: 24, step: 1 },
+  ],
+  FeaturedCollectionSection: [
+    { key: "eyebrow", label: "Small label above the title", kind: "text" },
+    { key: "title", label: "Title", kind: "text" },
+    { key: "productCategory", label: "Shop category", kind: "category", empty: "Blank = every book" },
+    { key: "productSort", label: "Order", kind: "select", options: BOOK_SORT_OPTIONS },
+    { key: "productLimit", label: "How many books", kind: "range", min: 1, max: 12, step: 1 },
+    { key: "columnsDesktop", label: "Columns · desktop", kind: "range", min: 2, max: 6, step: 1 },
+    { key: "columnsMobile", label: "Columns · phone", kind: "range", min: 1, max: 3, step: 1 },
+    { key: "showPrices", label: "Show prices", kind: "toggle" },
+    { key: "viewAllText", label: "“View all” link text (blank = no link)", kind: "text" },
+    { key: "align", label: "Title alignment", kind: "select", options: ALIGN_OPTIONS },
+  ],
+  BookSpotlightSection: [
+    { key: "eyebrow", label: "Small label above the title", kind: "text" },
+    { key: "productSlug", label: "Book", kind: "book", empty: "Blank = the book on a book page, else the first book" },
+    { key: "quote", label: "Line of praise (optional)", kind: "textarea", rows: 3 },
+    { key: "quoteSource", label: "Who said it", kind: "text" },
+    { key: "showDescription", label: "Show the book's description", kind: "toggle" },
+    { key: "showPrice", label: "Show the price", kind: "toggle" },
+    { key: "ctaText", label: "Button text", kind: "text" },
+    { key: "imagePosition", label: "Cover position", kind: "select", options: [{ value: "left", label: "Left" }, { value: "right", label: "Right" }] },
+    { key: "accentColor", label: "Accent colour", kind: "color" },
+  ],
+  PraiseQuotesSection: [
+    { key: "eyebrow", label: "Small label above the title", kind: "text" },
+    { key: "title", label: "Title", kind: "text" },
+    { key: "layout", label: "Layout", kind: "select", options: [{ value: "stacked", label: "One under another" }, { value: "grid", label: "Grid of cards" }] },
+    { key: "quoteSize", label: "Quote size", kind: "select", options: [{ value: "sm", label: "Small" }, { value: "md", label: "Medium" }, { value: "lg", label: "Large" }] },
+    { key: "align", label: "Alignment", kind: "select", options: ALIGN_OPTIONS },
+    { key: "accentColor", label: "Quote mark colour", kind: "color" },
+  ],
+  ImageCollageSection: [
+    { key: "title", label: "Title (optional)", kind: "text" },
+    { key: "layout", label: "Layout", kind: "select", options: [{ value: "mosaic", label: "Mosaic (one big, the rest small)" }, { value: "stagger", label: "Staggered row" }, { value: "strip", label: "Even strip" }] },
+    { key: "gap", label: "Space between pictures", kind: "range", min: 0, max: 48, step: 2, suffix: "px" },
+    { key: "showCaptions", label: "Show captions", kind: "toggle" },
+  ],
+  PromoStripSection: [
+    { key: "text", label: "Text", kind: "text" },
+    { key: "linkText", label: "Link text (optional)", kind: "text" },
+    { key: "linkUrl", label: "Link", kind: "link" },
+    { key: "align", label: "Alignment", kind: "select", options: ALIGN_OPTIONS },
+    { key: "size", label: "Text size", kind: "select", options: [{ value: "xs", label: "Extra small" }, { value: "sm", label: "Small" }, { value: "md", label: "Medium" }] },
+  ],
+  NewsletterPopupSection: [
+    { key: "imageUrl", label: "Picture (optional)", kind: "image" },
+    { key: "imageAlt", label: "Picture description", kind: "text" },
+    { key: "eyebrow", label: "Small label above the title", kind: "text" },
+    { key: "title", label: "Title", kind: "text" },
+    { key: "description", label: "Invitation text", kind: "textarea", rows: 3 },
+    { key: "placeholder", label: "Email box hint", kind: "text" },
+    { key: "buttonLabel", label: "Button text", kind: "text" },
+    { key: "successMessage", label: "Message after signing up", kind: "text" },
+    { key: "errorMessage", label: "Message when the email isn't valid", kind: "text" },
+    { key: "smallPrint", label: "Small print (optional)", kind: "text" },
+  ],
+  StickyAddToBagSection: [
+    { key: "ctaText", label: "Button text", kind: "text" },
+    { key: "optionsText", label: "Button text when the shopper must choose an edition or option", kind: "text" },
+    { key: "soldOutText", label: "Text when sold out", kind: "text" },
+    { key: "addedText", label: "Message after adding (read aloud by screen readers)", kind: "text" },
+    { key: "showPrice", label: "Show the price", kind: "toggle" },
+    { key: "showOnPhonesOnly", label: "Only on phones and tablets", kind: "toggle" },
   ],
   EphemeraRowSection: [
     { key: "align", label: "Alignment", kind: "select", options: ALIGN_OPTIONS },

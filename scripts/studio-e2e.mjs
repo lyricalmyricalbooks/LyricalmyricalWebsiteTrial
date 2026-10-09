@@ -538,6 +538,46 @@ await check("a header link with sub-links can become a mega menu with a featured
   if (!item?.mega || item.featuredTitle !== "New this month") throw new Error(`mega menu not saved: ${JSON.stringify(item)}`);
 });
 
+await check("Add section tries a section on the page while pointing at it, and adds it on click", desktop, async page => {
+  await expectText(page, "Preview connected", 30000);
+  await page.getByRole("button", { name: "Add section" }).first().click();
+  const library = page.locator("[data-studio-library]");
+  await library.getByText(/position 1 of 1/).waitFor({ timeout: 5000 });
+  await library.locator("[data-library-type=PraiseQuotesSection] .studio-library-card").hover();
+  const frame = page.frameLocator("iframe").first();
+  await frame.locator("[data-fm-section='__studio-candidate']").first().waitFor({ state: "visible", timeout: 10000 });
+  await library.getByText("Showing Praise & press quotes on the page").waitFor({ timeout: 5000 });
+  await library.locator("[data-library-type=PraiseQuotesSection] .studio-library-card").click();
+  await expectText(page, "Home · 1 section");
+  await frame.locator("[data-fm-section='__studio-candidate']").waitFor({ state: "detached", timeout: 10000 });
+  await page.getByRole("button", { name: "Save draft" }).click();
+  await page.waitForFunction(() => window.__studioFixture.calls.some(c => c.method === "saveDesign"));
+  const save = (await calls(page)).find(c => c.method === "saveDesign");
+  const saved = save.args[0].design.heroPage.sections;
+  if (!saved.some(s => s.type === "PraiseQuotesSection")) throw new Error("the section was not added");
+  if (JSON.stringify(save.args[0].design).includes("__studio-candidate")) throw new Error("the try-on candidate leaked into the saved draft");
+});
+
+await check("+ Section above on the canvas opens Add section at that spot", desktop, async page => {
+  await expectText(page, "Preview connected", 30000);
+  await page.getByRole("button", { name: "Add section" }).first().click();
+  await page.locator("[data-library-type=NewsletterSection] .studio-library-card").click();
+  const frame = page.frameLocator("iframe").first();
+  await frame.getByRole("button", { name: "+ Section above" }).click({ timeout: 10000 });
+  await page.locator("[data-studio-library]").getByText(/position 1 of 2/).waitFor({ timeout: 5000 });
+});
+
+await check("a Promo strip goes under the header on every page with Add it there instead", desktop, async page => {
+  await expectText(page, "Preview connected", 30000);
+  await page.getByRole("button", { name: "Add section" }).first().click();
+  const item = page.locator("[data-library-type=PromoStripSection]");
+  await item.getByText("Best under the header (every page)").waitFor({ timeout: 5000 });
+  await item.getByRole("button", { name: "Add it there instead" }).click();
+  await page.locator(".studio-structure summary", { hasText: "Every page · Under the header" }).waitFor({ timeout: 5000 });
+  const frame = page.frameLocator("iframe").first();
+  await frame.getByText("New releases every month").first().waitFor({ timeout: 10000 });
+});
+
 await check("phone-sized editor loads without errors", { width: 390, height: 844 }, async page => {
   await page.waitForTimeout(1500);
   const overflow = await page.evaluate(() => document.documentElement.scrollWidth - window.innerWidth);

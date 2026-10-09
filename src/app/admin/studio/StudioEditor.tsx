@@ -48,7 +48,7 @@ import { buildStudioIndex, contextCommands, searchedDevice, type SearchEntry } f
 import { resolveProductRoutes } from "../../features/site/productRoutes";
 import { groupLabel, isGroupSurface, SECTION_GROUP_KEYS, SECTION_GROUPS, type SectionGroupKey } from "../../features/site/sectionGroups";
 import { autoFitSections, autoFitRegions } from "./autoMobile";
-import { applyCanvasAction, applyPageStyle, buildPreviewState, deliverPreviewState, findSectionOwner, moveBlockTo, moveSectionTo, PAGE_STYLE_GROUPS, PREVIEW_CHANNEL, previewRoute, sectionEntries, updateSectionsById, withDraftPage } from "./studioWorkflow";
+import { applyCanvasAction, applyPageStyle, buildPreviewState, deliverPreviewState, findSectionOwner, moveBlockTo, moveSectionTo, PAGE_STYLE_GROUPS, PREVIEW_CHANNEL, previewRoute, sectionEntries, updateSectionsById, withDraftPage, writeSections } from "./studioWorkflow";
 import { sectionStyleFields, SPACING_CARD_KEYS } from "./sectionStyleSchema";
 import type { OutlineActions } from "./StudioOutline";
 import { useStudioPersistence } from "./useStudioPersistence";
@@ -75,6 +75,8 @@ import { loadUiState, saveUiState, uiStateKey, type Zoom } from "./studioUiState
 import { auth } from "../../../lib/firebase";
 import type { StudioLocation } from "../../lib/studioLocation";
 import { LinkPicker, StudioPickerProvider } from "./StudioPickers";
+import { StudioSectionLibrary } from "./StudioSectionLibrary";
+import { CANDIDATE_ID, deletePreset, deleteSharedBlock, renamePreset, renameSharedBlock, withCandidate } from "./sectionLibrary";
 import "./studio.css";
 
 type LeftTab = "sections" | "style" | "text" | "menus" | "pages" | "media";
@@ -159,61 +161,6 @@ function sectionTitle(s: Section) {
   const st = s.settings || {};
   const snippet = [st.title, st.heading, st.headline, st.text].find((v) => typeof v === "string" && v.trim());
   return { label: meta?.label || s.type, snippet: snippet ? String(snippet).slice(0, 40) : "" };
-}
-
-// ── Add-section picker ─────────────────────────────────────────────────────
-function AddSectionDialog({ onPick, onClose, presets = [], onPickPreset }: {
-  onPick: (type: string) => void; onClose: () => void; presets?: any[]; onPickPreset?: (preset: any) => void;
-}) {
-  const [q, setQ] = useState("");
-  const savedList = presets.filter((p: any) => !q || String(p.name || "").toLowerCase().includes(q.toLowerCase()));
-  const list = SECTION_REGISTRY.filter(
-    (s) => !q || `${s.label} ${s.description} ${s.category}`.toLowerCase().includes(q.toLowerCase()),
-  );
-  const cats = Array.from(new Set(list.map((s) => s.category)));
-  return (
-    <Dialog open onClose={onClose} title="Add section" size="lg">
-      <div className="bg-white rounded-2xl w-full max-w-3xl max-h-[85vh] flex flex-col shadow-2xl">
-        <div className="flex items-center gap-3 p-4 border-b">
-          <Search size={16} className="text-neutral-400" />
-          <input autoFocus value={q} onChange={(e) => setQ(e.target.value)} placeholder="Search sections…"
-            className="flex-1 outline-none text-sm" aria-label="Search sections" />
-          <button className={iconBtn} onClick={onClose} aria-label="Close"><X size={16} /></button>
-        </div>
-        <div className="overflow-auto p-4 space-y-5">
-          {savedList.length > 0 && onPickPreset && (
-            <div>
-              <h3 className="text-[11px] font-black tracking-widest uppercase text-neutral-500 mb-2">Your saved sections</h3>
-              <div className="grid sm:grid-cols-2 gap-2">
-                {savedList.map((p: any) => (
-                  <button key={p.id} onClick={() => onPickPreset(p)}
-                    className="text-left p-3 border border-neutral-200 rounded-xl hover:border-neutral-900 hover:bg-neutral-50">
-                    <p className="text-sm font-bold">{p.name}</p>
-                    <p className="text-xs text-neutral-500 mt-0.5">Saved with Section tools › Save selected section for reuse</p>
-                  </button>
-                ))}
-              </div>
-            </div>
-          )}
-          {cats.map((c) => (
-            <div key={c}>
-              <h3 className="text-[11px] font-black tracking-widest uppercase text-neutral-500 mb-2">{c}</h3>
-              <div className="grid sm:grid-cols-2 gap-2">
-                {list.filter((s) => s.category === c).map((s) => (
-                  <button key={s.type} onClick={() => onPick(s.type)}
-                    className="text-left p-3 border border-neutral-200 rounded-xl hover:border-neutral-900 hover:bg-neutral-50">
-                    <p className="text-sm font-bold">{s.label}</p>
-                    <p className="text-xs text-neutral-500 mt-0.5">{s.description}</p>
-                  </button>
-                ))}
-              </div>
-            </div>
-          ))}
-          {!list.length && !savedList.length && <p className="text-sm text-neutral-500">No sections match “{q}”.</p>}
-        </div>
-      </div>
-    </Dialog>
-  );
 }
 
 // ── Menu editor ────────────────────────────────────────────────────────────
@@ -415,6 +362,9 @@ export function StudioEditor({ settings, onExit, onPersisted, appearance = "ligh
   }, []);
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [adding, setAdding] = useState<number | null>(null);
+  // Add section › pointing at a card: that section type, shown in the preview only (never in the draft or history).
+  const [candidate, setCandidate] = useState<string | null>(null);
+  useEffect(() => { if (adding === null) setCandidate(null); }, [adding]);
   const [blockId, setBlockId] = useState<string | null>(null);
   const [mode, setMode] = useState<"edit" | "browse">("edit");
   const [mobilePanel, setMobilePanel] = useState("preview");
@@ -686,13 +636,16 @@ export function StudioEditor({ settings, onExit, onPersisted, appearance = "ligh
   const channelRef = useRef<BroadcastChannel | null>(null);
   const sendPreviewState = useCallback(() => {
     if (inlineEditingRef.current) return;
-    const previewDesign = historyPreview?.design || designRef.current;
+    const current = designRef.current;
+    const previewDesign = historyPreview?.design || (candidate && adding !== null
+      ? withCandidate(current, showGlobal ? globalGroup : template.id, getSections(current, target), adding, makeSection(candidate, getSectionMeta(candidate)?.defaults || {}))
+      : current);
     const state = buildPreviewState(settings, previewDesign, withDraftPage(pages, draftPage), books);
     try {
       deliverPreviewState(iframeRef.current?.contentWindow, state, window.location.origin);
     } catch (err) { console.warn("[Studio] preview delivery failed", err); }
     try { channelRef.current?.postMessage(state); } catch (err) { console.warn("[Studio] preview tab delivery failed", err); }
-  }, [historyPreview, settings, pages, books, draftPage]);
+  }, [historyPreview, settings, pages, books, draftPage, candidate, adding, showGlobal, globalGroup, template.id]); // eslint-disable-line react-hooks/exhaustive-deps
   const sendPreviewRef = useRef(sendPreviewState);
   sendPreviewRef.current = sendPreviewState;
   useEffect(() => {
@@ -750,6 +703,12 @@ export function StudioEditor({ settings, onExit, onPersisted, appearance = "ligh
   const highlight = useCallback((id: string | null, scroll = false, selectedBlock: string | null = blockId) => {
     try { iframeRef.current?.contentWindow?.postMessage({ type: "HIGHLIGHT_SECTION", instanceId: id, blockId: selectedBlock, scroll }, window.location.origin); } catch { /* ignore */ }
   }, [blockId]);
+  // Add section: scroll the preview to the section being tried on the page.
+  useEffect(() => {
+    if (!candidate) return;
+    const t = setTimeout(() => highlight(CANDIDATE_ID, true, null), 350);
+    return () => clearTimeout(t);
+  }, [candidate]); // eslint-disable-line react-hooks/exhaustive-deps
   // Re-highlight right away when the selection changes, but only after edits settle when the design changes.
   useEffect(() => { canvasSelectionRef.current = null; highlight(selectedId); }, [selectedId, highlight]);
   useEffect(() => { if (selectedId) setSelectedElement(null); }, [selectedId]);
@@ -892,14 +851,12 @@ export function StudioEditor({ settings, onExit, onPersisted, appearance = "ligh
       if (d.type === "NODE_HOVER") { setHoverKey(typeof d.key === "string" ? d.key : null); return; }
       if (d.type === "CANVAS_SELECT" && d.sectionId) canvasSelectionRef.current = {sectionId:d.sectionId,blockId:d.blockId || null};
       if (d.type === "SECTION_SELECT" && d.instanceId) {
-        const cur = designRef.current;
-        if (getSections(cur, { kind: "global" }).some((s) => s.id === d.instanceId)) {
-          setShowGlobal(true);
-        } else {
-          const owner = templates.find((t) => getSections(cur, { kind: "template", id: t.id }).some((s) => s.id === d.instanceId));
-          if (!owner) return;
-          setShowGlobal(false); setTemplateId(owner.id);
-        }
+        // Any section group (under the header, above the footer, pop-up) or page.
+        const owner = findSectionOwner(designRef.current, d.instanceId);
+        if (!owner) return;
+        if (isGroupSurface(owner.surface)) { setShowGlobal(true); setGlobalGroup(owner.surface); }
+        else if (templates.some(t => t.id === owner.surface)) { setShowGlobal(false); setTemplateId(owner.surface); }
+        else return;
         setLeftTab("sections");
         setSelectedId(d.instanceId);
         setBlockId(typeof d.blockId === "string" ? d.blockId : null);
@@ -915,6 +872,19 @@ export function StudioEditor({ settings, onExit, onPersisted, appearance = "ligh
       }
       if (d.type === "BLOCK_MOVE" && d.sectionId && d.blockId && d.beforeId) {
         change(current => applyCanvasAction(current, d, getBlocksKey));
+      }
+      if (d.type === "INSERT_AT" && typeof d.sectionId === "string") {
+        // Canvas toolbar › + Section above / below: open Add section at that spot.
+        const owner = findSectionOwner(designRef.current, d.sectionId);
+        if (!owner) return;
+        if (isGroupSurface(owner.surface)) { setShowGlobal(true); setGlobalGroup(owner.surface); }
+        else if (templates.some(t => t.id === owner.surface)) { setShowGlobal(false); setTemplateId(owner.surface); }
+        else return;
+        const index = owner.sections.findIndex(sec => sec.id === d.sectionId);
+        setLeftTab("sections"); setSelectedId(null); setBlockId(null);
+        setAdding(d.position === "before" ? Math.max(0, index) : index + 1);
+        setMobilePanel("outline");
+        return;
       }
       if (d.type === "ADD_BLOCK" && d.sectionId) {
         const owner = findSectionOwner(designRef.current, d.sectionId);
@@ -1122,6 +1092,42 @@ export function StudioEditor({ settings, onExit, onPersisted, appearance = "ligh
     setSelectedId(moveDest); setBlockId(dialog.blockId);
     say("ok", "Block moved.", { label: "Undo", run: () => setHist(undo) });
   };
+  /** Add section › "Add it there instead": add a section to the group or page it is made for, and go there. */
+  const addSectionBestPlace = (type: string) => {
+    const meta = getSectionMeta(type);
+    const best = meta?.bestIn;
+    const s = makeSection(type, meta?.defaults || {});
+    const label = { label: `Add ${meta?.label || "section"}` };
+    if (best?.group) {
+      const group = best.group;
+      change(d => writeSections(d, group, [...(Array.isArray(d[group]) ? d[group] : []), s]), label);
+      setShowGlobal(true); setGlobalGroup(group);
+    } else if (best?.template && templates.some(t => t.id === best.template)) {
+      const page = best.template;
+      change(d => writeSections(d, page, [...(d[page]?.sections || []), s]), label);
+      setShowGlobal(false); setTemplateId(page);
+    } else { addSection(type); return; }
+    setSelectedId(s.id); setAdding(null); setBlockId(null); setMobilePanel("settings");
+    setTimeout(() => highlight(s.id, true), 600);
+  };
+  const renamePresetAsk = async (preset: any) => {
+    const name = await askText({ title: "Rename saved section", label: "Name", defaultValue: preset.name || "", confirmLabel: "Rename" });
+    if (name === null || !name.trim()) return;
+    change(d => renamePreset(d, preset.id, name), { label: "Rename saved section" });
+  };
+  const deletePresetNow = (preset: any) => {
+    change(d => deletePreset(d, preset.id), { label: "Delete saved section" });
+    say("ok", `“${preset.name}” deleted from your saved sections.`, { label: "Undo", run: () => setHist(undo) });
+  };
+  const renameSharedAsk = async (shared: SharedBlock) => {
+    const name = await askText({ title: "Rename shared block", label: "Name", defaultValue: shared.name || "", confirmLabel: "Rename" });
+    if (name === null || !name.trim()) return;
+    change(d => renameSharedBlock(d, shared.id, name), { label: "Rename shared block" });
+  };
+  const deleteSharedNow = (shared: SharedBlock) => {
+    change(d => deleteSharedBlock(d, shared.id), { label: "Delete shared block" });
+    say("ok", `“${shared.name}” deleted. Where it was placed, a copy stays.`, { label: "Undo", run: () => setHist(undo) });
+  };
   const addPreset = (preset: any) => {
     const source = preset.section;
     const clone = duplicateSection([source], source.id).list[1];
@@ -1306,7 +1312,17 @@ export function StudioEditor({ settings, onExit, onPersisted, appearance = "ligh
           </div>
           <div className="flex-1 overflow-auto" ref={sidebarScrollRef}>
             <StudioTips forceOpen={tipsNonce} />
-            {leftTab === "sections" && template.id === "heroPage" && (
+            {leftTab === "sections" && adding !== null && (
+              <StudioSectionLibrary registry={SECTION_REGISTRY} design={design}
+                surface={showGlobal ? globalGroup : template.id}
+                surfaceLabel={showGlobal ? `Every page · ${groupLabel(globalGroup)}` : template.label}
+                at={adding} total={sections.length}
+                onPreview={setCandidate} onPick={addSection} onPickBestPlace={addSectionBestPlace} onPickPreset={addPreset}
+                onRenamePreset={renamePresetAsk} onDeletePreset={deletePresetNow}
+                onRenameShared={renameSharedAsk} onDeleteShared={deleteSharedNow}
+                onClose={() => setAdding(null)} />
+            )}
+            {leftTab === "sections" && adding === null && template.id === "heroPage" && (
               <div className="m-3 p-3 rounded-lg border border-neutral-200 bg-white text-xs space-y-2">
                 <label className="flex items-center justify-between gap-3 font-bold text-sm">
                   Show a Home page
@@ -1320,7 +1336,7 @@ export function StudioEditor({ settings, onExit, onPersisted, appearance = "ligh
                 </p>
               </div>
             )}
-            {leftTab === "sections" && (template.id === "page" || template.id.startsWith("page:")) && !sections.some((s) => s.type === "PageContentSection") && (
+            {leftTab === "sections" && adding === null && (template.id === "page" || template.id.startsWith("page:")) && !sections.some((s) => s.type === "PageContentSection") && (
               <div className="m-3 p-3 rounded-lg border border-neutral-200 bg-white text-xs space-y-2" data-studio-panel="page-content">
                 <p className="font-bold text-sm">Make this page fully editable</p>
                 <p className="text-neutral-500">The page title and text are currently a fixed block. Turn them into a <b>Page content</b> section you can move, restyle and surround with images, galleries or any other section.</p>
@@ -1330,7 +1346,7 @@ export function StudioEditor({ settings, onExit, onPersisted, appearance = "ligh
                 }}>Design this page</button>
               </div>
             )}
-            {leftTab === "sections" && <div className="studio-section-tools">
+            {leftTab === "sections" && adding === null && <div className="studio-section-tools">
               <button className={btn} onClick={() => setAdding(sections.length)}><Plus size={13} /> Add section</button>
               <button className={btn} onClick={() => autoFitPage(false)} title="Works out phone spacing, text sizes, columns and stacked blocks for this page's sections and built-in regions. Anything you set yourself is kept."><Smartphone size={13} /> Auto-fit page for phones</button>
               <div className="studio-tools-menu"><span>Section tools</span><ActionMenu label="Section tools" actions={[
@@ -1342,7 +1358,7 @@ export function StudioEditor({ settings, onExit, onPersisted, appearance = "ligh
                   onSelect: () => { if (!selected) { say("ok", "Select a section first, then save it. Saved sections appear in Add section."); return; } saveSection(selected); } },
               ]} /></div>
             </div>}
-            {leftTab === "sections" && <StudioStructure structure={structure} hoverKey={hoverKey} selectedKey={selectedElement?.key || null} deviceLabel={REGION_DEVICE_LABELS[device]}
+            {leftTab === "sections" && adding === null && <StudioStructure structure={structure} hoverKey={hoverKey} selectedKey={selectedElement?.key || null} deviceLabel={REGION_DEVICE_LABELS[device]}
               pageLabel={template.label} showGlobal={showGlobal} group={globalGroup}
               groupCounts={Object.fromEntries(SECTION_GROUP_KEYS.map(k => [k, Array.isArray(design[k]) ? design[k].length : 0]))}
               onHover={key => postPreview({ type: "HOVER_NODE", key })}
@@ -1738,7 +1754,6 @@ export function StudioEditor({ settings, onExit, onPersisted, appearance = "ligh
         </div>
       </Dialog>
       <StudioSearch open={findOpen} onClose={() => setFindOpen(false)} index={searchIndex} context={paletteContext} onPick={goToResult} />
-      {adding !== null && <AddSectionDialog onPick={addSection} onClose={() => setAdding(null)} presets={design.sectionPresets || []} onPickPreset={addPreset} />}
       <Dialog open={historyOpen} onClose={() => { setHistoryOpen(false); setHistoryPreview(null); }} title="Version history" description="Every saved draft and publish is kept here. Previewing never changes your draft." size="lg">
         <div className="space-y-2 max-h-[60vh] overflow-auto">
           {!versions.length && <p className="studio-empty">No saved versions yet.</p>}

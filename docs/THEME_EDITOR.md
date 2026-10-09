@@ -65,7 +65,7 @@ The editor is **not** a blank slate. It already supports:
 | `src/app/admin/studio/StudioOutline.tsx` / `StudioInspector.tsx` | Section/block outline and the section/block inspector (Content, Layout & style). |
 | `src/app/admin/studio/styleSchema.ts` / `settingsMap.ts` | Every Theme settings control (`STYLE_GROUPS`, region groups) and where each one lives. |
 | `src/app/admin/studio/previewBridge.ts` / `canvasBridge.ts` | Script injected into the preview: click-to-edit, inline text, canvas toolbar, spacing handles. |
-| `src/app/admin/ThemeEditorExtensions.tsx` | The real **`SECTION_REGISTRY`** (34 section types), `getSectionFields`, `getBlockFields`, `getSectionMeta`, the shared field editors (`SectionFieldEditor` / `BlockFieldEditor`). Field types: `text`, `textarea`, `html`, `richtext`, `color`, `number`, `range`, `select`, `toggle`, `date`, `image`, plus the picker kinds `link`, `book`, `books`, `category`, `page`, `video`, `font` (`studio/StudioPickers.tsx`). |
+| `src/app/admin/ThemeEditorExtensions.tsx` | The real **`SECTION_REGISTRY`** (41 section types), `getSectionFields`, `getBlockFields`, `getSectionMeta`, the shared field editors (`SectionFieldEditor` / `BlockFieldEditor`). Field types: `text`, `textarea`, `html`, `richtext`, `color`, `number`, `range`, `select`, `toggle`, `date`, `image`, plus the picker kinds `link`, `book`, `books`, `category`, `page`, `video`, `font` (`studio/StudioPickers.tsx`). |
 | `src/app/components/SectionComponents.tsx` | **One storefront renderer per registry section type** (the components that actually draw each section) + shared style helpers (spacing, background, button styles, animation wrappers). Registry and renderers are at parity — every `SECTION_REGISTRY` type has a matching renderer. |
 | `src/app/components/sectionRender.tsx` | **Shared section renderer** (single source of truth for section→renderer mapping). `SectionList` (pure: maps a `sections` array → renderers via `(Sections as any)[type]` and emits stable `data-fm-section` / `data-section-id` edit hooks); `TemplateSections` (renders `design[templateId].sections` for a page-type template); `GlobalSections` (renders the flat `design.globalSections`). Used by MainSite **and** every standalone page. |
 | `src/app/components/MainSite.tsx` | Renders the homepage/storefront. Uses `SectionList` for `heroPage.sections` and the shared `GlobalSections` from `sectionRender`. |
@@ -391,8 +391,30 @@ assistant, personalization/A-B tests, author/series/event pages, multi-language 
       `studio/colorSchemeOps.ts` (`colorSchemeOps.test.ts`); saving writes the list for all pages (clearing stale page
       copies). Deleting a scheme in use asks first, then removes its `colorSchemeId` / `elementSchemes` references so
       those parts fall back to theme colours (undoable). The buy card, bag and card-title click targets also show their
-      scheme choice in the element inspector. - [ ] 2.6 Section library 2.0 + new sections.
-- [ ] 2.7 Custom book fields + dynamic sources. - [ ] 2.8 Alternate templates. - [ ] 2.9 Product information as blocks.
+      scheme choice in the element inspector.
+- [x] 2.6 Section library 2.0 + new sections. Add section is a panel in Page layout (`studio/StudioSectionLibrary.tsx`,
+      a non-modal `role="dialog"` named "Add section") instead of a pop-up over the preview. Pointing at (or focusing) a
+      card shows that section on the page at the insert spot: Studio adds a transient `__studio-candidate` section to the
+      preview snapshot only (`sectionLibrary.withCandidate`, `CANDIDATE_ID`) — never to the draft, history or saves — and
+      the bridges label it "Preview · not added yet" with no canvas toolbar. Clicking adds it. A selected section's canvas
+      toolbar has **+ Section above / + Section below** (`INSERT_AT`), opening the library at that spot. Thumbnails are
+      code-drawn wireframes per kind of section (`studio/sectionThumbs.tsx`) instead of the planned generated screenshots,
+      so every type has one and nothing needs regenerating. Registry entries may carry `bestIn` (`{ group | template,
+      note }`); the card shows the note and **Add it there instead** adds it to that group/page. Saved sections can be
+      renamed and deleted (Undo), and **Shared blocks** lists each with where it is used; deleting one copies its content
+      into every placement first, so nothing goes blank (`deleteSharedBlock`). Seven new sections (registry + fields +
+      fallbacks + renderers, 41 types now): **Featured collection** (one category + View all), **Book spotlight** (picked
+      book, else the book on a book page via `SectionPageContext` in `components/sectionCopy.ts`, provided by
+      `BookDetail`), **Praise & press quotes** (blocks), **Image collage** (mosaic / stagger / strip), **Promo strip**
+      (bestIn Under the header), **Newsletter sign-up (pop-up)** (bestIn Pop-up) and **Sticky add-to-bag bar** (book
+      pages; adds plain books directly, otherwise scrolls to the buy box). The Newsletter section and the new pop-up one
+      now really sign people up through `features/site/newsletterSignup.ts` (the footer box uses it too; same
+      `newsletter/{email}` rules, nothing new to deploy) and never write from the Studio preview. Also fixed: clicking a
+      section from the header or pop-up group in the preview now selects it. Tests: `sectionLibrary.test.ts`,
+      `librarySections.test.tsx`, contract tests; e2e: try-on + add, + Section above, Promo strip "Add it there".
+- [ ] 2.7 Custom book fields + dynamic sources.
+- [ ] 2.8 Alternate templates.
+- [ ] 2.9 Product information as blocks.
 
 **2.4 Media library + responsive images (done).** A **Media** rail tab (`studio/StudioMedia.tsx`) lists the
 admin-only Firestore `media/{id}` records (`admin/mediaApi.ts`: name, alt, focal point, width/height, bytes,
