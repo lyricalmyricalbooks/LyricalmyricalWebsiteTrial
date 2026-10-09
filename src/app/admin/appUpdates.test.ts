@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
-import { APP_UPDATES } from "./appUpdates";
+import { readdirSync } from "node:fs";
+import { APP_UPDATES, updateOrder } from "./appUpdates";
 import { NAV } from "./riso/nav";
 import { parseStudioLocation } from "../lib/studioLocation";
 
@@ -19,5 +20,21 @@ describe("app release notes", () => {
         if (link.studio) expect(parseStudioLocation(link.studio), link.label).not.toBeNull();
       }
     }
+  });
+
+  it("keeps one file per note, named after its date and id, newest first", () => {
+    const names = readdirSync(new URL("./updates", import.meta.url)).filter(n => n.endsWith(".ts"));
+    expect(names.length).toBe(APP_UPDATES.length);
+    // The same pattern the app-release-notes workflow requires of a PR's new note.
+    for (const n of names) expect(n).toMatch(/^\d{4}-\d{2}-\d{2}-\d{2}-[a-z0-9-]+\.ts$/);
+    for (const entry of APP_UPDATES) {
+      const name = names.find(n => n.endsWith(`-${entry.id}.ts`));
+      expect(name, entry.id).toMatch(new RegExp(`^${entry.date}-\\d{2}-`));
+    }
+    const dates = APP_UPDATES.map(e => e.date);
+    expect(dates).toEqual([...dates].sort().reverse());
+    // Within a day the higher number is the newer note.
+    expect(updateOrder(["./updates/2026-10-09-01-a.ts", "./updates/2026-10-09-02-b.ts", "./updates/2026-10-08-07-c.ts"]))
+      .toEqual(["./updates/2026-10-09-02-b.ts", "./updates/2026-10-09-01-a.ts", "./updates/2026-10-08-07-c.ts"]);
   });
 });
