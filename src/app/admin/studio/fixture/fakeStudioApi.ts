@@ -11,6 +11,9 @@ export type StudioFixture = {
   calls: FixtureCall[]; settings: any; pages: any[]; books: any[]; versions: any[]; rev: number;
   /** Studio › Media records. `mediaDenied` acts as if the media Firestore rules weren't deployed yet. */
   media: MediaItem[]; mediaDenied?: boolean;
+  /** Live sync (3.2): Studio's watchers, and a helper that acts like a save from another tab or device. */
+  watchers?: ((remote: any) => void)[];
+  remoteSave?: (draft: any, options?: { publish?: boolean }) => void;
 };
 
 const clone = <T,>(v: T): T => JSON.parse(JSON.stringify(v ?? null));
@@ -119,7 +122,17 @@ export function installFakeStudioApi(api: Record<string, any>, fixture: StudioFi
     saveThemes: async (_previous, next) => { record("saveThemes", next); fixture.settings.savedThemes = clone(next); },
     fieldUpdate: async fields => { record("draftFieldUpdate", fields); Object.assign(fixture.settings.draftDesign, clone(fields)); },
     readField: async key => clone(fixture.settings.draftDesign?.[key]),
+    watch: onChange => {
+      fixture.watchers = [...(fixture.watchers || []), onChange];
+      return () => { fixture.watchers = (fixture.watchers || []).filter(w => w !== onChange); };
+    },
   });
+  fixture.remoteSave = (draft, options = {}) => {
+    fixture.settings.draftDesign = clone(draft);
+    if (options.publish) fixture.settings.design = clone(draft);
+    const remote = { draft: clone(draft), rev: ++fixture.rev, tabId: "another-tab", updatedAt: new Date().toISOString(), published: Boolean(options.publish) };
+    for (const watcher of fixture.watchers || []) watcher(clone(remote));
+  };
   const media = mediaApi as Record<string, any>;
   const mediaOriginals: Record<string, any> = {};
   for (const [name, fn] of Object.entries(fakeMedia)) { mediaOriginals[name] = media[name]; media[name] = fn; }

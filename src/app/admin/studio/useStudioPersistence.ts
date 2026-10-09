@@ -1,13 +1,15 @@
 import { useEffect, useRef, useState } from "react";
 import { auth } from "../../../lib/firebase";
-import { discardDraft, publishDesign, saveDraft, studioTabId, ThemeConflictError, type Workspace } from "../themeStore";
+import { discardDraft, publishDesign, saveDraft, studioTabId, ThemeConflictError, watchWorkspace, type RemoteWorkspace, type Workspace } from "../themeStore";
 import { sameDesign } from "./studioModel";
 import { designSize } from "./studioChecks";
-import { createSnapshotWriter, mergeDesigns, newestRecovery, parseRecovery, RECOVERY_PREFIX } from "./studioWorkflow";
+import { createSnapshotWriter, decideRemoteChange, mergeDesigns, newestRecovery, parseRecovery, RECOVERY_PREFIX } from "./studioWorkflow";
 
 type Kind = "draft" | "publish" | "discard";
 /** Another tab or device saved first, and both changed the same settings: the owner chooses. */
 export type SaveConflict = { kind: Kind; server: { draft: any; rev: number }; paths: string[] };
+/** Studio 3.2: a save from another tab or device that meets unsaved edits here (shown as a banner). */
+export type IncomingChange = { remote: RemoteWorkspace; merged: any; paths: string[] };
 
 export function useStudioPersistence(props: {
   design: any; savedDraft: any; published: any; workspace: Workspace;
@@ -15,6 +17,8 @@ export function useStudioPersistence(props: {
   onPersisted?: (design: any, published: boolean) => void;
   reset: (design: any) => void; restore: (design: any) => void;
   say: (kind: "ok" | "err", message: string) => void;
+  /** Normalise a design the way Studio holds it (live sync compares like with like). */
+  normalize?: (design: any) => any;
 }) {
   const current = useRef(props); current.current = props;
   const writer = useRef(createSnapshotWriter());
@@ -88,6 +92,51 @@ export function useStudioPersistence(props: {
       else p.say("err", `Could not ${kind === "draft" ? "save draft" : kind}: ${error?.message || "unknown error"}. Your edits are still available; retry when connected.`);
     } finally { locked.current = false; setBusy(null); }
     if (lost) await handleConflict(kind, lost.server);
+    // A change that arrived from another tab while this one was saving is looked at now.
+    if (pendingRemote.current) { const next = pendingRemote.current; pendingRemote.current = null; receive(next); }
+  };
+
+  // ── Live sync (3.2): follow saves made in other tabs and devices while Studio is open ──
+  const [incoming, setIncoming] = useState<IncomingChange | null>(null);
+  const pendingRemote = useRef<RemoteWorkspace | null>(null);
+  const receive = (raw: RemoteWorkspace) => {
+    if (locked.current) { pendingRemote.current = raw; return; }
+    const p = current.current;
+    const remote = { ...raw, draft: p.normalize ? p.normalize(raw.draft) : raw.draft };
+    const decision = decideRemoteChange({ localRev: rev.current, remote, design: p.design, savedDraft: p.savedDraft });
+    if (decision.kind === "ignore") return;
+    // A Publish elsewhere is live whatever happens to the draft here.
+    if (remote.published) p.setPublished(remote.draft);
+    if (decision.kind === "rebase") { rev.current = remote.rev; p.setSavedDraft(remote.draft); setIncoming(null); return; }
+    if (decision.kind === "adopt") {
+      rev.current = remote.rev; p.setSavedDraft(remote.draft); p.restore(remote.draft); setIncoming(null);
+      p.say("ok", remote.published ? "Updated: this design was published from another tab or device." : "Updated with changes saved in another tab or device.");
+      return;
+    }
+    setIncoming({ remote, merged: decision.merged, paths: decision.kind === "conflict" ? decision.paths : [] });
+  };
+  const receiveRef = useRef(receive); receiveRef.current = receive;
+  useEffect(() => watchWorkspace(remote => receiveRef.current(remote), error => console.warn("[Studio] live updates paused", error)), []);
+
+  /** Banner choices: combine both (keeping mine where we both changed something), take theirs, or decide later. */
+  const resolveIncoming = (choice: "combine" | "theirs" | "later") => {
+    const change = incoming; setIncoming(null);
+    if (!change || choice === "later") return;
+    const p = current.current;
+    // A newer save may have arrived since the banner opened: always act on the latest decision.
+    const decision = decideRemoteChange({ localRev: rev.current, remote: change.remote, design: p.design, savedDraft: p.savedDraft });
+    if (decision.kind === "ignore") return;
+    rev.current = change.remote.rev;
+    p.setSavedDraft(change.remote.draft);
+    if (choice === "theirs" || decision.kind === "adopt" || decision.kind === "rebase") {
+      if (choice === "theirs") p.reset(change.remote.draft); else p.restore(change.remote.draft);
+      p.say("ok", "Loaded the version saved in the other tab or device.");
+      return;
+    }
+    p.restore(decision.merged);
+    p.say("ok", decision.kind === "conflict"
+      ? "Their changes are in. Where you both changed the same setting, your edit was kept — save when ready."
+      : "Their changes are in, alongside your unsaved edits. Save when ready.");
   };
 
   // Another tab saved first. Changes to different settings are combined automatically;
@@ -118,7 +167,7 @@ export function useStudioPersistence(props: {
   };
 
   return {
-    busy, recovery, recover, dismissRecovery, conflict, resolveConflict,
+    busy, recovery, recover, dismissRecovery, conflict, resolveConflict, incoming, resolveIncoming,
     saveDraft: () => persist("draft"), publish: () => persist("publish"), discard: () => persist("discard"),
   };
 }

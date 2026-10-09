@@ -507,7 +507,13 @@ the image; existing images are not migrated into the library.
   **Use this version's** (`restoreItem`: one named, undoable draft change). Publish/Discard dialogs use the same wording
   (`summariseDiff`). Same `theme-versions` collection and rules; `listThemeVersions` adds pinned rows via a single-field
   `where("pinned", "==", true)` (no composite index). Deviation: version bodies still load with their rows.
-- [ ] 3.2 Live sync. - [ ] 3.3 Studio Health. - [ ] 3.4 Themes workspace + share previews.
+- [x] 3.2 Live sync. Studio follows `themes/workspace` while open (`themeStore.watchWorkspace`, Firestore `onSnapshot`;
+  writes now record `action: "publish" | "save"`). `studioWorkflow.decideRemoteChange` decides: not newer → ignore (own
+  saves included; a change arriving mid-save waits until the save finishes); same content → only the revision moves;
+  nothing unsaved here → their version comes in (toast); unsaved edits → a banner: **Bring in their changes** (different
+  settings) / **Bring in theirs, keep mine** (both changed some — `mergeDesigns` keeps this tab's value, the banner names
+  them), **Use their version** (asks first) or **Later** (the next save combines as before). A Publish elsewhere updates
+  the live copy at once. Remote drafts are normalised before comparing. Same rules (admin read); no index or Function. - [ ] 3.3 Studio Health. - [ ] 3.4 Themes workspace + share previews.
 - [ ] 3.5 Scheduling & campaigns.
 
 **Phase 4 — Performance (continuous).**
