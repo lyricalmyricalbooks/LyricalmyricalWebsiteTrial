@@ -324,7 +324,8 @@ export function Dashboard() {
     return ok;
   };
   const goTo = async (id: string) => {
-    if (!(await leaveSettings())) return;
+    // Nothing unsaved: switch at once (callers such as What's new set a Settings tab right after).
+    if (isSettingsPage && anyDirty() && !(await leaveSettings())) return;
     setActiveTab(id);
     setShowEditor(false);
     setSelectedOrder(null);
