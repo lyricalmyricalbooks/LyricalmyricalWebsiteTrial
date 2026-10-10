@@ -218,7 +218,30 @@ function chargedRedemptions(order) {
   return Array.isArray(order && order.giftCardRedemptions) ? order.giftCardRedemptions : [];
 }
 
+// Admin › Gift cards › Change expiry: the update for a new expiry ("" = never expires) plus its
+// history line. Throws GiftCardError-style plain errors for a bad date. Pure, tested.
+function expiryChange(card, value, { actor = "admin", now = new Date(), reason = "" } = {}) {
+  const expiresOn = String(value ?? "").trim().slice(0, 10);
+  if (expiresOn) {
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(expiresOn) || Number.isNaN(Date.parse(`${expiresOn}T12:00:00Z`)) || new Date(`${expiresOn}T12:00:00Z`).toISOString().slice(0, 10) !== expiresOn) {
+      throw new Error("Use a real date for the expiry, or remove it.");
+    }
+    if (expiresOn < shopDate(now)) throw new Error("Choose today or a later date. To stop a card now, disable it instead.");
+  }
+  const previous = String(card?.expiresOn || "");
+  if (previous === expiresOn) throw new Error(expiresOn ? "The card already expires on that day." : "The card already never expires.");
+  const at = now.toISOString();
+  const note = String(reason || "").trim().slice(0, 300);
+  const text = `${expiresOn ? `Expiry set to ${expiresOn}` : "Expiry removed"}${previous ? ` (was ${previous})` : ""}${note ? `: ${note}` : ""}`;
+  return {
+    expiresOn,
+    history: withHistory(card || {}, { type: "expiry", minor: 0, reason: text, actor, at }),
+    updatedAt: at,
+  };
+}
+
 module.exports = {
+  expiryChange,
   chargedRedemptions,
   HOLD_MS, MAX_CARDS_PER_ORDER, GIFT_CARD_MESSAGES, GiftCardError,
   newGiftCardCode, normalizeGiftCardCode, giftCardId, last4, giftCardProblem,

@@ -32,6 +32,7 @@ const { catalogUnitPrice } = require("./catalogPrice");
 const { expandDiscountCategories } = require("./discountCategories");
 const { discountableItems, discountAmountFor, pickAutomaticDiscount } = require("./discountMath");
 const { addOnSelection, bundleComponents, bundleAvailable, isGiftCardProduct, giftCardDetails } = require("./promotions");
+const { expiryChange } = require("./giftCards");
 const { MAX_CARDS_PER_ORDER, GIFT_CARD_MESSAGES, GiftCardError, newGiftCardCode, normalizeGiftCardCode, giftCardId, last4, giftCardProblem, availableMinor, allocateGiftCards, chargedRedemptions, reserveGiftCards, releaseGiftCards, readGiftCards, debitShortfall, writeGiftCardChange, cardsForOrder, withHistory } = require("./giftCards");
 const { readBooks, writeStock } = require("./inventory");
 const { resolveCountry } = require("./shippingGeo");
@@ -2206,6 +2207,17 @@ async function handleGiftCardAdmin(req, res) {
         tx.update(ref, { balanceMinor, history: withHistory(card, { type: "adjusted", minor: delta, reason, actor, at: now }), updatedAt: now });
       });
       return res.status(200).json({ ok: true, balanceMinor });
+    }
+    if (body.op === "setExpiry") {
+      let expiresOn = "";
+      await db.runTransaction(async tx => {
+        const snap = await tx.get(ref);
+        if (!snap.exists) throw new Error("Gift card not found.");
+        const update = expiryChange(snap.data(), body.expiresOn, { actor, reason: body.reason });
+        expiresOn = update.expiresOn;
+        tx.update(ref, update);
+      });
+      return res.status(200).json({ ok: true, expiresOn });
     }
     if (body.op === "resend") {
       const snap = await ref.get();

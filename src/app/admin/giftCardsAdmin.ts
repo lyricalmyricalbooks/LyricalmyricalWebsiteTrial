@@ -65,7 +65,7 @@ export function issuePayload(form: { amount: string; recipientEmail: string; rec
 
 const HISTORY_LABEL: Record<string, string> = {
   issued: "Issued", redeemed: "Used at checkout", refunded: "Money put back (refund)", adjusted: "Balance adjusted",
-  disabled: "Disabled", enabled: "Enabled again", emailed: "Code emailed",
+  disabled: "Disabled", enabled: "Enabled again", emailed: "Code emailed", expiry: "Expiry changed",
 };
 export const historyLabel = (type: string) => HISTORY_LABEL[type] || type;
 

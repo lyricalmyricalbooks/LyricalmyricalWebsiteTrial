@@ -167,9 +167,41 @@ function ResendDialog({ card, onClose, onDone }: { card: any; onClose: () => voi
   );
 }
 
+function ExpiryDialog({ card, onClose, onDone }: { card: any; onClose: () => void; onDone: () => void }) {
+  const [date, setDate] = useState(String(card.expiresOn || ""));
+  const [reason, setReason] = useState("");
+  const [error, setError] = useState("");
+  const [saving, setSaving] = useState(false);
+  const save = async (expiresOn: string) => {
+    setSaving(true); setError("");
+    try {
+      await adminApi.giftCardAdmin("setExpiry", { id: card.id, expiresOn, ...(reason.trim() ? { reason: reason.trim() } : {}) });
+      toast.success(expiresOn ? `Card now expires ${day(expiresOn)}` : "Card no longer expires");
+      onDone();
+    } catch (err: any) {
+      setError(err?.message || "The expiry couldn't be changed.");
+    } finally { setSaving(false); }
+  };
+  return (
+    <Dialog open onClose={onClose} title={`Change expiry · ${maskedCode(card)}`}
+      description={card.expiresOn ? `Currently expires ${day(card.expiresOn)}. Check your province's gift card rules before shortening it.` : "This card never expires right now."}
+      footer={<>
+        <SecondaryButton onClick={onClose}>Cancel</SecondaryButton>
+        {card.expiresOn && <SecondaryButton disabled={saving} onClick={() => save("")}>Remove expiry</SecondaryButton>}
+        <PrimaryButton disabled={saving || !date} onClick={() => save(date)}>{saving ? "Saving…" : "Save expiry"}</PrimaryButton>
+      </>}>
+      <div className="rp-stack" style={{ gap: 12 }}>
+        <TextField label="Expires on" type="date" value={date} onChange={(e) => setDate(e.target.value)} data-autofocus hint="Last day the card works (shop time, Toronto)." />
+        <TextField label="Reason (optional)" value={reason} maxLength={300} onChange={(e) => setReason(e.target.value)} placeholder="e.g. Extended as a courtesy" hint="Kept in the card's history." />
+        {error && <p role="alert" className="rp-error-text" style={{ margin: 0 }}>{error}</p>}
+      </div>
+    </Dialog>
+  );
+}
+
 function CardDrawer({ card, onClose, onChanged }: { card: any; onClose: () => void; onChanged: () => void }) {
   const [ask, confirmNode] = useConfirm();
-  const [sub, setSub] = useState<null | "adjust" | "resend">(null);
+  const [sub, setSub] = useState<null | "adjust" | "resend" | "expiry">(null);
   const [busy, setBusy] = useState(false);
   const status = giftCardStatus(card);
   const history = [...(Array.isArray(card.history) ? card.history : [])].sort((a, b) => historyTime(b) - historyTime(a));
@@ -204,6 +236,7 @@ function CardDrawer({ card, onClose, onChanged }: { card: any; onClose: () => vo
           {card.enabled === false
             ? <SecondaryButton disabled={busy} onClick={() => setEnabled(true)}>Enable</SecondaryButton>
             : <SecondaryButton disabled={busy} onClick={() => setEnabled(false)}>Disable</SecondaryButton>}
+          <SecondaryButton disabled={busy} onClick={() => setSub("expiry")}>Change expiry</SecondaryButton>
           <SecondaryButton disabled={busy} onClick={() => setSub("resend")}>Resend email</SecondaryButton>
           <PrimaryButton disabled={busy} onClick={() => setSub("adjust")}>Adjust balance</PrimaryButton>
         </>}>
@@ -248,6 +281,7 @@ function CardDrawer({ card, onClose, onChanged }: { card: any; onClose: () => vo
         </div>
       </Drawer>
       {sub === "adjust" && <AdjustDialog card={card} onClose={() => setSub(null)} onDone={() => { setSub(null); onChanged(); }} />}
+      {sub === "expiry" && <ExpiryDialog card={card} onClose={() => setSub(null)} onDone={() => { setSub(null); onChanged(); }} />}
       {sub === "resend" && <ResendDialog card={card} onClose={() => setSub(null)} onDone={() => { setSub(null); onChanged(); }} />}
       {confirmNode}
     </>
