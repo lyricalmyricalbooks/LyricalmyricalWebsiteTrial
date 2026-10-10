@@ -1,102 +1,289 @@
-import { useEffect, useMemo, useState } from "react";
-import { Download, Minus, Plus } from "lucide-react";
-import toast from "react-hot-toast";
+import { useCallback, useEffect, useMemo, useState } from "react";
+import { Download, History, Minus, Plus } from "lucide-react";
 import { adminApi } from "./api";
+import { inventoryApi, type InventoryLogEntry } from "./inventoryApi";
+import { InventorySyncPanel } from "./InventorySyncPanel";
 import {
-  buildInventory, inventorySummary, inventoryToCsv, parseStock, STATUS_LABELS, DEFAULT_LOW_STOCK,
-  type InventoryRow, type StockStatus,
+  buildInventory, inventorySummary, inventoryToCsv, lowStockThreshold, parseCost, parseReceive, parseStock,
+  waitingReaders, wakesRestockEmails, ADJUST_REASONS, STATUS_LABELS,
+  type AdjustReason, type InventoryRow, type StockChange, type StockStatus,
 } from "./inventoryInsights";
 import {
-  DataTable, EmptyState, ErrorState, FilterBar, IconButton, LoadingState, MetricCard, Pagination, SearchField,
-  SecondaryButton, SectionCard, StatusBadge, Tabs, TextField, type BadgeTone, type Column,
+  Checkbox, DataTable, Dialog, Drawer, EmptyState, ErrorState, FilterBar, GhostButton, IconButton, LoadingState, MetricCard,
+  Pagination, PrimaryButton, SearchField, SecondaryButton, SectionCard, SelectField, StatusBadge, Tabs, TextField,
+  ToastProvider, useRisoToast, type BadgeTone, type Column,
 } from "./riso/components";
 
-const TONE: Record<StockStatus, BadgeTone> = { out: "danger", low: "warning", reprint: "info", ok: "success", digital: "neutral" };
+const TONE: Record<StockStatus, BadgeTone> = {
+  out: "danger", low: "warning", reprint: "info", ok: "success", digital: "neutral", untracked: "neutral", bundle: "primary", giftCard: "neutral",
+};
 const PAGE_SIZE = 25;
+type Tab = "all" | "out" | "low" | "reprint" | "ok" | "digital" | "untracked" | "other";
+const inTab = (r: InventoryRow, t: Tab) => t === "all" || (t === "other" ? r.status === "bundle" || r.status === "giftCard" : r.status === t);
+const money = (n: number) => `CA$${n.toFixed(2)}`;
 
-export function Inventory() {
+/** Non-destructive yes/no question (the Riso ConfirmDialog is styled for deleting). */
+function useAsk() {
+  const [state, setState] = useState<null | { title: string; message: string; confirmLabel: string; resolve: (v: boolean) => void }>(null);
+  const ask = useCallback((o: { title: string; message: string; confirmLabel: string }) => new Promise<boolean>((resolve) => setState({ ...o, resolve })), []);
+  const done = (v: boolean) => { state?.resolve(v); setState(null); };
+  const node = (
+    <Dialog open={!!state} onClose={() => done(false)} title={state?.title || ""}
+      footer={<><SecondaryButton data-autofocus onClick={() => done(false)}>Cancel</SecondaryButton><PrimaryButton onClick={() => done(true)}>{state?.confirmLabel}</PrimaryButton></>}>
+      <p className="rp-card-desc" style={{ margin: 0, fontSize: "var(--rp-text-base)" }}>{state?.message}</p>
+    </Dialog>
+  );
+  return [ask, node] as const;
+}
+
+const rowName = (r: InventoryRow) => (r.edition ? `${r.title} (${r.edition})` : r.title);
+
+function InventoryPage({ onEditBook }: { onEditBook?: (book: any) => void }) {
+  const toast = useRisoToast();
+  const [ask, askNode] = useAsk();
   const [books, setBooks] = useState<any[]>([]);
   const [orders, setOrders] = useState<any[]>([]);
+  const [costs, setCosts] = useState<Record<string, number>>({});
+  const [settings, setSettings] = useState<any>({});
   const [loading, setLoading] = useState(true);
   const [failed, setFailed] = useState(false);
-  const [tab, setTab] = useState<"all" | StockStatus>("all");
+  const [tab, setTab] = useState<Tab>("all");
   const [q, setQ] = useState("");
-  const [threshold, setThreshold] = useState(DEFAULT_LOW_STOCK);
+  const [threshold, setThreshold] = useState(5);
+  const [thresholdDraft, setThresholdDraft] = useState("5");
+  const [showHidden, setShowHidden] = useState(false);
+  const [reason, setReason] = useState<AdjustReason>("Count correction");
   const [page, setPage] = useState(1);
   const [drafts, setDrafts] = useState<Record<string, string>>({});
   const [saving, setSaving] = useState<Set<string>>(new Set());
+  const [receiving, setReceiving] = useState(false);
+  const [receive, setReceive] = useState<Record<string, string>>({});
+  const [costDrafts, setCostDrafts] = useState<Record<string, string>>({});
+  const [results, setResults] = useState<Record<string, { ok: boolean; text: string }>>({});
+  const [bulkSaving, setBulkSaving] = useState(false);
+  const [historyFor, setHistoryFor] = useState<InventoryRow | null>(null);
+  const [history, setHistory] = useState<InventoryLogEntry[] | null>(null);
+  const [historyError, setHistoryError] = useState(false);
 
   const load = async () => {
     setFailed(false); setLoading(true);
     try {
-      const [b, o] = await Promise.all([adminApi.getAllBooks(), adminApi.getOrders(500)]);
+      const [b, o, s, c] = await Promise.all([
+        adminApi.getAllBooks(), adminApi.getOrders(500),
+        inventoryApi.lowStockSetting().catch(() => ({})), inventoryApi.costs().catch(() => ({})),
+      ]);
       setBooks(b); setOrders(o.filter((x: any) => x.paymentStatus === "paid" && x.isTest !== true));
-    } catch (e) { console.error(e); setFailed(true); toast.error("Inventory could not be loaded"); }
+      setSettings(s); setCosts(c);
+      const t = lowStockThreshold(s); setThreshold(t); setThresholdDraft(String(t));
+    } catch (e) { console.error(e); setFailed(true); }
     finally { setLoading(false); }
   };
   useEffect(() => { load(); }, []);
 
-  const all = useMemo(() => buildInventory(books, orders, threshold), [books, orders, threshold]);
-  const sum = useMemo(() => inventorySummary(all), [all]);
+  const everything = useMemo(() => buildInventory(books, orders, threshold), [books, orders, threshold]);
+  const all = useMemo(() => everything.filter((r) => showHidden || (!r.archived && !r.draft)), [everything, showHidden]);
+  const hiddenCount = everything.length - everything.filter((r) => !r.archived && !r.draft).length;
+  const sum = useMemo(() => inventorySummary(all, costs), [all, costs]);
   const counts = useMemo(() => {
-    const c: Record<string, number> = { all: all.length, out: 0, low: 0, reprint: 0, ok: 0, digital: 0 };
-    all.forEach((r) => c[r.status]++);
+    const c: Record<Tab, number> = { all: all.length, out: 0, low: 0, reprint: 0, ok: 0, digital: 0, untracked: 0, other: 0 };
+    all.forEach((r) => (["out", "low", "reprint", "ok", "digital", "untracked", "other"] as Tab[]).forEach((t) => { if (inTab(r, t)) c[t]++; }));
     return c;
   }, [all]);
   const rows = useMemo(() => {
     const s = q.trim().toLowerCase();
-    return all.filter((r) => (tab === "all" || r.status === tab) && (!s || r.title.toLowerCase().includes(s)))
-      .sort((a, b) => (a.digital ? 1 : 0) - (b.digital ? 1 : 0) || a.stock - b.stock);
+    const order = (r: InventoryRow) => (r.editable ? 0 : 1);
+    return all.filter((r) => inTab(r, tab) && (!s || `${r.title} ${r.edition} ${r.shelfLocation}`.toLowerCase().includes(s)))
+      .sort((a, b) => order(a) - order(b) || a.stock - b.stock || a.title.localeCompare(b.title));
   }, [all, tab, q]);
-  useEffect(() => setPage(1), [tab, q, threshold]);
+  useEffect(() => setPage(1), [tab, q, threshold, showHidden]);
   const pageCount = Math.max(1, Math.ceil(rows.length / PAGE_SIZE));
-  const pageRows = rows.slice((Math.min(page, pageCount) - 1) * PAGE_SIZE, Math.min(page, pageCount) * PAGE_SIZE);
+  const pageRows = receiving ? rows : rows.slice((Math.min(page, pageCount) - 1) * PAGE_SIZE, Math.min(page, pageCount) * PAGE_SIZE);
 
-  const setStock = async (r: InventoryRow, next: number) => {
-    if (next === r.stock) { setDrafts((d) => { const { [r.id]: _, ...rest } = d; return rest; }); return; }
+  const clearDraft = (id: string) => setDrafts((d) => { const { [id]: _, ...rest } = d; return rest; });
+  const applyLocal = (r: InventoryRow, to: number) => setBooks((bs) => bs.map((b) => {
+    if (b.id !== r.bookId) return b;
+    if (!r.variantId) return { ...b, stockLevel: to };
+    return { ...b, variants: (b.variants || []).map((v: any) => (v?.id === r.variantId ? { ...v, stock: to, stockLevel: to } : v)) };
+  }));
+
+  /** Readers who will be emailed if this row goes 0 → >0; asks first. false = the owner cancelled. */
+  const confirmRestockEmails = async (items: Array<{ row: InventoryRow; from: number; to: number }>) => {
+    const waking = items.filter((i) => wakesRestockEmails(i.row.book, i.from, i.to));
+    if (!waking.length) return true;
+    let readers = 0;
+    try {
+      for (const bookId of [...new Set(waking.map((w) => w.row.bookId))]) {
+        const alerts = await inventoryApi.stockAlerts(bookId);
+        waking.filter((w) => w.row.bookId === bookId).forEach((w) => { readers += waitingReaders(alerts, w.row.variantId); });
+      }
+    } catch { return ask({ title: "Back in stock", confirmLabel: "Save anyway", message: "Readers who asked to hear when this is back in stock may be emailed. Their sign-ups couldn't be checked just now." }); }
+    if (!readers) return true;
+    return ask({
+      title: "Readers will be emailed", confirmLabel: "Save and email them",
+      message: `${readers} reader${readers === 1 ? " is" : "s are"} waiting for ${waking.length === 1 ? rowName(waking[0].row) : "these books"} and will be emailed that ${waking.length === 1 ? "it's" : "they're"} back in stock.`,
+    });
+  };
+
+  /** One change through the safe path. Returns the change made, or null. */
+  const change = async (r: InventoryRow, ch: StockChange, why: AdjustReason, opts: { quiet?: boolean } = {}): Promise<{ from: number; to: number } | null> => {
+    const preview = ch.kind === "delta" ? Math.max(0, r.stock + ch.delta) : ch.to;
+    if (!(await confirmRestockEmails([{ row: r, from: r.stock, to: preview }]))) return null;
     setSaving((s) => new Set(s).add(r.id));
     try {
-      await adminApi.updateBook(r.id, { title: r.title, stockLevel: next });
-      setBooks((bs) => bs.map((b) => (b.id === r.id ? { ...b, stockLevel: next } : b)));
-      toast.success(`${r.title}: ${r.stock} → ${next}`);
-    } catch (e) { console.error(e); toast.error(`Could not update ${r.title}`); }
-    finally {
-      setSaving((s) => { const n = new Set(s); n.delete(r.id); return n; });
-      setDrafts((d) => { const { [r.id]: _, ...rest } = d; return rest; });
-    }
+      const meta = { reason: why, title: r.title, edition: r.edition };
+      let res = await inventoryApi.adjustStock(r.bookId, r.variantId, ch, meta);
+      if (!res.ok && res.reason === "conflict" && ch.kind === "set") {
+        const go = await ask({
+          title: "Stock changed since you opened the page", confirmLabel: `Set to ${ch.to}`,
+          message: `This changed to ${res.live} since you opened the page (a sale?) — set it to ${ch.to} anyway?`,
+        });
+        if (!go) { applyLocal(r, res.live ?? r.stock); return null; }
+        res = await inventoryApi.adjustStock(r.bookId, r.variantId, ch, { ...meta, force: true });
+      }
+      if (!res.ok) { toast(res.reason === "missing" ? `${rowName(r)} no longer exists. Reload the page.` : `${rowName(r)} isn't counted, so its stock can't be changed here.`, { tone: "err" }); return null; }
+      applyLocal(r, res.to);
+      if (!opts.quiet && res.from !== res.to) {
+        toast(`${rowName(r)}: ${res.from} → ${res.to}`, {
+          actionLabel: "Undo",
+          onAction: () => { void undo(r, res as any); },
+        });
+      }
+      return { from: res.from, to: res.to };
+    } catch (e) { console.error(e); toast(`Could not update ${rowName(r)}`, { tone: "err" }); return null; }
+    finally { setSaving((s) => { const n = new Set(s); n.delete(r.id); return n; }); clearDraft(r.id); }
   };
+
+  // Undo puts back the difference (not the old absolute number), so a sale since is kept.
+  const undo = async (r: InventoryRow, done: { from: number; to: number }) => {
+    const res = await inventoryApi.adjustStock(r.bookId, r.variantId, { kind: "delta", delta: done.from - done.to }, { reason: "Undo", title: r.title, edition: r.edition })
+      .catch(() => null);
+    if (res?.ok) { applyLocal(r, res.to); toast(`${rowName(r)} back to ${res.to}`); } else toast(`Could not undo ${rowName(r)}`, { tone: "err" });
+  };
+
   const commit = (r: InventoryRow) => {
     const raw = drafts[r.id];
     if (raw === undefined) return;
     const n = parseStock(raw);
-    if (n === null) { toast.error("Enter a whole number"); setDrafts((d) => { const { [r.id]: _, ...rest } = d; return rest; }); return; }
-    setStock(r, n);
+    if (n === null) { toast("Enter a whole number", { tone: "err" }); clearDraft(r.id); return; }
+    if (n === r.stock) { clearDraft(r.id); return; }
+    void change(r, { kind: "set", to: n, expected: r.stock }, reason);
+  };
+
+  const saveThreshold = async () => {
+    const n = parseStock(thresholdDraft);
+    if (n === null) { setThresholdDraft(String(threshold)); return; }
+    setThreshold(n); setThresholdDraft(String(n));
+    if (n === lowStockThreshold(settings)) return;
+    try { await inventoryApi.setLowStockThreshold(n); setSettings((s: any) => ({ ...s, inventory: { ...(s.inventory || {}), lowStockThreshold: n } })); toast(`Low-stock line saved: ${n}`); }
+    catch { toast("Could not save the low-stock line", { tone: "err" }); }
+  };
+
+  const openHistory = async (r: InventoryRow) => {
+    setHistoryFor(r); setHistory(null); setHistoryError(false);
+    try { setHistory(await inventoryApi.history(r.bookId)); } catch { setHistoryError(true); }
+  };
+
+  const pendingReceive = rows.filter((r) => r.editable && receive[r.id]?.trim());
+  const pendingCosts = Object.entries(costDrafts).filter(([id, v]) => parseCost(v) !== undefined && (parseCost(v) ?? 0) !== (costs[id] ?? 0));
+  const saveReceiving = async () => {
+    const plans = pendingReceive.map((r) => ({ r, ch: parseReceive(receive[r.id]) }));
+    const bad = plans.filter((p) => !p.ch);
+    if (bad.length) { toast(`Check ${bad.length} entr${bad.length === 1 ? "y" : "ies"}: type +12, -3 or =40`, { tone: "err" }); return; }
+    const badCost = Object.values(costDrafts).filter((v) => parseCost(v) === undefined).length;
+    if (badCost) { toast("A cost price isn't a number", { tone: "err" }); return; }
+    const items = plans.map(({ r, ch }) => {
+      const c = ch!.kind === "set" ? { ...ch!, expected: r.stock } : ch!;
+      return { row: r, ch: c, from: r.stock, to: c.kind === "delta" ? Math.max(0, r.stock + c.delta) : c.to };
+    });
+    if (!(await confirmRestockEmails(items))) return;
+    setBulkSaving(true);
+    const out: Record<string, { ok: boolean; text: string }> = {};
+    const settled = await Promise.allSettled(items.map(async ({ row, ch }) => {
+      const res = await inventoryApi.adjustStock(row.bookId, row.variantId, ch, { reason, title: row.title, edition: row.edition });
+      if (res.ok) { applyLocal(row, res.to); out[row.id] = { ok: true, text: `${res.from} → ${res.to}` }; }
+      else out[row.id] = { ok: false, text: res.reason === "conflict" ? `Changed to ${res.live} meanwhile — not saved` : "Not saved" };
+      return res;
+    }));
+    settled.forEach((s, i) => { if (s.status === "rejected") out[items[i].row.id] = { ok: false, text: "Could not save — try again" }; });
+    const costResults = await Promise.allSettled(pendingCosts.map(([id, v]) => inventoryApi.setCost(id, parseCost(v) as number | null).then(() => [id, parseCost(v)] as const)));
+    const nextCosts = { ...costs };
+    costResults.forEach((c) => { if (c.status === "fulfilled") { const [id, v] = c.value; if (v) nextCosts[id] = v; else delete nextCosts[id]; } });
+    setCosts(nextCosts);
+    const failedCosts = costResults.filter((c) => c.status === "rejected").length;
+    setResults(out);
+    setReceive((d) => Object.fromEntries(Object.entries(d).filter(([id]) => out[id] && !out[id].ok)));
+    setCostDrafts({});
+    setBulkSaving(false);
+    const okCount = Object.values(out).filter((x) => x.ok).length;
+    const failCount = Object.values(out).length - okCount;
+    toast(`${okCount} saved${failCount ? `, ${failCount} not saved (still filled in)` : ""}${failedCosts ? `, ${failedCosts} cost price(s) not saved` : ""}`, { tone: failCount || failedCosts ? "warn" : "ok" });
   };
 
   const exportCsv = () => {
-    if (!rows.length) return toast.error("Nothing to export");
+    if (!rows.length) return toast("Nothing to export", { tone: "err" });
     const url = URL.createObjectURL(new Blob([inventoryToCsv(rows)], { type: "text/csv;charset=utf-8" }));
     const a = document.createElement("a");
     a.href = url; a.download = `inventory-${new Date().toISOString().slice(0, 10)}.csv`; a.click();
     URL.revokeObjectURL(url);
   };
 
-  const columns: Column<InventoryRow>[] = [
-    { key: "title", header: "Title", lead: true, render: (r) => <div style={{ overflowWrap: "anywhere" }}><div style={{ fontWeight: 600 }}>{r.title}</div><div className="rp-hint">{r.format || "—"}</div></div> },
-    { key: "status", header: "Status", render: (r) => <StatusBadge tone={TONE[r.status]}>{STATUS_LABELS[r.status]}</StatusBadge> },
-    { key: "stock", header: "On hand", render: (r) => r.digital ? "—" : (
+  const firstRowOfBook = new Set<string>();
+  const seen = new Set<string>();
+  rows.forEach((r) => { if (!seen.has(r.bookId)) { seen.add(r.bookId); firstRowOfBook.add(r.id); } });
+
+  const stockCell = (r: InventoryRow) => {
+    if (r.kind === "bundle") return <span className="rp-hint">Box set: {r.bundleSets === null ? "unlimited" : r.bundleSets} available from parts</span>;
+    if (r.kind === "giftCard") return <span className="rp-hint">Gift card — no stock</span>;
+    if (r.kind === "digital") return <span className="rp-hint">Digital</span>;
+    if (r.kind === "untracked") return <span className="rp-hint">Not tracked</span>;
+    const busy = saving.has(r.id) || bulkSaving;
+    return (
       <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
-        <IconButton label={`Decrease stock of ${r.title}`} disabled={saving.has(r.id) || r.stock <= 0} onClick={() => setStock(r, r.stock - 1)}><Minus size={14} aria-hidden /></IconButton>
-        <input className="rp-input rp-mono" style={{ width: 72, textAlign: "right" }} inputMode="numeric" aria-label={`Stock for ${r.title}`}
-          value={drafts[r.id] ?? String(r.stock)} disabled={saving.has(r.id)}
+        <IconButton label={`Decrease stock of ${rowName(r)}`} disabled={busy || r.stock <= 0} onClick={() => change(r, { kind: "delta", delta: -1 }, reason)}><Minus size={14} aria-hidden /></IconButton>
+        <input className="rp-input rp-mono" style={{ width: 72, textAlign: "right" }} inputMode="numeric" aria-label={`Stock for ${rowName(r)}`}
+          value={drafts[r.id] ?? String(r.stock)} disabled={busy}
           onChange={(e) => setDrafts((d) => ({ ...d, [r.id]: e.target.value }))}
-          onBlur={() => commit(r)} onKeyDown={(e) => { if (e.key === "Enter") (e.target as HTMLInputElement).blur(); if (e.key === "Escape") setDrafts((d) => { const { [r.id]: _, ...rest } = d; return rest; }); }} />
-        <IconButton label={`Increase stock of ${r.title}`} disabled={saving.has(r.id)} onClick={() => setStock(r, r.stock + 1)}><Plus size={14} aria-hidden /></IconButton>
+          onBlur={() => commit(r)} onKeyDown={(e) => { if (e.key === "Enter") (e.target as HTMLInputElement).blur(); if (e.key === "Escape") clearDraft(r.id); }} />
+        <IconButton label={`Increase stock of ${rowName(r)}`} disabled={busy} onClick={() => change(r, { kind: "delta", delta: 1 }, reason)}><Plus size={14} aria-hidden /></IconButton>
+      </div>
+    );
+  };
+
+  const columns: Column<InventoryRow>[] = [
+    { key: "title", header: "Title", lead: true, render: (r) => (
+      <div style={{ overflowWrap: "anywhere" }}>
+        {onEditBook
+          ? <button type="button" className="rp-link" style={{ fontWeight: 600, background: "none", border: 0, padding: 0, cursor: "pointer", textAlign: "left", color: "inherit", textDecoration: "underline" }}
+              onClick={() => onEditBook(r.book)} aria-label={`Edit ${r.title} in Books`}>{r.title}</button>
+          : <div style={{ fontWeight: 600 }}>{r.title}</div>}
+        <div className="rp-hint">
+          {[r.edition, r.format].filter(Boolean).join(" · ") || "—"}
+          {r.shelfLocation && <> · Shelf <span className="rp-mono">{r.shelfLocation}</span></>}
+          {r.archived && " · Archived"}{r.draft && " · Draft"}{r.backorder && r.editable && " · Backorders on"}
+        </div>
       </div>
     ) },
-    { key: "sold", header: "Sold (30d)", numeric: true, render: (r) => r.sold30 },
-    { key: "cover", header: "Days of cover", numeric: true, render: (r) => r.coverDays ?? "—" },
-    { key: "value", header: "Stock value", numeric: true, render: (r) => r.digital ? "—" : `CA$${r.value.toFixed(2)}` },
+    { key: "status", header: "Status", render: (r) => <StatusBadge tone={TONE[r.status]}>{STATUS_LABELS[r.status]}</StatusBadge> },
+    { key: "stock", header: "On hand", render: stockCell },
+    ...(receiving ? [
+      { key: "receive", header: "Receive", render: (r: InventoryRow) => r.editable ? (
+        <div>
+          <input className="rp-input rp-mono" style={{ width: 84 }} placeholder="+12" aria-label={`Copies received for ${rowName(r)} (+12 adds, -3 removes, =40 sets)`}
+            value={receive[r.id] ?? ""} disabled={bulkSaving} onChange={(e) => setReceive((d) => ({ ...d, [r.id]: e.target.value }))} />
+          {results[r.id] && <div className="rp-hint" role="status" style={{ color: results[r.id].ok ? "var(--rp-success)" : "var(--rp-danger)" }}>{results[r.id].ok ? "✓ " : "✕ "}{results[r.id].text}</div>}
+        </div>) : "—" } as Column<InventoryRow>,
+      { key: "cost", header: "Cost / copy (CA$)", render: (r: InventoryRow) => firstRowOfBook.has(r.id) && r.kind !== "giftCard" ? (
+        <input className="rp-input rp-mono" style={{ width: 84 }} inputMode="decimal" aria-label={`Cost price per copy for ${r.title}`}
+          value={costDrafts[r.bookId] ?? (costs[r.bookId] ? String(costs[r.bookId]) : "")} disabled={bulkSaving}
+          onChange={(e) => setCostDrafts((d) => ({ ...d, [r.bookId]: e.target.value }))} />) : "" } as Column<InventoryRow>,
+    ] : [
+      { key: "sold", header: "Sold (30d)", numeric: true, render: (r: InventoryRow) => r.sold30 } as Column<InventoryRow>,
+      { key: "cover", header: "Days of cover", numeric: true, render: (r: InventoryRow) => r.coverDays ?? "—" } as Column<InventoryRow>,
+      { key: "value", header: "Stock value", numeric: true, render: (r: InventoryRow) => r.kind === "stock" ? (
+        <div>{money(r.value)}{costs[r.bookId] ? <div className="rp-hint">{money(r.stock * costs[r.bookId])} at cost</div> : null}</div>) : "—" } as Column<InventoryRow>,
+      { key: "history", header: "History", render: (r: InventoryRow) => (
+        <IconButton label={`Stock history for ${r.title}`} onClick={() => openHistory(r)}><History size={16} aria-hidden /></IconButton>) } as Column<InventoryRow>,
+    ]),
   ];
 
   if (loading) return <LoadingState label="Loading inventory…" />;
@@ -105,27 +292,70 @@ export function Inventory() {
   return (
     <div className="rp-stack">
       <div style={{ display: "grid", gap: 16, gridTemplateColumns: "repeat(auto-fit,minmax(180px,1fr))" }}>
-        <MetricCard label="Units on hand" value={sum.units} footer="Print titles" />
-        <MetricCard label="Stock value" value={`CA$${sum.value.toFixed(0)}`} footer="At retail price" />
+        <MetricCard label="Units on hand" value={sum.units} footer="Counted print editions" />
+        <MetricCard label="Stock value" value={`CA$${sum.value.toFixed(0)}`}
+          footer={sum.costedRows ? `At retail · CA$${sum.costValue.toFixed(0)} at cost (${sum.costedRows} of ${sum.countedRows} costed)` : "At retail price"} />
         <MetricCard label="Out of stock" value={sum.out} tone={sum.out ? "danger" : undefined} footer="Cannot be bought" />
         <MetricCard label="Low / reprint soon" value={sum.low + sum.reprint} tone={sum.low + sum.reprint ? "warn" : undefined} footer={`${sum.low} low · ${sum.reprint} selling fast`} />
       </div>
-      <Tabs label="Stock status" value={tab} onChange={(v) => setTab(v as any)}
+      <Tabs<Tab> label="Stock status" value={tab} onChange={setTab}
         tabs={[
           { id: "all", label: "All", count: counts.all }, { id: "out", label: "Out of stock", count: counts.out },
           { id: "low", label: "Low stock", count: counts.low }, { id: "reprint", label: "Reprint soon", count: counts.reprint },
           { id: "ok", label: "In stock", count: counts.ok }, { id: "digital", label: "Digital", count: counts.digital },
+          { id: "untracked", label: "Not tracked", count: counts.untracked }, { id: "other", label: "Box sets & gift cards", count: counts.other },
         ]} />
       <FilterBar>
-        <div className="rp-grow"><SearchField label="Search titles" placeholder="Search titles…" value={q} onChange={(e) => setQ(e.target.value)} /></div>
-        <TextField label="Low-stock at or below" type="number" min={0} value={String(threshold)} onChange={(e) => setThreshold(Math.max(0, Number(e.target.value) || 0))} />
+        <div className="rp-grow"><SearchField label="Search titles" placeholder="Search titles or shelf…" value={q} onChange={(e) => setQ(e.target.value)} /></div>
+        <TextField label="Low-stock at or below" type="number" min={0} value={thresholdDraft} hint="Saved for the whole shop"
+          onChange={(e) => setThresholdDraft(e.target.value)} onBlur={saveThreshold} onKeyDown={(e) => { if (e.key === "Enter") (e.target as HTMLInputElement).blur(); }} />
+        <SelectField label="Reason for changes" value={reason} onChange={(e) => setReason(e.target.value as AdjustReason)}>
+          {ADJUST_REASONS.map((r) => <option key={r} value={r}>{r}</option>)}
+        </SelectField>
         <SecondaryButton icon={<Download size={16} aria-hidden />} onClick={exportCsv}>Export CSV</SecondaryButton>
       </FilterBar>
-      <SectionCard flush title="Inventory" description="Edit a count and press Enter, or use − / +. Sales reduce stock automatically after payment; edits here are for receipts, reprints and corrections.">
+      <div style={{ display: "flex", flexWrap: "wrap", gap: 16, alignItems: "center" }}>
+        <Checkbox label={`Show drafts & archived (${hiddenCount})`} checked={showHidden} onChange={(e) => setShowHidden(e.target.checked)} />
+        {receiving
+          ? <GhostButton onClick={() => { setReceiving(false); setReceive({}); setCostDrafts({}); setResults({}); }}>Leave receive mode</GhostButton>
+          : <SecondaryButton onClick={() => { setReceiving(true); setResults({}); }}>Receive stock</SecondaryButton>}
+      </div>
+      <SectionCard flush title={receiving ? "Receive stock" : "Inventory"}
+        description={receiving
+          ? "Type copies received for each edition (+12 adds, -3 removes, =40 sets the count) and optional cost prices, then press Save all. Each row is saved on its own against the live count, with the reason chosen above."
+          : "Edit a count and press Enter, or use − / +. Sales reduce stock automatically after payment; edits here are for receipts, reprints and corrections, and each one is kept in the title's history."}
+        actions={receiving ? <PrimaryButton disabled={bulkSaving || (!pendingReceive.length && !pendingCosts.length)} onClick={saveReceiving}>
+          {bulkSaving ? "Saving…" : `Save all (${pendingReceive.length + pendingCosts.length})`}</PrimaryButton> : undefined}>
         <DataTable caption="Inventory" columns={columns} rows={pageRows} rowKey={(r) => r.id}
           empty={<EmptyState title="No titles match" description="Try another status tab or search." />} />
-        {rows.length > PAGE_SIZE && <Pagination page={Math.min(page, pageCount)} pageCount={pageCount} onPage={setPage} />}
+        {!receiving && rows.length > PAGE_SIZE && <Pagination page={Math.min(page, pageCount)} pageCount={pageCount} onPage={setPage} />}
       </SectionCard>
+      <details className="rp-card" style={{ padding: 16 }}>
+        <summary style={{ cursor: "pointer", fontWeight: 600 }}>Advanced: sync stock from the old shop</summary>
+        <div style={{ marginTop: 12 }}><InventorySyncPanel lastSync={settings?.inventory?.lastSync} /></div>
+      </details>
+
+      <Drawer open={!!historyFor} onClose={() => setHistoryFor(null)} title={historyFor ? `Stock history · ${historyFor.title}` : "Stock history"}
+        description="Every count change made on this page, newest first. Sales and refunds change stock automatically and are listed on their orders.">
+        {historyError ? <ErrorState description="History could not be loaded." onRetry={() => historyFor && openHistory(historyFor)} />
+          : !history ? <LoadingState label="Loading history…" />
+          : !history.length ? <EmptyState title="No changes recorded yet" description="Changes made from now on appear here." />
+          : (
+            <ul className="rp-list" aria-label="Stock changes">
+              {history.map((h) => (
+                <li key={h.id}>
+                  <div style={{ fontWeight: 600 }}>{h.edition ? `${h.edition}: ` : ""}{h.from} → {h.to} <span className="rp-mono">({h.delta > 0 ? "+" : ""}{h.delta})</span></div>
+                  <div className="rp-hint">{h.reason}{h.note ? ` — ${h.note}` : ""} · {new Date(h.at).toLocaleString()}{h.by ? ` · ${h.by}` : ""}</div>
+                </li>
+              ))}
+            </ul>
+          )}
+      </Drawer>
+      {askNode}
     </div>
   );
+}
+
+export function Inventory({ onEditBook }: { onEditBook?: (book: any) => void } = {}) {
+  return <ToastProvider><InventoryPage onEditBook={onEditBook} /></ToastProvider>;
 }
