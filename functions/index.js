@@ -44,7 +44,7 @@ const { orderRequestProblem, orderRequestRecord, privacyRequestRecord } = requir
 const { hitLimit, LIMITS, clientIpOf } = require("./rateLimit");
 const { reserveStock, releaseStock, releaseStockForOrder, StockHoldError, holdOwner } = require("./stockHolds");
 const { preorderActive, preorderLine, preorderEmailLines } = require("./preorder");
-const { claimEmailSend } = require("./emailThrottle");
+const { claimEmailSend, reminderFirstName, nextDailyCount } = require("./emailThrottle");
 const { MAX_ATTEMPTS, LEASE_MS, LOG_RETENTION_DAYS, GAVE_UP_RETENTION_DAYS, cleanRecipients, cleanSubject, cleanFromName, nextRetryAt, isPermanentEmailError, canSendNow, publicOutboxEntry, staleOrderEmailReason, daysAgoIso, withRequiredPlaceholders, blankUnknownPlaceholders } = require("./emailOutbox");
 
 admin.initializeApp();
@@ -4521,6 +4521,21 @@ exports.abandonedCartSweep = onSchedule(
         await doc.ref.update({ notified: true, notifiedAt: new Date().toISOString(), notifySkipped: "throttled" }).catch(() => {});
         return;
       }
+      // Shop-wide daily cap: forged carts can't make the shop a bulk sender. Over the cap, this
+      // cart stays un-notified (and the address unthrottled) so tomorrow's sweep can still send it.
+      const day = new Intl.DateTimeFormat("en-CA", { timeZone: "America/Toronto", year: "numeric", month: "2-digit", day: "2-digit" }).format(new Date());
+      const dailyRef = db.collection("abandoned-cart-throttle").doc("_daily");
+      const underCap = await db.runTransaction(async tx => {
+        const d = await tx.get(dailyRef);
+        const next = nextDailyCount(d.exists ? d.data() : null, day);
+        if (!next) return false;
+        tx.set(dailyRef, next);
+        return true;
+      }).catch(() => false);
+      if (!underCap) {
+        await (previousThrottle ? throttleRef.set(previousThrottle) : throttleRef.delete()).catch(() => {});
+        return;
+      }
 
       const subtotal = lines.reduce((sum, line) => sum + line.price * line.qty, 0);
       const itemsTable = `
@@ -4542,7 +4557,8 @@ exports.abandonedCartSweep = onSchedule(
       const cartUrl = siteLink(`/checkout?cartId=${doc.id}`);
       const unsubscribeUrl = siteLink(`/track?unsubscribe=1&e=${encodeURIComponent(normMarketingEmail(email))}&t=${unsubscribeToken(email, unsubscribeKey)}`);
       const compiled = compileEmailTemplate("abandoned_cart", notificationSettings, {
-        customer_name: String(c.customer?.name || c.name || "there").slice(0, 80),
+        // Only a plain first name from the (visitor-written) cart; never their free text.
+        customer_name: reminderFirstName(c.customer?.name || c.name),
         cart_url: cartUrl,
         button_url: cartUrl,
         items_table: itemsTable

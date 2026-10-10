@@ -509,3 +509,42 @@ describe("notification fixes from the email review", () => {
     expect(app.delivered[0].html).toContain("Rock &amp; &lt;Roll&gt;");
   });
 });
+
+describe("abandoned-cart reminders can't be used to spam strangers", () => {
+  const throttle = realRequire("./emailThrottle");
+  const hourAgo = () => new Date(Date.now() - 2 * 3600_000).toISOString();
+  const cart = (extra = {}) => ({ email: "stranger@example.org", recovered: false, updatedAt: hourAgo(), items: [{ id: "b1", qty: 1 }], customer: { name: "Buy cheap pills at evil.test now" }, ...extra });
+  const docs = (extra = {}) => ({ books: { b1: { title: "Book", status: "published", retailPrice: 20 } }, "abandoned-carts": { c1: cart() }, ...extra });
+
+  test("only a plain first name from the visitor is used", () => {
+    expect(throttle.reminderFirstName("Sam Smith")).toBe("Sam");
+    expect(throttle.reminderFirstName("Zoë")).toBe("Zoë");
+    expect(throttle.reminderFirstName("Visit http://evil.test")).toBe("Visit");
+    expect(throttle.reminderFirstName("http://evil.test")).toBe("there");
+    expect(throttle.reminderFirstName("<b>Hi</b>")).toBe("there");
+    expect(throttle.reminderFirstName("")).toBe("there");
+  });
+
+  test("the daily cap counts per Toronto day", () => {
+    expect(throttle.nextDailyCount(null, "2026-10-10")).toEqual({ day: "2026-10-10", count: 1 });
+    expect(throttle.nextDailyCount({ day: "2026-10-10", count: 25 }, "2026-10-10")).toBeNull();
+    expect(throttle.nextDailyCount({ day: "2026-10-09", count: 25 }, "2026-10-10")).toEqual({ day: "2026-10-10", count: 1 });
+  });
+
+  test("the reminder carries none of the visitor's words", async () => {
+    const app = harness({ gmailFails: false, docs: docs() });
+    await app.exports.abandonedCartSweep();
+    expect(app.delivered).toHaveLength(1);
+    expect(app.delivered[0].html).not.toMatch(/pills|evil\.test/);
+    expect(app.delivered[0].html).toContain("Hi Buy,");
+  });
+
+  test("over the daily cap nothing is sent and the cart waits for tomorrow", async () => {
+    const day = new Intl.DateTimeFormat("en-CA", { timeZone: "America/Toronto", year: "numeric", month: "2-digit", day: "2-digit" }).format(new Date());
+    const app = harness({ gmailFails: false, docs: docs({ "abandoned-cart-throttle": { _daily: { day, count: 25 } } }) });
+    await app.exports.abandonedCartSweep();
+    expect(app.delivered).toHaveLength(0);
+    expect(app.docs["abandoned-carts"].c1.notified).toBeUndefined();
+    expect(Object.keys(app.docs["abandoned-cart-throttle"])).toEqual(["_daily"]);
+  });
+});
