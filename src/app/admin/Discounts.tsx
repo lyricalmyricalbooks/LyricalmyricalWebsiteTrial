@@ -6,6 +6,7 @@ import { discountCategoryChoices } from "../features/site/discountCategories";
 import { discountState as state, today } from "./discountState";
 import { discountPerformance, duplicateDiscount, perfKey } from "./discountPerformance";
 import { validateDiscountDraft } from "./discountValidation";
+import { describeDiscount, tierSummary } from "./discountDescribe";
 import {
   ActionMenu, Checkbox, ConfirmDialog, DataTable, Dialog, EmptyState, ErrorState, FilterBar, IconButton, LoadingState,
   MetricCard, PrimaryButton, SearchField, SecondaryButton, SectionCard, SelectField, StatusBadge, TextArea, TextField,
@@ -50,7 +51,7 @@ function valueLabel(d: any, books: any[] = []) {
     case "fixed": return `${fmt(d.value)} off`;
     case "freeship": return "Free shipping";
     case "bogo": return `Buy ${d.buyQuantity || 1} get ${d.getQuantity || 1} (${d.getDiscountValue ?? 100}% off)`;
-    case "tiered": return `Tiered (${d.tiers?.length || 0} tiers)`;
+    case "tiered": return tierSummary(d.tiers) || "Tiered discount";
     default: return String(d.type);
   }
 }
@@ -130,6 +131,9 @@ function DiscountDialog({ initial, otherCodes = [], books, shopCategories, onClo
         <PrimaryButton onClick={handleSave} disabled={saving}>{saving ? "Saving…" : isEdit ? "Save changes" : automatic ? "Create offer" : "Create code"}</PrimaryButton>
       </>}>
       <div className="rp-stack" style={{ gap: 20 }}>
+        <p className="rp-card" role="status" aria-live="polite" style={{ margin: 0, padding: "10px 12px", boxShadow: "none" }}>
+          <strong>Shoppers get:</strong> {describeDiscount(form, books || [])}
+        </p>
         <fieldset style={{ border: 0, padding: 0, margin: 0 }}>
           <legend className="rp-label" style={{ marginBottom: 8 }}>Method</legend>
           <div role="radiogroup" aria-label="Method" style={{ display: "flex", flexWrap: "wrap", gap: 8 }}>
@@ -364,6 +368,7 @@ export function Discounts() {
         {isAutomatic(d)
           ? <span style={{ display: "inline-flex", gap: 6, alignItems: "center", flexWrap: "wrap" }}><strong>{d.title || "Automatic offer"}</strong><StatusBadge tone="info">Automatic</StatusBadge></span>
           : <span className="rp-mono" style={{ fontSize: "var(--rp-text-base)", fontWeight: 600 }}>{d.code}</span>}
+        <div className="rp-hint" style={{ overflowWrap: "anywhere" }}>{describeDiscount(d, books || [])}</div>
         {d.description && <div className="rp-hint" style={{ overflowWrap: "anywhere" }}>{d.description}</div>}
       </div>
     ) },
