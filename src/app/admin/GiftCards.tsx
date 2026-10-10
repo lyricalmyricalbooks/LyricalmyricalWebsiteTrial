@@ -7,11 +7,11 @@ import toast from "react-hot-toast";
 import { adminApi } from "./api";
 import { copyText } from "./clipboard";
 import {
-  DataTable, Dialog, Drawer, EmptyState, ErrorState, FilterBar, LoadingState, MetricCard, PrimaryButton, SearchField,
+  ActionMenu, DataTable, Dialog, Drawer, EmptyState, ErrorState, FilterBar, LoadingState, MetricCard, PrimaryButton, SearchField,
   SecondaryButton, SectionCard, StatusBadge, Tabs, TextArea, TextField, Toggle, useConfirm, type Column,
 } from "./riso/components";
 import {
-  createdTime, dollarsToMinor, formatMinor, giftCardStatus, historyAmount, historyLabel, historyTime, issuePayload, maskedCode, matchesGiftCard,
+  createdTime, dollarsToMinor, formatMinor, giftCardStatus, giftCardsCsv, historyAmount, historyLabel, historyTime, issuePayload, maskedCode, matchesGiftCard,
   type GiftCardStatus,
 } from "./giftCardsAdmin";
 
@@ -262,6 +262,7 @@ export function GiftCards({ openId, onOpened }: { openId?: string | null; onOpen
   const [filter, setFilter] = useState<Filter>("all");
   const [selectedId, setSelectedId] = useState<string | null>(openId || null);
   const [issuing, setIssuing] = useState(false);
+  const [ask, confirmNode] = useConfirm();
 
   const load = async () => {
     setFailed(false);
@@ -307,6 +308,16 @@ export function GiftCards({ openId, onOpened }: { openId?: string | null; onOpen
   if (loading) return <LoadingState label="Loading gift cards…" />;
   if (failed) return <ErrorState description="Gift cards could not be loaded. If this is the first time, the gift card rules may not be deployed yet." onRetry={() => { setLoading(true); load(); }} />;
 
+  const exportCsv = async (fullCodes: boolean) => {
+    if (fullCodes && !(await ask({ title: "Export with full codes?", message: "Anyone who gets this file can spend these gift cards. Keep it private and delete it when you're done.", confirmLabel: "Export full codes" }))) return;
+    try {
+      const url = URL.createObjectURL(new Blob([giftCardsCsv(rows.map((r) => r.card), { fullCodes })], { type: "text/csv;charset=utf-8" }));
+      const a = document.createElement("a");
+      a.href = url; a.download = `gift-cards${fullCodes ? "-full-codes" : ""}.csv`; a.click();
+      setTimeout(() => URL.revokeObjectURL(url), 1000);
+    } catch { toast.error("The file couldn't be created."); }
+  };
+
   const issueButton = <PrimaryButton icon={<Plus size={16} aria-hidden />} onClick={() => setIssuing(true)}>Issue gift card</PrimaryButton>;
 
   return (
@@ -334,6 +345,10 @@ export function GiftCards({ openId, onOpened }: { openId?: string | null; onOpen
           ]} />
           <FilterBar>
             <div className="rp-grow"><SearchField label="Search gift cards" placeholder="Search by code, last 4 characters or email…" value={search} onChange={(e) => setSearch(e.target.value)} /></div>
+            <ActionMenu label="Export CSV" actions={[
+              { label: "Export CSV (codes hidden)", onSelect: () => { void exportCsv(false); } },
+              { label: "Export CSV with full codes…", onSelect: () => { void exportCsv(true); } },
+            ]} />
             {issueButton}
           </FilterBar>
           <SectionCard flush title="Gift cards" description={`${rows.length} of ${cards.length}`}>
@@ -350,6 +365,7 @@ export function GiftCards({ openId, onOpened }: { openId?: string | null; onOpen
         </Dialog>
       )}
       {issuing && <IssueDialog onClose={() => setIssuing(false)} onIssued={load} />}
+      {confirmNode}
     </div>
   );
 }

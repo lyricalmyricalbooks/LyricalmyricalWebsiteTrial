@@ -53,3 +53,14 @@ describe("history amounts and code search", () => {
     expect(matchesGiftCard(card, "ABCDEFGHJKMNPQRT")).toBe(false);
   });
 });
+
+describe("gift card CSV", () => {
+  it("masks codes unless asked and blocks spreadsheet formulas", async () => {
+    const { giftCardsCsv } = await import("./giftCardsAdmin");
+    const cards = [{ code: "ABCD-EFGH-JKMN-PQRS", last4: "PQRS", balanceMinor: 1250, initialMinor: 2500, recipientName: "=HYPERLINK(1)", source: "admin", createdAt: "2026-10-01T10:00:00Z" }];
+    const masked = giftCardsCsv(cards, { today: "2026-10-09" });
+    expect(masked).toContain('"••••PQRS","12.50","25.00","Active","\'=HYPERLINK(1)"');
+    expect(masked).not.toContain("ABCD-EFGH");
+    expect(giftCardsCsv(cards, { fullCodes: true, today: "2026-10-09" })).toContain('"ABCD-EFGH-JKMN-PQRS"');
+  });
+});

@@ -80,3 +80,23 @@ export function historyAmount(entry: any): string {
 const toTime = (v: any) => (typeof v?.toDate === "function" ? v.toDate().getTime() : Date.parse(String(v || ""))) || 0;
 export const createdTime = (card: any) => toTime(card?.createdAt);
 export const historyTime = (entry: any) => toTime(entry?.at);
+
+// Spreadsheet-safe cell: a leading = + - @ (not a plain number) can't start a formula (as orderCsv.ts).
+function cell(v: any) {
+  const text = String(v ?? "");
+  const safe = /^[=+\-@\t\r]/.test(text) && !/^-?\d+(\.\d+)?$/.test(text) ? `'${text}` : text;
+  return `"${safe.replace(/"/g, '""')}"`;
+}
+
+/** Admin › Gift cards › Export CSV. Codes are masked unless `fullCodes` (the owner confirms that first). */
+export function giftCardsCsv(cards: any[], { fullCodes = false, today = shopDate() }: { fullCodes?: boolean; today?: string } = {}): string {
+  const header = ["Code", "Balance (CAD)", "Initial value (CAD)", "Status", "Recipient name", "Recipient email", "Source", "Order", "Created", "Expires"];
+  const money = (m: any) => ((Number(m) || 0) / 100).toFixed(2);
+  const created = (c: any) => { const t = createdTime(c); return t ? new Date(t).toISOString().slice(0, 10) : ""; };
+  const rows = cards.map((c) => [
+    fullCodes ? c.code || maskedCode(c) : maskedCode(c), money(c.balanceMinor), money(c.initialMinor), giftCardStatus(c, today).label,
+    c.recipientName || "", c.recipientEmail || "", c.source === "order" ? "Bought in the shop" : "Issued by you", c.orderId || "",
+    created(c), c.expiresOn || "",
+  ]);
+  return [header, ...rows].map((r) => r.map(cell).join(",")).join("\r\n");
+}
