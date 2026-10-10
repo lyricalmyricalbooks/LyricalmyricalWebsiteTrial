@@ -29,6 +29,7 @@ const { checkoutRate } = require("./checkoutRate");
 const { canadaPostLabelRates, isCanadaPostRate } = require("./labelRates");
 const { discountedPhysicalSubtotal, resolveLocalSelection, isPhysicalItem, bogoPercent } = require("./localFulfillment");
 const { catalogUnitPrice } = require("./catalogPrice");
+const { expandDiscountCategories } = require("./discountCategories");
 const { discountableItems, discountAmountFor, pickAutomaticDiscount } = require("./discountMath");
 const { addOnSelection, bundleComponents, bundleAvailable, isGiftCardProduct, giftCardDetails } = require("./promotions");
 const { MAX_CARDS_PER_ORDER, GIFT_CARD_MESSAGES, GiftCardError, newGiftCardCode, normalizeGiftCardCode, giftCardId, last4, giftCardProblem, availableMinor, allocateGiftCards, chargedRedemptions, reserveGiftCards, releaseGiftCards, readGiftCards, debitShortfall, writeGiftCardChange, cardsForOrder, withHistory } = require("./giftCards");
@@ -1162,7 +1163,7 @@ async function priceOrder(order, { orderId = "", settings: knownSettings = null 
   if (order.appliedDiscount?.code) {
     // Same "Discount code error:" prefix on every path, so checkout can drop the code and explain.
     try {
-      const verified = await fetchValidDiscount(order.appliedDiscount.code);
+      const verified = expandDiscountCategories(await fetchValidDiscount(order.appliedDiscount.code), settings.design?.categories);
       verifiedDiscount = verified;
       validateDiscountCustomer(verified, email);
       await assertDiscountNotUsedByCustomer(verified, email);
@@ -1175,7 +1176,9 @@ async function priceOrder(order, { orderId = "", settings: knownSettings = null 
     }
   } else {
     const offers = [];
-    for (const offer of await loadAutomaticDiscounts()) {
+    for (const rawOffer of await loadAutomaticDiscounts()) {
+      // Category offers cover the storefront's category membership (aliases, sub-categories).
+      const offer = expandDiscountCategories(rawOffer, settings.design?.categories);
       try {
         validateDiscountCustomer(offer, email);
         await assertDiscountNotUsedByCustomer(offer, email);

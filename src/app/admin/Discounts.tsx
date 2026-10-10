@@ -2,7 +2,7 @@ import { useState, useEffect, useMemo } from "react";
 import { Plus, Trash2 } from "lucide-react";
 import { adminApi } from "./api";
 import toast from "react-hot-toast";
-import { CATEGORIES } from "../features/site/constants";
+import { discountCategoryChoices } from "../features/site/discountCategories";
 import { discountState as state, today } from "./discountState";
 import { discountPerformance, duplicateDiscount, perfKey } from "./discountPerformance";
 import { validateDiscountDraft } from "./discountValidation";
@@ -63,7 +63,7 @@ function targetLabel(d: any) {
 
 // ─── Create / edit dialog ─────────────────────────────────────────────────────
 
-function DiscountDialog({ initial, otherCodes = [], books, onClose, onSave }: { initial?: any; otherCodes?: string[]; books: any[] | null; onClose: () => void; onSave: (data: any) => Promise<void> }) {
+function DiscountDialog({ initial, otherCodes = [], books, shopCategories, onClose, onSave }: { initial?: any; otherCodes?: string[]; books: any[] | null; shopCategories: any[] | null; onClose: () => void; onSave: (data: any) => Promise<void> }) {
   const isEdit = !!initial?.id;
   const [form, setForm] = useState<any>(initial ? { ...EMPTY, ...initial, method: initial.method === "automatic" ? "automatic" : "code" } : EMPTY);
   const [saving, setSaving] = useState(false);
@@ -246,7 +246,12 @@ function DiscountDialog({ initial, otherCodes = [], books, onClose, onSave }: { 
           {errors.applies && <p role="alert" className="rp-error-text" style={{ marginTop: 8 }}>{errors.applies}</p>}
           {form.appliesTo === "categories" && (
             <div style={{ display: "grid", gap: 4, gridTemplateColumns: "repeat(auto-fit, minmax(180px, 1fr))", marginTop: 12 }}>
-              {CATEGORIES.map(cat => <Checkbox key={cat} label={cat} checked={(form.selectedCategories || []).includes(cat)} onChange={() => toggleIn("selectedCategories", cat)} />)}
+              {shopCategories === null ? <p className="rp-hint">Loading shop categories…</p>
+                : discountCategoryChoices(shopCategories, form.selectedCategories || []).map(cat => (
+                  <Checkbox key={cat.name} checked={(form.selectedCategories || []).includes(cat.name)} onChange={() => toggleIn("selectedCategories", cat.name)}
+                    label={cat.parent ? `${cat.parent} › ${cat.name}` : cat.missing ? `${cat.name} (no longer a shop category)` : cat.renamedTo ? `${cat.name} (old name of ${cat.renamedTo})` : cat.name} />
+                ))}
+              {shopCategories !== null && <p className="rp-hint" style={{ gridColumn: "1 / -1", margin: "4px 0 0" }}>Categories come from Studio › Menus › Shop categories. A parent category also covers its sub-categories’ books, just like the shop’s category pages.</p>}
             </div>
           )}
           {form.appliesTo === "products" && (
@@ -302,10 +307,13 @@ export function Discounts() {
   const [deleting, setDeleting] = useState<any | null>(null);
   const [orders, setOrders] = useState<any[]>([]);
   const [books, setBooks] = useState<any[] | null>(null);
+  const [shopCategories, setShopCategories] = useState<any[] | null>(null);
 
   useEffect(() => { load(); }, []);
   // The whole catalog (drafts too) for the book pickers and free-gift names. Best-effort.
   useEffect(() => { adminApi.getAllBooks().then(setBooks).catch(() => setBooks([])); }, []);
+  // The published shop categories (Studio › Menus › Shop categories), the names checkout matches.
+  useEffect(() => { adminApi.getPublicSettings().then((st: any) => setShopCategories(Array.isArray(st?.design?.categories) ? st.design.categories : [])).catch(() => setShopCategories([])); }, []);
   // Performance is best-effort: a failure here must not block managing codes.
   useEffect(() => { adminApi.getOrders(500).then(setOrders).catch(() => {}); }, []);
   const perf = useMemo(() => discountPerformance(orders), [orders]);
@@ -428,7 +436,7 @@ export function Discounts() {
         </>
       )}
 
-      {dialogOpen && <DiscountDialog initial={editing} books={books} otherCodes={discounts.filter(d => d.id !== editing?.id && !isAutomatic(d)).map(d => d.code)} onClose={() => { setDialogOpen(false); setEditing(null); }} onSave={handleSave} />}
+      {dialogOpen && <DiscountDialog initial={editing} books={books} shopCategories={shopCategories} otherCodes={discounts.filter(d => d.id !== editing?.id && !isAutomatic(d)).map(d => d.code)} onClose={() => { setDialogOpen(false); setEditing(null); }} onSave={handleSave} />}
 
       <ConfirmDialog open={!!deleting} title={isAutomatic(deleting) ? "Delete this automatic offer?" : "Delete this discount code?"} confirmLabel={isAutomatic(deleting) ? "Delete offer" : "Delete code"}
         message={deleting ? `“${discountName(deleting)}” will stop working immediately. Pause it instead if you may reuse it.` : ""}

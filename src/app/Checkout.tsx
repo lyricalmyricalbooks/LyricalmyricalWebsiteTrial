@@ -48,6 +48,7 @@ import { quoteLocalFulfillment } from "./features/site/localFulfillment";
 import { catalogFulfillmentItems, discountedPhysicalSubtotal, bogoPercent } from "./features/site/checkoutFulfillment";
 import { bagPreorder, linePreorderNote, formatReleaseDate } from "./features/site/preorder";
 import { discountAmountFor, discountableItems, pickAutomaticDiscount } from "./features/site/discountMath";
+import { expandDiscountCategories } from "./features/site/discountCategories";
 import { isGiftCardProduct, bundleComponents } from "./features/site/promotions";
 import { isLiveBook } from "./features/site/liveBook";
 import { componentsSummary } from "./features/site/orderLineNotes";
@@ -516,13 +517,13 @@ export function Checkout() {
           body: JSON.stringify({ action: "automaticDiscounts" }),
         });
         const data = res.ok ? await res.json() : null;
-        if (!cancelled && Array.isArray(data?.discounts)) setAutoOffers(data.discounts);
+        if (!cancelled && Array.isArray(data?.discounts)) setAutoOffers(data.discounts.map((offer: any) => expandDiscountCategories(offer, settings?.design?.categories)));
       } catch {
         // No offers shown; the server still prices the order.
       }
     })();
     return () => { cancelled = true; };
-  }, [catalogState]);
+  }, [catalogState, settings?.design?.categories]);
 
   useEffect(() => {
     async function detectCountry() {
@@ -966,7 +967,7 @@ export function Checkout() {
     setIsApplying(true);
     setDiscountError("");
     try {
-      const discount = await adminApi.validateDiscount(code);
+      const discount = expandDiscountCategories(await adminApi.validateDiscount(code), settings?.design?.categories);
       validateDiscountRestrictions(discount, customer.email, discountableLines, booksMap, discountableCount, discountableTotal);
       setAppliedDiscount(discount);
     } catch (err: any) {
