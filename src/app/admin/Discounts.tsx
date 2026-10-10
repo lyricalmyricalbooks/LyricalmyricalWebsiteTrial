@@ -8,6 +8,7 @@ import { discountPerformance, duplicateDiscount, perfKey } from "./discountPerfo
 import { validateDiscountDraft } from "./discountValidation";
 import { describeDiscount, tierSummary } from "./discountDescribe";
 import { copyText } from "./clipboard";
+import { MAX_BATCH, batchCodes, cleanPrefix, codesCsv, randomCode } from "./discountCodes";
 import {
   ActionMenu, Checkbox, ConfirmDialog, DataTable, Dialog, EmptyState, ErrorState, FilterBar, IconButton, LoadingState,
   MetricCard, PrimaryButton, SearchField, SecondaryButton, SectionCard, SelectField, StatusBadge, TextArea, TextField,
@@ -65,13 +66,15 @@ function targetLabel(d: any) {
 
 // ─── Create / edit dialog ─────────────────────────────────────────────────────
 
-function DiscountDialog({ initial, otherCodes = [], books, shopCategories, onClose, onSave }: { initial?: any; otherCodes?: string[]; books: any[] | null; shopCategories: any[] | null; onClose: () => void; onSave: (data: any) => Promise<void> }) {
+function DiscountDialog({ initial, otherCodes = [], books, shopCategories, onClose, onSave, onSaveBatch }: { initial?: any; otherCodes?: string[]; books: any[] | null; shopCategories: any[] | null; onClose: () => void; onSave: (data: any) => Promise<void>; onSaveBatch: (data: any, codes: string[]) => Promise<void> }) {
   const isEdit = !!initial?.id;
   const [form, setForm] = useState<any>(initial ? { ...EMPTY, ...initial, method: initial.method === "automatic" ? "automatic" : "code" } : EMPTY);
   const [saving, setSaving] = useState(false);
   const [errors, setErrors] = useState<Record<string, string>>({});
   const [giftSearch, setGiftSearch] = useState("");
   const [bookSearch, setBookSearch] = useState("");
+  // "Create several single-use codes": N codes PREFIX-XXXXXX with the same rules, one use each.
+  const [batch, setBatch] = useState({ on: false, count: "10", prefix: "" });
   const set = (k: string, v: any) => setForm((f: any) => ({ ...f, [k]: v }));
   const automatic = form.method === "automatic";
   const giftBook = (books || []).find(b => b.id === form.giftBookId);
@@ -82,7 +85,10 @@ function DiscountDialog({ initial, otherCodes = [], books, shopCategories, onClo
   }));
 
   const validate = () => {
-    const e = validateDiscountDraft(form, undefined, otherCodes, giftBook, isEdit ? String(initial?.expiryDate || "") : "");
+    const batching = batch.on && !isEdit && !automatic;
+    const e = validateDiscountDraft(batching ? { ...form, code: randomCode(batch.prefix), usageLimit: "" } : form, undefined, otherCodes, giftBook, isEdit ? String(initial?.expiryDate || "") : "");
+    const n = Number(batch.count);
+    if (batching && !(Number.isInteger(n) && n >= 1 && n <= MAX_BATCH)) e.batch = `Choose between 1 and ${MAX_BATCH} codes.`;
     setErrors(e);
     return Object.keys(e).length === 0;
   };
@@ -91,7 +97,10 @@ function DiscountDialog({ initial, otherCodes = [], books, shopCategories, onClo
     if (!validate()) { toast.error("Fix the highlighted fields first"); return; }
     setSaving(true);
     try {
-      await onSave({
+      const save = batch.on && !isEdit && !automatic
+        ? (data: any) => onSaveBatch({ ...data, usageLimit: 1 }, batchCodes(batch.prefix, Number(batch.count), otherCodes))
+        : onSave;
+      await save({
         ...form,
         method: automatic ? "automatic" : "code",
         // Automatic offers have no code, so they can never be typed in at checkout.
@@ -130,7 +139,7 @@ function DiscountDialog({ initial, otherCodes = [], books, shopCategories, onClo
       description="Discounts are re-checked by the server at checkout — this form only defines the rules."
       footer={<>
         <SecondaryButton onClick={onClose}>Cancel</SecondaryButton>
-        <PrimaryButton onClick={handleSave} disabled={saving}>{saving ? "Saving…" : isEdit ? "Save changes" : automatic ? "Create offer" : "Create code"}</PrimaryButton>
+        <PrimaryButton onClick={handleSave} disabled={saving}>{saving ? "Saving…" : isEdit ? "Save changes" : automatic ? "Create offer" : batch.on ? `Create ${Number(batch.count) || 0} codes` : "Create code"}</PrimaryButton>
       </>}>
       <div className="rp-stack" style={{ gap: 20 }}>
         <p className="rp-card" role="status" aria-live="polite" style={{ margin: 0, padding: "10px 12px", boxShadow: "none" }}>
@@ -153,10 +162,22 @@ function DiscountDialog({ initial, otherCodes = [], books, shopCategories, onClo
         {automatic ? (
           <TextField label="Title shown to shoppers" value={form.title || ""} maxLength={60} onChange={e => set("title", e.target.value)} placeholder="e.g. Spring sale"
             error={errors.title} hint="Shown in the bag and at checkout next to the saving." />
+        ) : batch.on && !isEdit ? (
+          <div className="rp-card" style={{ padding: 16, boxShadow: "none" }}>
+            <div style={{ display: "grid", gap: 12, gridTemplateColumns: "repeat(auto-fit, minmax(180px, 1fr))" }}>
+              <TextField label="How many codes" type="number" min={1} max={MAX_BATCH} step={1} value={batch.count} onChange={e => setBatch(b => ({ ...b, count: e.target.value }))} error={errors.batch} hint={`Up to ${MAX_BATCH}. Each works once.`} />
+              <TextField label="Code prefix (optional)" value={batch.prefix} maxLength={20} onChange={e => setBatch(b => ({ ...b, prefix: e.target.value.toUpperCase() }))} placeholder="e.g. FAIR" hint={`Codes look like ${cleanPrefix(batch.prefix) ? `${cleanPrefix(batch.prefix)}-XXXXXX` : "XXXXXXXX"}.`} style={{ fontFamily: "var(--rp-font-mono)" }} />
+            </div>
+            <p className="rp-hint" style={{ margin: "8px 0 0" }}>A spreadsheet (CSV) of the new codes downloads when they are created.</p>
+          </div>
         ) : (
-          <TextField label="Code" value={form.code} onChange={e => set("code", e.target.value.toUpperCase())} placeholder="e.g. SUMMER25"
-            error={errors.code} data-autofocus style={{ fontFamily: "var(--rp-font-mono)", textTransform: "uppercase" }} />
+          <div style={{ display: "flex", gap: 8, alignItems: "flex-end", flexWrap: "wrap" }}>
+            <div className="rp-grow"><TextField label="Code" value={form.code} onChange={e => set("code", e.target.value.toUpperCase())} placeholder="e.g. SUMMER25"
+              error={errors.code} data-autofocus style={{ fontFamily: "var(--rp-font-mono)", textTransform: "uppercase" }} /></div>
+            <SecondaryButton onClick={() => set("code", randomCode())}>Generate</SecondaryButton>
+          </div>
         )}
+        {!automatic && !isEdit && <Toggle label="Create several single-use codes" checked={batch.on} onChange={v => setBatch(b => ({ ...b, on: v }))} />}
         <TextField label="Internal description" value={form.description || ""} onChange={e => set("description", e.target.value)}
           placeholder="e.g. Summer sale 2026" hint="Only administrators see this." />
 
@@ -287,7 +308,7 @@ function DiscountDialog({ initial, otherCodes = [], books, shopCategories, onClo
           <TextField label="Minimum order (CA$)" type="number" min={0} value={form.minOrderAmount} onChange={e => set("minOrderAmount", e.target.value)} placeholder="No minimum" error={errors.minOrderAmount} />
           <TextField label="Minimum quantity" type="number" min={0} step={1} value={form.minQuantity} onChange={e => set("minQuantity", e.target.value)} placeholder="No minimum" error={errors.minQuantity} />
           {form.type !== "freeship" && form.type !== "gift" && <TextField label="Maximum discount (CA$)" type="number" min={0} value={form.maxDiscountAmount ?? ""} onChange={e => set("maxDiscountAmount", e.target.value)} placeholder="No cap" hint="Most this code can take off one order, e.g. 20% off up to $15." error={errors.maxDiscountAmount} />}
-          <TextField label="Total usage limit" type="number" min={1} step={1} value={form.usageLimit} onChange={e => set("usageLimit", e.target.value)} placeholder="Unlimited" error={errors.usageLimit} />
+          {!(batch.on && !isEdit && !automatic) && <TextField label="Total usage limit" type="number" min={1} step={1} value={form.usageLimit} onChange={e => set("usageLimit", e.target.value)} placeholder="Unlimited" error={errors.usageLimit} />}
         </div>
 
         <div style={{ display: "grid", gap: 4 }}>
@@ -350,6 +371,26 @@ export function Discounts() {
     } catch (err: any) {
       toast.error(err.message || "Save failed");
     }
+  };
+
+  // Single-use batch: one createDiscount per code; reports what worked and downloads those codes.
+  const handleSaveBatch = async (data: any, codes: string[]) => {
+    const results = await Promise.allSettled(codes.map(code => adminApi.saveDiscount({ ...data, code })));
+    const created = codes.filter((_, i) => results[i].status === "fulfilled");
+    const failed = codes.length - created.length;
+    if (created.length) {
+      try {
+        const url = URL.createObjectURL(new Blob([codesCsv(created, describeDiscount(data, books || []))], { type: "text/csv;charset=utf-8" }));
+        const a = document.createElement("a");
+        a.href = url; a.download = `discount-codes-${today()}.csv`; a.click();
+        setTimeout(() => URL.revokeObjectURL(url), 1000);
+      } catch { /* the codes are still in the list */ }
+    }
+    if (!failed) toast.success(`${created.length} single-use codes created`);
+    else if (created.length) toast.error(`${created.length} codes created; ${failed} failed. Create the rest again.`);
+    else toast.error("No codes could be created. Please try again.");
+    if (created.length) { setDialogOpen(false); setEditing(null); }
+    load();
   };
 
   const handleDelete = async (d: any) => {
@@ -456,7 +497,7 @@ export function Discounts() {
         </>
       )}
 
-      {dialogOpen && <DiscountDialog initial={editing} books={books} shopCategories={shopCategories} otherCodes={discounts.filter(d => d.id !== editing?.id && !isAutomatic(d)).map(d => d.code)} onClose={() => { setDialogOpen(false); setEditing(null); }} onSave={handleSave} />}
+      {dialogOpen && <DiscountDialog initial={editing} books={books} shopCategories={shopCategories} otherCodes={discounts.filter(d => d.id !== editing?.id && !isAutomatic(d)).map(d => d.code)} onClose={() => { setDialogOpen(false); setEditing(null); }} onSave={handleSave} onSaveBatch={handleSaveBatch} />}
 
       <ConfirmDialog open={!!deleting} title={isAutomatic(deleting) ? "Delete this automatic offer?" : "Delete this discount code?"} confirmLabel={isAutomatic(deleting) ? "Delete offer" : "Delete code"}
         message={deleting ? `“${discountName(deleting)}” will stop working immediately. Pause it instead if you may reuse it.` : ""}
