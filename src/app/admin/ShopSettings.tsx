@@ -52,6 +52,11 @@ import { StripeWebhookHealth } from "./StripeWebhookHealth";
 import { PrivacyRequestsCard } from "./PrivacyRequestsCard";
 import { assignedCountryNames, countryName, groupedCountries, remainingCountryNames, toCountryCodes } from "./shippingCountries";
 import { saveSectionsInOrder } from "./settingsSave";
+import { TaxesSettings } from "./TaxesSettings";
+import { BackupsExportCard } from "./BackupsExportCard";
+import { useSettingsDirty } from "./settingsDirty";
+import { testSaleSteps } from "./testSaleWalkthrough";
+import { studioHash } from "../lib/studioLocation";
 
 const PURPLE = "#A855F7";
 
@@ -63,10 +68,14 @@ export function ShopSettings({
   originalSettings, 
   setOriginalSettings,
   settingsLoading,
-  saveSection 
+  saveSection,
+  onUnderConstruction,
+  onOpenOrders,
 }: any) {
   const [savingSection, setSavingSection] = useState<string | null>(null);
   const [shippingProfiles, setShippingProfiles] = useState<any[]>([]);
+  // Payments › Shippo opens Shipping straight on Carrier & labels.
+  const [shippingStart, setShippingStart] = useState<"overview" | "carrier">("overview");
 
   useEffect(() => {
     loadShippingProfiles();
@@ -120,12 +129,13 @@ export function ShopSettings({
           transition={{ duration: 0.2 }}
           className="space-y-12"
         >
-          {activeTab === "general" && <GeneralSettings settings={settings} setSettings={setSettings} originalSettings={originalSettings} hasChanges={hasChanges} saveSection={handleSaveSection} savingSection={savingSection} />}
-          {activeTab === "communications" && <CommunicationsSettings settings={settings} setSettings={setSettings} hasChanges={hasChanges} saveSection={handleSaveSection} savingSection={savingSection} />}
-          {activeTab === "shipping" && <ShippingSettings profiles={shippingProfiles} refreshProfiles={loadShippingProfiles} />}
-          {activeTab === "payments" && <PaymentsSettings settings={settings} setSettings={setSettings} originalSettings={originalSettings} setOriginalSettings={setOriginalSettings} hasChanges={hasChanges} saveSection={handleSaveSection} savingSection={savingSection} />}
-          {activeTab === "taxes" && <TaxesSettings settings={settings} setSettings={setSettings} hasChanges={hasChanges} saveSection={handleSaveSection} savingSection={savingSection} />}
-          {activeTab === "notifications" && <NotificationEditor />}
+          {activeTab === "general" && <GeneralSettings settings={settings} setSettings={setSettings} originalSettings={originalSettings} hasChanges={hasChanges} saveSection={handleSaveSection} savingSection={savingSection} onUnderConstruction={onUnderConstruction} />}
+          {activeTab === "shipping" && <ShippingSettings profiles={shippingProfiles} refreshProfiles={loadShippingProfiles} initialView={shippingStart} />}
+          {activeTab === "payments" && <PaymentsSettings settings={settings} setSettings={setSettings} originalSettings={originalSettings} setOriginalSettings={setOriginalSettings} hasChanges={hasChanges} saveSection={handleSaveSection} savingSection={savingSection}
+            onOpenShipping={() => { setActiveTab("shipping"); setShippingStart("carrier"); }} onOpenOrders={onOpenOrders} onOpenNotifications={() => setActiveTab("notifications")} />}
+          {activeTab === "taxes" && <TaxesSettings settings={settings} setSettings={setSettings} originalSettings={originalSettings} hasChanges={hasChanges} saveSection={handleSaveSection} savingSection={savingSection} />}
+          {/* Communications was retired: its links open Notifications. */}
+          {(activeTab === "notifications" || activeTab === "communications") && <NotificationEditor />}
         </motion.div>
       </AnimatePresence>
     </div>
@@ -138,9 +148,15 @@ const POLICY_STARTERS: Record<PolicyKey, string> = {
   terms: "By placing an order you agree that the details you provide are accurate and that you are authorised to use the payment method.\n\nPrices are shown in Canadian dollars unless stated otherwise. We may cancel and refund an order if a title is unavailable or a pricing error occurred.",
 };
 
-function GeneralSettings({ settings, setSettings, originalSettings, hasChanges, saveSection, savingSection }: any) {
+// SaveBar names the cards that have unsaved edits, not the settings keys behind them.
+export const GENERAL_SECTION_TITLES: Record<string, string> = {
+  maintenance: "Store status", info: "Store identity", domain: "Domain & visibility", location: "Location", policies: "Store policies",
+};
+
+function GeneralSettings({ settings, setSettings, originalSettings, hasChanges, saveSection, savingSection, onUnderConstruction }: any) {
   const SECTIONS = ["maintenance", "domain", "info", "location", "policies"] as const;
   const dirty = SECTIONS.filter((k) => hasChanges(k));
+  useSettingsDirty("general", dirty.length > 0);
   const [confirmMaintenance, setConfirmMaintenance] = useState(false);
   const set = (section: string, patch: any) => setSettings({ ...settings, [section]: { ...settings[section], ...patch } });
 
@@ -160,16 +176,41 @@ function GeneralSettings({ settings, setSettings, originalSettings, hasChanges, 
 
   return (
     <div className="rp-stack">
-      <SectionCard title="Store status" description="What customers can do right now.">
-        <div style={{ display: "flex", flexWrap: "wrap", gap: 12, alignItems: "center", justifyContent: "space-between" }}>
-          <span>
-            <StatusBadge tone={maintenanceOn ? "warning" : "success"}>{maintenanceOn ? "Maintenance mode — checkout paused" : "Storefront live"}</StatusBadge>
-            {settings.domain?.custom && <span className="rp-hint" style={{ marginLeft: 12 }}>Domain: {settings.domain.custom}</span>}
-          </span>
-          <Toggle label="Maintenance mode" checked={maintenanceOn}
-            onChange={(v) => (v ? setConfirmMaintenance(true) : set("maintenance", { enabled: false }))} />
-        </div>
-        <p className="rp-hint" style={{ margin: "12px 0 0" }}>Maintenance mode disables checkout while you update the storefront. Customers see the message below.</p>
+      <SectionCard title="Store status" description="What shoppers can do right now. One choice covers both ways of closing the shop.">
+        {(() => {
+          const wall = !!settings.design?.showUnderConstruction;
+          const status = wall ? "construction" : maintenanceOn ? "maintenance" : "open";
+          const choose = async (next: string) => {
+            if (next === status) return;
+            // The wall is published straight away (same switch as the top bar); maintenance waits for Save.
+            if (next === "construction") { await onUnderConstruction?.(true); return; }
+            if (wall) await onUnderConstruction?.(false);
+            if (next === "maintenance") setConfirmMaintenance(true);
+            else set("maintenance", { enabled: false });
+          };
+          const options = [
+            { id: "open", label: "Open", hint: "Shoppers can browse and buy." },
+            { id: "maintenance", label: "Maintenance — checkout paused", hint: "Shoppers can browse, but the server refuses new checkouts and the storefront shows your message. Applies when you save." },
+            { id: "construction", label: "Under construction wall", hint: "Shoppers see the “under construction” page instead of the shop. Applies straight away (same as the top-bar switch)." },
+          ];
+          return (
+            <fieldset style={{ border: 0, padding: 0, margin: 0 }}>
+              <legend className="rp-sr-only">Store status</legend>
+              <div style={{ marginBottom: 12 }}>
+                <StatusBadge tone={status === "open" ? "success" : "warning"}>{status === "open" ? "Storefront live" : status === "maintenance" ? "Checkout paused" : "Behind construction wall"}</StatusBadge>
+                {settings.domain?.custom && <span className="rp-hint" style={{ marginLeft: 12 }}>Domain: {settings.domain.custom}</span>}
+              </div>
+              <div className="rp-stack" style={{ gap: 8 }}>
+                {options.map((o) => (
+                  <label key={o.id} style={{ display: "flex", gap: 10, alignItems: "flex-start", cursor: "pointer" }}>
+                    <input type="radio" name="store-status" value={o.id} checked={status === o.id} onChange={() => void choose(o.id)} style={{ marginTop: 4, accentColor: "var(--rp-primary)" }} />
+                    <span><strong>{o.label}</strong><span className="rp-hint" style={{ display: "block" }}>{o.hint}</span></span>
+                  </label>
+                ))}
+              </div>
+            </fieldset>
+          );
+        })()}
         {maintenanceOn && (
           <div style={{ marginTop: 16 }}>
             <TextField label="Maintenance message" value={settings.maintenance?.message || ""}
@@ -201,7 +242,14 @@ function GeneralSettings({ settings, setSettings, originalSettings, hasChanges, 
           </div>
           <TextField label="City" value={settings.location?.city || ""} placeholder="Toronto" onChange={(e) => set("location", { city: e.target.value })} />
           <TextField label="State / province" value={settings.location?.state || ""} placeholder="Ontario" onChange={(e) => set("location", { state: e.target.value })} />
+          <TextField label="Postal code" value={settings.location?.zip || ""} placeholder="M6G 3H1" autoComplete="postal-code" onChange={(e) => set("location", { zip: e.target.value })} />
+          <SelectField label="Country" value={settings.location?.country || "Canada"} onChange={(e) => set("location", { country: e.target.value })}>
+            {COUNTRIES.map((c) => <option key={c.code} value={c.name}>{c.name}</option>)}
+          </SelectField>
+          <TextField label="Phone" type="tel" value={settings.location?.phone || ""} placeholder="647 409 6863" autoComplete="tel"
+            hint="Printed on shipping labels; carriers call it about delivery problems." onChange={(e) => set("location", { phone: e.target.value })} />
         </div>
+        <p className="rp-hint" style={{ margin: "12px 0 0" }}>Shipping labels and live carrier rates use this as the “from” address. Blank fields keep the original Toronto address.</p>
       </SectionCard>
 
       <SectionCard title="Store policies" description="Shown in the storefront footer as links to public pages. A policy with no text is hidden. Card networks expect shipping and returns terms.">
@@ -225,330 +273,14 @@ function GeneralSettings({ settings, setSettings, originalSettings, hasChanges, 
 
       <PrivacyRequestsCard />
 
-      <InventorySync lastSync={settings.inventory?.lastSync} />
+      <BackupsExportCard />
 
       <SaveBar dirty={dirty.length > 0} saving={!!savingSection} onSave={saveAll} onDiscard={discard}
-        message={`Unsaved changes in ${dirty.join(", ")}.`} />
+        message={`Unsaved changes in ${dirty.map((k) => GENERAL_SECTION_TITLES[k] || k).join(", ")}.`} />
 
       <ConfirmDialog open={confirmMaintenance} title="Turn on maintenance mode?" confirmLabel="Pause checkout"
-        message="Customers won't be able to check out until you turn it off again. The change applies once you save."
+        message="Shoppers can still browse, but checkout is refused (card, PayPal, e-Transfer and free orders) until you turn it off again. The change applies once you save."
         onConfirm={() => { setConfirmMaintenance(false); set("maintenance", { enabled: true }); }} onCancel={() => setConfirmMaintenance(false)} />
-    </div>
-  );
-}
-
-function CommunicationsSettings({ settings, setSettings, hasChanges, saveSection, savingSection }: any) {
-  const comms = settings.communications || {};
-
-  const updateComms = (patch: any) => {
-    setSettings({ ...settings, communications: { ...comms, ...patch } });
-  };
-
-  return (
-    <div className="space-y-16">
-      <header className="flex flex-col gap-2 mb-12">
-        <div className="flex justify-between items-end">
-          <div>
-            <h2 className="text-5xl font-black tracking-tighter text-white uppercase italic leading-none">Email Notifications</h2>
-            <p className="text-xs text-slate-400 tracking-[0.3em] uppercase mt-4 font-bold">Automated Reader Response Settings</p>
-          </div>
-          {hasChanges('communications') && (
-            <button
-              onClick={() => saveSection('communications', { communications: settings.communications })}
-              disabled={savingSection === 'communications'}
-              className="bg-violet-600 text-white px-12 py-4 rounded-2xl text-[10px] font-black tracking-[0.3em] shadow-2xl shadow-violet-600/40 hover:bg-violet-500 transition-all disabled:opacity-50 border border-violet-400/20"
-            >
-              {savingSection === 'communications' ? 'SYNCHRONIZING...' : 'SAVE CHANGES'}
-            </button>
-          )}
-        </div>
-      </header>
-
-      {/* Sender identity */}
-      <section className="glass-card rounded-[3rem] p-12 border border-white/5 space-y-12 relative overflow-hidden group">
-        <div className="absolute inset-0 bg-gradient-to-br from-violet-500/[0.03] to-transparent pointer-events-none" />
-        <SectionHeader 
-          title="Sender Identity" 
-          subtitle="Email details for outbound transmissions" 
-          icon={Mail} 
-          color="violet"
-        />
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-12 relative z-10">
-          <InputField 
-            label="TRANSMITTER ALIAS" 
-            placeholder="Lyricalmyrical Books"
-            value={comms.fromName || ""}
-            onChange={(e: any) => updateComms({ fromName: e.target.value })}
-          />
-          <InputField 
-            label="SENDER EMAIL" 
-            icon={Mail}
-            placeholder="orders@lyricalmyricalbooks.com"
-            value={comms.fromEmail || ""}
-            onChange={(e: any) => updateComms({ fromEmail: e.target.value })}
-          />
-          <InputField 
-            label="REPLY-TO ADDRESS" 
-            icon={Mail}
-            placeholder="orders@lyricalmyricalbooks.com"
-            value={comms.replyTo || ""}
-            onChange={(e: any) => updateComms({ replyTo: e.target.value })}
-          />
-        </div>
-      </section>
-
-      {/* Resend API Credentials */}
-      <section className="glass-card rounded-[3rem] p-12 border border-white/5 space-y-12 relative overflow-hidden group">
-        <div className="absolute inset-0 bg-gradient-to-br from-violet-500/[0.03] to-transparent pointer-events-none" />
-        <SectionHeader 
-          title="Resend API Settings" 
-          subtitle="Configure Resend API keys for transactional mail" 
-          icon={KeyRound} 
-          color="violet"
-        />
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-12 relative z-10">
-          <SecretField label="RESEND API KEY" placeholder="re_..." stored={!!(comms.resendApiKey || comms.resendApiKeyStored)}
-            onCommit={(v) => updateComms({ resendApiKey: v })} />
-          <div className="text-xs text-slate-400 leading-relaxed self-center mt-6 font-medium">
-            If left blank, the system falls back to the default backend key. Enter your own API key to bypass unverified sender restrictions and use custom transmitter addresses.
-          </div>
-        </div>
-      </section>
-
-      {/* Customer emails */}
-      <section className="glass-card rounded-[3rem] p-12 border border-white/5 space-y-12 relative overflow-hidden">
-        <div className="absolute inset-0 bg-gradient-to-tr from-emerald-500/[0.03] to-transparent pointer-events-none" />
-        <SectionHeader 
-          title="Automated Emails" 
-          subtitle="Transactional Message Settings" 
-          icon={CheckCircle} 
-          color="emerald"
-        />
-
-        <div className="space-y-12 relative z-10">
-          {/* Order receipts */}
-          <div className="flex justify-between items-start gap-12 p-8 bg-white/[0.02] rounded-[2.5rem] border border-white/5 hover:border-emerald-500/20 transition-all">
-            <div className="flex-1">
-              <h4 className="text-xl font-black text-white uppercase tracking-tight mb-2 italic">Order Confirmation</h4>
-              <p className="text-xs text-slate-400 leading-relaxed font-medium">Automatic email sent after a successful purchase.</p>
-            </div>
-            <Switch
-              checked={comms.orderReceipts ?? true}
-              onChange={val => updateComms({ orderReceipts: val })}
-            />
-          </div>
-          
-          <AnimatePresence>
-            {(comms.orderReceipts ?? true) && (
-              <motion.div 
-                initial={{ opacity: 0, height: 0, marginTop: 0 }}
-                animate={{ opacity: 1, height: 'auto', marginTop: -24 }}
-                exit={{ opacity: 0, height: 0, marginTop: 0 }}
-                className="space-y-4 overflow-hidden px-8"
-              >
-                <label className="text-[10px] font-black text-slate-500 uppercase tracking-[0.3em] block ml-1">CUSTOM RECEIPT MESSAGE</label>
-                <textarea
-                  rows={4}
-                  placeholder="Thank you for your order! We'll start processing it right away."
-                  className="w-full bg-white/[0.03] border border-white/10 rounded-[2.5rem] px-10 py-8 text-sm text-white outline-none focus:border-violet-500/50 focus:bg-white/[0.06] transition-all resize-none leading-relaxed font-medium placeholder:text-slate-800 shadow-inner"
-                  value={comms.receiptMessage || ""}
-                  onChange={e => updateComms({ receiptMessage: e.target.value })}
-                />
-              </motion.div>
-            )}
-          </AnimatePresence>
-
-          {/* Shipping status */}
-          <div className="flex justify-between items-start gap-12 p-8 bg-white/[0.02] rounded-[2.5rem] border border-white/5 hover:border-emerald-500/20 transition-all">
-            <div className="flex-1">
-              <h4 className="text-xl font-black text-white uppercase tracking-tight mb-2 italic">Shipping Update</h4>
-              <p className="text-xs text-slate-400 font-medium leading-relaxed">Alerts sent when a book is dispatched with tracking.</p>
-            </div>
-            <Switch
-              checked={comms.shippingStatus ?? true}
-              onChange={val => updateComms({ shippingStatus: val })}
-            />
-          </div>
-
-          {/* Abandoned cart */}
-          <div className="flex justify-between items-start gap-12 p-8 bg-white/[0.02] rounded-[2.5rem] border border-white/5 opacity-30 grayscale cursor-not-allowed">
-            <div className="flex-1">
-              <h4 className="text-xl font-black text-white uppercase tracking-tight mb-2 italic">Cart Recovery</h4>
-              <p className="text-xs text-slate-400 font-medium leading-relaxed">Follow-up emails for readers who didn't complete their purchase.</p>
-            </div>
-            <div className="flex flex-col items-end gap-3">
-               <span className="bg-amber-500/10 text-amber-500 border border-amber-500/20 px-6 py-2 rounded-2xl text-[10px] font-black tracking-[0.2em] uppercase shadow-2xl shadow-amber-500/10">PREMIUM FEATURE</span>
-               <p className="text-[8px] font-black text-slate-600 uppercase tracking-[0.4em]">ENCRYPTED FEATURE</p>
-            </div>
-          </div>
-        </div>
-      </section>
-
-      {/* Shop notifications */}
-      <section className="glass-card rounded-[3rem] p-12 border border-white/5 space-y-12 relative overflow-hidden">
-        <div className="absolute inset-0 bg-gradient-to-bl from-violet-500/[0.03] to-transparent pointer-events-none" />
-        <SectionHeader 
-          title="System Alerts" 
-          subtitle="Internal Notification Settings" 
-          icon={AlertCircleIcon} 
-          color="violet"
-        />
-
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-8 relative z-10">
-          <div className="flex justify-between items-center p-10 bg-white/[0.02] rounded-[2.5rem] border border-white/5 hover:border-violet-500/30 transition-all group shadow-inner">
-            <div className="flex-1">
-              <h4 className="text-sm font-black text-white uppercase tracking-widest mb-2 italic">New Book Order</h4>
-              <p className="text-[10px] text-slate-500 uppercase font-black tracking-[0.2em]">Real-time sales alerts</p>
-            </div>
-            <Switch
-              checked={comms.newOrderNotifications ?? true}
-              onChange={val => updateComms({ newOrderNotifications: val })}
-            />
-          </div>
-          <div className="flex justify-between items-center p-10 bg-white/[0.02] rounded-[2.5rem] border border-white/5 hover:border-violet-500/30 transition-all group shadow-inner">
-            <div className="flex-1">
-              <h4 className="text-sm font-black text-white uppercase tracking-widest mb-2 italic">Low Stock Alert</h4>
-              <p className="text-[10px] text-slate-500 uppercase font-black tracking-[0.2em]">Alert at &lt; 5 units</p>
-            </div>
-            <Switch
-              checked={comms.lowStockAlerts ?? false}
-              onChange={val => updateComms({ lowStockAlerts: val })}
-            />
-          </div>
-          <div className="md:col-span-2 flex justify-between items-center p-10 bg-white/[0.02] rounded-[2.5rem] border border-white/5 hover:border-violet-500/30 transition-all group shadow-inner">
-            <div className="flex-1">
-              <h4 className="text-sm font-black text-white uppercase tracking-widest mb-2 italic">Sales Digest</h4>
-              <p className="text-[10px] text-slate-500 uppercase font-black tracking-[0.2em]">Weekly sales summary sent every Monday</p>
-            </div>
-            <Switch
-              checked={comms.weeklySalesDigest ?? false}
-              onChange={val => updateComms({ weeklySalesDigest: val })}
-            />
-          </div>
-        </div>
-      </section>
-    </div>
-  );
-}
-
-function ZoneGeographyPicker({
-  countries, continents, restOfWorld, setCountries, setContinents, setRestOfWorld,
-}: {
-  countries: string[]; continents: string[]; restOfWorld: boolean;
-  setCountries: (v: string[]) => void; setContinents: (v: string[]) => void; setRestOfWorld: (v: boolean) => void;
-}) {
-  const [search, setSearch] = useState("");
-
-  const toggleContinent = (c: string) => {
-    setRestOfWorld(false);
-    setContinents(continents.includes(c) ? continents.filter(x => x !== c) : [...continents, c]);
-  };
-  const toggleCountry = (code: string) => {
-    setRestOfWorld(false);
-    setCountries(countries.includes(code) ? countries.filter(x => x !== code) : [...countries, code]);
-  };
-  const results = search.trim()
-    ? COUNTRIES.filter(c => c.name.toLowerCase().includes(search.trim().toLowerCase())).slice(0, 40)
-    : [];
-
-  const chip = "px-4 py-2 rounded-full text-[10px] font-black uppercase tracking-widest border transition-all cursor-pointer";
-
-  return (
-    <div className="space-y-5">
-      {/* Rest of world */}
-      <button
-        type="button"
-        onClick={() => {
-          const next = !restOfWorld;
-          setRestOfWorld(next);
-          if (next) { setCountries([]); setContinents([]); }
-        }}
-        className={`w-full flex items-center justify-between px-6 py-4 rounded-2xl border text-left transition-all cursor-pointer ${
-          restOfWorld
-            ? "bg-violet-50 dark:bg-violet-950/30 border-violet-400 text-violet-700 dark:text-violet-300"
-            : "bg-white dark:bg-zinc-850 border-[#EBEAEF] dark:border-zinc-800 text-slate-600 dark:text-zinc-300 hover:border-violet-300"
-        }`}
-      >
-        <span className="flex items-center gap-3 text-[11px] font-black uppercase tracking-widest">
-          <Globe size={15} /> Rest of world — everywhere not covered by another zone
-        </span>
-        {restOfWorld && <Check size={16} />}
-      </button>
-
-      {!restOfWorld && (
-        <>
-          {/* Continents */}
-          <div>
-            <p className="text-[9px] text-slate-400 font-black uppercase tracking-[0.2em] mb-2 ml-1">Whole continents</p>
-            <div className="flex flex-wrap gap-2">
-              {CONTINENTS.map((c) => {
-                const active = continents.includes(c);
-                return (
-                  <button key={c} type="button" onClick={() => toggleContinent(c)}
-                    className={`${chip} ${active
-                      ? "bg-cyan-50 dark:bg-cyan-950/30 border-cyan-400 text-cyan-700 dark:text-cyan-300"
-                      : "bg-white dark:bg-zinc-850 border-[#EBEAEF] dark:border-zinc-800 text-slate-500 dark:text-zinc-400 hover:border-cyan-300"}`}>
-                    {c}
-                  </button>
-                );
-              })}
-            </div>
-          </div>
-
-          {/* Specific countries */}
-          <div>
-            <div className="flex items-center justify-between mb-2 ml-1">
-              <p className="text-[9px] text-slate-400 font-black uppercase tracking-[0.2em]">
-                Specific countries{countries.length > 0 ? ` · ${countries.length} selected` : ""}
-              </p>
-              {countries.length > 0 && (
-                <button type="button" onClick={() => setCountries([])}
-                  className="text-[9px] font-black text-slate-400 hover:text-red-500 uppercase tracking-widest cursor-pointer">
-                  Clear
-                </button>
-              )}
-            </div>
-            {countries.length > 0 && (
-              <div className="flex flex-wrap gap-2 mb-3">
-                {countries.map((code) => {
-                  const c = COUNTRIES.find(x => x.code === code);
-                  return (
-                    <button key={code} type="button" onClick={() => toggleCountry(code)} title="Remove"
-                      className="flex items-center gap-2 px-3.5 py-1.5 rounded-full text-[10px] font-bold bg-violet-50 dark:bg-violet-950/30 text-violet-700 dark:text-violet-300 border border-violet-200 dark:border-violet-900 hover:border-red-300 cursor-pointer">
-                      {c?.name || code} <X size={10} />
-                    </button>
-                  );
-                })}
-              </div>
-            )}
-            <input
-              type="text"
-              value={search}
-              onChange={(e) => setSearch(e.target.value)}
-              placeholder="Search 190+ countries… (e.g. Japan, Brazil, France)"
-              className="w-full bg-white dark:bg-zinc-850 border border-[#EBEAEF] dark:border-zinc-800 rounded-full px-6 py-3.5 text-xs text-slate-800 dark:text-zinc-100 outline-none shadow-inner focus:border-violet-500 placeholder:text-slate-350 dark:placeholder:text-zinc-500 font-semibold"
-            />
-            {results.length > 0 && (
-              <div className="mt-2 max-h-52 overflow-y-auto rounded-2xl border border-[#EBEAEF] dark:border-zinc-800 bg-white dark:bg-zinc-900 divide-y divide-slate-100 dark:divide-zinc-800">
-                {results.map((c) => {
-                  const active = countries.includes(c.code);
-                  return (
-                    <button key={c.code} type="button" onClick={() => toggleCountry(c.code)}
-                      className={`w-full flex items-center justify-between px-5 py-2.5 text-left transition-colors cursor-pointer ${
-                        active ? "bg-violet-50 dark:bg-violet-950/30 text-violet-700 dark:text-violet-300" : "text-slate-700 dark:text-zinc-200 hover:bg-slate-50 dark:hover:bg-zinc-800"}`}>
-                      <span className="text-xs font-bold">{c.name}</span>
-                      <span className="flex items-center gap-2">
-                        <span className="text-[8px] font-black text-slate-400 uppercase tracking-widest">{c.continent}</span>
-                        {active && <Check size={13} />}
-                      </span>
-                    </button>
-                  );
-                })}
-              </div>
-            )}
-          </div>
-        </>
-      )}
     </div>
   );
 }
@@ -615,13 +347,13 @@ function normalizeRate(r: any) {
   };
 }
 
-function ShippingSettings({ profiles, refreshProfiles }: any) {
+function ShippingSettings({ profiles, refreshProfiles, initialView = "overview" }: any) {
   const localFulfillmentDraft = useLocalFulfillmentDraft();
   const [askConfirm, confirmNode] = useConfirm();
   const [books, setBooks] = useState<any[]>([]);
   const [selectedProfileId, setSelectedProfileId] = useState<string | null>(null);
   const [editingProfile, setEditingProfile] = useState<any | null>(null);
-  const [shippingView, setShippingView] = useState<"overview" | "profiles" | "carrier" | "local">("overview");
+  const [shippingView, setShippingView] = useState<"overview" | "profiles" | "carrier" | "local">(initialView);
   
   // Modals visibility
   const [isProductModalOpen, setIsProductModalOpen] = useState(false);
@@ -742,15 +474,28 @@ function ShippingSettings({ profiles, refreshProfiles }: any) {
     }
   };
 
+  const [savingProfile, setSavingProfile] = useState(false);
   const handleSaveProfile = async () => {
-    if (!editingProfile) return;
+    if (!editingProfile || savingProfile) return;
+    // Check the edited profile the way the Overview does; blocking issues need an explicit yes.
+    const blocking = summarizeShipping(profiles.map((p: any) => (p.id === editingProfile.id ? editingProfile : p)), books)
+      .issues.filter((issue) => issue.profileId === editingProfile.id && issue.severity === "blocking");
+    if (blocking.length && !(await askConfirm({
+      title: `${blocking.length} blocking issue${blocking.length === 1 ? "" : "s"} — save anyway?`,
+      message: `${blocking.map((i) => i.label).join(" · ")}. Some customers may not be able to check out until this is fixed.`,
+      confirmLabel: "Save anyway",
+    }))) return;
+    setSavingProfile(true);
     try {
       await adminApi.updateShippingProfile(editingProfile.id, editingProfile);
-      refreshProfiles();
+      await refreshProfiles();
+      toast.success(`“${editingProfile.name || "Profile"}” saved`);
       setSelectedProfileId(null);
       setEditingProfile(null);
     } catch {
-      toast.error("Error saving shipping profile");
+      toast.error("Couldn't save the shipping profile — nothing was changed. Please try again.");
+    } finally {
+      setSavingProfile(false);
     }
   };
 
@@ -1071,6 +816,10 @@ function ShippingSettings({ profiles, refreshProfiles }: any) {
     </>
   ) : null;
 
+  // An open profile with unsaved zone/rate edits blocks leaving Settings (settingsDirty.ts).
+  const savedProfile = editingProfile ? profiles.find((p: any) => p.id === editingProfile.id) : null;
+  useSettingsDirty("shipping-profile", !!(savedProfile && editingProfile && JSON.stringify(savedProfile) !== JSON.stringify(editingProfile)));
+
   // ─── Profiles list ──────────────────────────────────────────────────────────
   if (selectedProfileId === null || !editingProfile) {
     return (
@@ -1262,7 +1011,7 @@ function ShippingSettings({ profiles, refreshProfiles }: any) {
           if (dirty && !(await askConfirm({ title: "Leave without saving?", message: "Your zone and rate changes to this profile haven't been saved.", confirmLabel: "Discard changes" }))) return;
           setSelectedProfileId(null); setEditingProfile(null);
         }}>← Back to profiles</SecondaryButton>
-        <PrimaryButton onClick={handleSaveProfile}>Save profile changes</PrimaryButton>
+        <PrimaryButton onClick={handleSaveProfile} disabled={savingProfile}>{savingProfile ? "Saving…" : "Save profile changes"}</PrimaryButton>
       </div>
       <SectionHead kicker="Profile" title={editingProfile.name || "Untitled profile"} subcopy="Zone and rate edits are applied to the profile when you save." />
 
@@ -1360,48 +1109,47 @@ function ShippingSettings({ profiles, refreshProfiles }: any) {
   );
 }
 
-function PaymentsSettings({ settings, setSettings, originalSettings, setOriginalSettings, hasChanges, saveSection, savingSection }: any) {
+function TestSaleWalkthrough({ payments, onOpenOrders, onOpenNotifications }: any) {
+  const [data, setData] = useState<{ orders: any[]; webhook: any; emailLog: any[] } | null>(null);
+  const load = async () => {
+    const [orders, webhook, emailLog] = await Promise.all([
+      adminApi.getOrders(50).catch(() => []), adminApi.getStripeWebhookStatus().catch(() => null), adminApi.getRecentEmailLog(100).catch(() => []),
+    ]);
+    setData({ orders, webhook, emailLog });
+  };
+  useEffect(() => { load(); }, []);
+  const steps = testSaleSteps({ payments, ...(data || { orders: [], webhook: null, emailLog: [] }) });
+  const doneCount = steps.filter((st) => st.done).length;
+  const go = (link: string) => {
+    if (link === "orders") onOpenOrders?.();
+    else if (link === "notifications") onOpenNotifications?.();
+    else if (link === "storefront") window.open(`${window.location.origin}${import.meta.env.BASE_URL || "/"}`, "_blank", "noopener");
+    else document.getElementById("payments-top")?.scrollIntoView({ behavior: "smooth" });
+  };
+  return (
+    <SectionCard title="Test sale walkthrough" description="Rehearse one complete sale before taking real money. Steps tick themselves from your saved settings, orders, Stripe and the email log."
+      actions={<SecondaryButton size="sm" onClick={load}>Check again</SecondaryButton>}>
+      <p className="rp-hint" style={{ marginTop: 0 }}>{data ? `${doneCount} of ${steps.length} done.` : "Checking…"}</p>
+      <ol style={{ margin: 0, paddingLeft: 0, listStyle: "none" }} aria-label="Test sale steps">
+        {steps.map((st, i) => (
+          <li key={st.id} style={{ display: "flex", gap: 12, alignItems: "flex-start", padding: "8px 0", borderTop: i ? "1px solid var(--rp-divider)" : undefined }}>
+            <StatusBadge tone={st.done ? "success" : "neutral"}>{st.done ? "✓ Done" : `Step ${i + 1}`}</StatusBadge>
+            <span style={{ flex: 1, minWidth: 0 }}><strong>{st.label}</strong><span className="rp-hint" style={{ display: "block" }}>{st.howTo}</span></span>
+            {!st.done && <SecondaryButton size="sm" onClick={() => go(st.link)}>{st.link === "orders" ? "Open Orders" : st.link === "notifications" ? "Open Notifications" : st.link === "storefront" ? "Open shop ↗" : "Show me"}</SecondaryButton>}
+          </li>
+        ))}
+      </ol>
+    </SectionCard>
+  );
+}
+
+function PaymentsSettings({ settings, setSettings, originalSettings, setOriginalSettings, hasChanges, saveSection, savingSection, onOpenShipping, onOpenOrders, onOpenNotifications }: any) {
   const [askConfirm, confirmNode] = useConfirm();
   const stripe = settings.payments?.stripe || {};
   const paypal = settings.payments?.paypal || {};
   const testMode = settings.payments?.testMode || false;
   const manualMethods = settings.payments?.manualMethods || [];
   const footerBadges = settings.payments?.footerBadges || [];
-
-  const [shippoConfig, setShippoConfig] = useState<any>(null);
-  const [newShippoToken, setNewShippoToken] = useState("");
-  const [savingShippo, setSavingShippo] = useState(false);
-  const [loadingShippo, setLoadingShippo] = useState(false);
-
-  useEffect(() => {
-    async function loadShippoConfig() {
-      setLoadingShippo(true);
-      try {
-        const conf = await adminApi.getShippoConfig();
-        setShippoConfig(conf);
-      } catch (err) {
-        console.error("Failed to load Shippo config:", err);
-      } finally {
-        setLoadingShippo(false);
-      }
-    }
-    loadShippoConfig();
-  }, []);
-
-  const handleSaveShippo = async () => {
-    if (!newShippoToken.trim()) return;
-    setSavingShippo(true);
-    try {
-      const res = await adminApi.saveShippoConfig(newShippoToken);
-      setShippoConfig(res);
-      setNewShippoToken("");
-      toast.success("Shippo API Token saved and synced successfully!");
-    } catch (err: any) {
-      toast.error(err.message || "Failed to save Shippo API Token.");
-    } finally {
-      setSavingShippo(false);
-    }
-  };
 
   // Manual payment modal state
   const [isManualModalOpen, setIsManualModalOpen] = useState(false);
@@ -1447,7 +1195,11 @@ function PaymentsSettings({ settings, setSettings, originalSettings, setOriginal
     });
   };
 
-  const updateTestMode = (val: boolean) => {
+  const updateTestMode = async (val: boolean) => {
+    const ok = await askConfirm(val
+      ? { title: "Switch on test mode?", message: "Once you save, checkout only accepts Stripe and PayPal test payments (card 4242 4242 4242 4242). Real cards are refused and new orders are marked as tests that never touch stock or revenue. An alert shows on every admin page while it's on.", confirmLabel: "Use test mode" }
+      : { title: "Switch off test mode?", message: "Once you save, checkout takes real payments with your live keys. Make sure the live publishable and secret keys are filled in and the webhook check passes.", confirmLabel: "Take real payments" });
+    if (!ok) return;
     setSettings({
       ...settings,
       payments: { ...settings.payments, testMode: val }
@@ -1459,7 +1211,7 @@ function PaymentsSettings({ settings, setSettings, originalSettings, setOriginal
     let defaultInstructions = "";
     if (type === "bank") {
       defaultName = "Bank Deposit / e-Transfer";
-      defaultInstructions = "Please send your Interac e-Transfer to payments@lyricalmyricalbooks.com. Use your order number as the transaction message.";
+      defaultInstructions = `Please send your Interac e-Transfer to ${settings.info?.email || "lyricalmyricalbooks@gmail.com"}. Use your order number as the transaction message.`;
     } else if (type === "cod") {
       defaultName = "Cash on Delivery (COD)";
       defaultInstructions = "Please prepare the exact amount of cash for your order. Our delivery agent will collect it upon delivery.";
@@ -1471,7 +1223,8 @@ function PaymentsSettings({ settings, setSettings, originalSettings, setOriginal
     setMethodType(type);
     setMethodName(defaultName);
     setMethodInstructions(defaultInstructions);
-    setMethodEnabled(true);
+    // Cash on delivery starts off: switch it on once you're ready to collect cash.
+    setMethodEnabled(type !== "cod");
     setIsManualModalOpen(true);
   };
 
@@ -1544,6 +1297,7 @@ function PaymentsSettings({ settings, setSettings, originalSettings, setOriginal
 
   const enabledManual = manualMethods.filter((m: any) => m.enabled);
   const dirty = hasChanges("payments");
+  useSettingsDirty("payments", dirty);
   const stripeLive = !!stripe.connected;
   const paypalLive = !!paypal.connected;
   const secretStored = !!(stripe.secretKey || stripe.testSecretKey || stripe.secretKeyStored || stripe.testSecretKeyStored);
@@ -1555,7 +1309,7 @@ function PaymentsSettings({ settings, setSettings, originalSettings, setOriginal
   };
 
   return (
-    <div className="rp-stack">
+    <div className="rp-stack" id="payments-top">
       <SectionCard title="Payment overview" description="What customers can pay with right now.">
         <div style={{ display: "flex", flexWrap: "wrap", gap: 8, alignItems: "center" }}>
           <StatusBadge tone={testMode ? "warning" : "success"}>{testMode ? "Test mode — no real charges" : "Live mode"}</StatusBadge>
@@ -1580,6 +1334,8 @@ function PaymentsSettings({ settings, setSettings, originalSettings, setOriginal
         </div>
       </SectionCard>
 
+      <TestSaleWalkthrough payments={originalSettings?.payments} onOpenOrders={onOpenOrders} onOpenNotifications={onOpenNotifications} />
+
       <SectionCard title="Stripe" description="Accept credit and debit cards, Apple Pay and Google Pay."
         actions={<SecondaryButton size="sm" onClick={() => window.open("https://dashboard.stripe.com", "_blank", "noopener")}>Stripe dashboard ↗</SecondaryButton>}>
         <div className="rp-stack" style={{ gap: 20 }}>
@@ -1589,14 +1345,15 @@ function PaymentsSettings({ settings, setSettings, originalSettings, setOriginal
               {secretStored && (
                 <div style={{ padding: 16, background: "var(--rp-warning-tint)", border: "2px solid var(--rp-border-strong)" }}>
                   <strong>🔒 Secret key stored privately.</strong>{" "}
-                  Secret keys are kept in an admin-only store the storefront cannot read. Rotate any key entered here before October 2026 — older saves were publicly readable.
+                  Secret keys are kept in an admin-only store the storefront cannot read.
+                  {stripe.keysWerePublic && " A key was once saved where the storefront could read it and has since been moved — rotate it in the Stripe Dashboard to be safe."}
                 </div>
               )}
               <div style={{ display: "grid", gap: 16, gridTemplateColumns: "repeat(auto-fit, minmax(280px, 1fr))" }}>
                 <div className="rp-card" style={{ padding: 16, boxShadow: "none", opacity: testMode ? 0.75 : 1 }}>
                   <div className="rp-sect">Live keys {!testMode && "· in use"}</div>
                   <div className="rp-stack" style={{ gap: 12 }}>
-                    <InputField label="Publishable key" placeholder="pk_live_…" icon={Lock} value={stripe.publicKey || ""} onChange={(e: any) => updateStripe({ publicKey: e.target.value })} />
+                    <TextField label="Publishable key" placeholder="pk_live_…" spellCheck={false} value={stripe.publicKey || ""} onChange={(e) => updateStripe({ publicKey: e.target.value })} />
                     <SecretField key={`live-${secretFieldsKey}`} label="Secret key" placeholder="sk_live_…" stored={!!stripe.secretKeyStored}
                       validate={(v) => stripeSecretKeyProblem(v, "live")} onCommit={(v) => updateStripe({ secretKey: v })}
                       onRemove={stripe.secretKeyStored ? () => removeStoredKey("live") : undefined} removing={removingKey === "live"} />
@@ -1605,7 +1362,7 @@ function PaymentsSettings({ settings, setSettings, originalSettings, setOriginal
                 <div className="rp-card" style={{ padding: 16, boxShadow: "none", opacity: testMode ? 1 : 0.75 }}>
                   <div className="rp-sect">Test keys {testMode && "· in use"}</div>
                   <div className="rp-stack" style={{ gap: 12 }}>
-                    <InputField label="Test publishable key" placeholder="pk_test_…" icon={Lock} value={stripe.testPublicKey || ""} onChange={(e: any) => updateStripe({ testPublicKey: e.target.value })} />
+                    <TextField label="Test publishable key" placeholder="pk_test_…" spellCheck={false} value={stripe.testPublicKey || ""} onChange={(e) => updateStripe({ testPublicKey: e.target.value })} />
                     <SecretField key={`test-${secretFieldsKey}`} label="Test secret key" placeholder="sk_test_…" stored={!!stripe.testSecretKeyStored}
                       validate={(v) => stripeSecretKeyProblem(v, "test")} onCommit={(v) => updateStripe({ testSecretKey: v })}
                       onRemove={stripe.testSecretKeyStored ? () => removeStoredKey("test") : undefined} removing={removingKey === "test"} />
@@ -1641,41 +1398,16 @@ function PaymentsSettings({ settings, setSettings, originalSettings, setOriginal
           <Toggle label="PayPal checkout" checked={!!paypal.connected} onChange={(v) => updatePaypal({ connected: v })} />
           {paypal.connected && (
             <div style={{ display: "grid", gap: 16, gridTemplateColumns: "repeat(auto-fit, minmax(280px, 1fr))" }}>
-              <InputField label="Live client ID" placeholder="Client ID…" icon={Lock} value={paypal.clientId || ""} onChange={(e: any) => updatePaypal({ clientId: e.target.value })} />
-              <InputField label="Test client ID" placeholder="Test client ID…" icon={Lock} value={paypal.testClientId || ""} onChange={(e: any) => updatePaypal({ testClientId: e.target.value })} />
+              <TextField label="Live client ID" placeholder="Client ID…" spellCheck={false} value={paypal.clientId || ""} onChange={(e) => updatePaypal({ clientId: e.target.value })} />
+              <TextField label="Test client ID" placeholder="Test client ID…" spellCheck={false} value={paypal.testClientId || ""} onChange={(e) => updatePaypal({ testClientId: e.target.value })} />
             </div>
           )}
         </div>
       </SectionCard>
 
-      <SectionCard title="Shippo" description="Address verification, live carrier rates and shipping labels."
-        actions={<SecondaryButton size="sm" onClick={() => window.open("https://goshippo.com", "_blank", "noopener")}>Shippo ↗</SecondaryButton>}>
-        <div className="rp-stack" style={{ gap: 20 }}>
-          <div style={{ display: "flex", flexWrap: "wrap", gap: 8, alignItems: "center" }}>
-            {loadingShippo ? <StatusBadge>Checking…</StatusBadge>
-              : <StatusBadge tone={shippoConfig?.configured ? "success" : "warning"}>{shippoConfig?.configured ? "Connected" : "Not connected — addresses are not verified"}</StatusBadge>}
-            {shippoConfig?.updatedAt && <span className="rp-hint">Last updated {new Date(shippoConfig.updatedAt).toLocaleDateString()}</span>}
-          </div>
-          {shippoConfig?.configured && (
-            <Toggle label="Live carrier rates at checkout (based on address and parcel weight)" checked={shippoConfig?.dynamicRatesEnabled ?? false}
-              onChange={async (enabled) => {
-                try {
-                  await adminApi.setShippoDynamicRates(enabled);
-                  setShippoConfig((prev: any) => ({ ...prev, dynamicRatesEnabled: enabled }));
-                  toast.success(enabled ? "Dynamic shipping rates enabled" : "Dynamic shipping rates disabled");
-                } catch (err: any) {
-                  toast.error(err.message || "Failed to update Shippo settings.");
-                }
-              }} />
-          )}
-          <div style={{ display: "flex", flexWrap: "wrap", gap: 8, alignItems: "flex-end" }}>
-            <div style={{ flex: "1 1 280px" }}>
-              <InputField label="New Shippo API token" placeholder="shippo_live_… or shippo_test_…" icon={ShieldCheck} type="password" value={newShippoToken}
-                onChange={(e: any) => setNewShippoToken(e.target.value)} hint="Sent to the server and stored with limited access. It is never shown again or exposed to the storefront." />
-            </div>
-            <PrimaryButton onClick={handleSaveShippo} disabled={savingShippo || !newShippoToken.trim()}>{savingShippo ? "Saving…" : "Save key"}</PrimaryButton>
-          </div>
-        </div>
+      <SectionCard title="Shippo" description="Address checks, live carrier rates and shipping labels are set up with your shipping rules."
+        actions={<SecondaryButton size="sm" onClick={() => onOpenShipping?.()}>Open Shipping › Carrier &amp; labels</SecondaryButton>}>
+        <p className="rp-hint" style={{ margin: 0 }}>The Shippo key and the countries that use live rates live in one place, so live rates can't be switched on without choosing countries.</p>
       </SectionCard>
 
       <SectionCard title="Manual payment methods" description="Bank e-Transfer, cash on delivery or your own instructions."
@@ -1707,12 +1439,14 @@ function PaymentsSettings({ settings, setSettings, originalSettings, setOriginal
         )}
       </SectionCard>
 
-      <SectionCard title="Footer payment icons" description="Monochrome icons shown in the storefront footer.">
+      <SectionCard title="Footer payment icons" description="Default icons for the storefront footer. Studio › Theme settings › Payment icons overrides this list once you change it there."
+        actions={<SecondaryButton size="sm" onClick={() => { window.location.hash = studioHash({ leftTab: "style" }); }}>Open Studio</SecondaryButton>}>
         <div style={{ display: "grid", gap: 4, gridTemplateColumns: "repeat(auto-fit, minmax(170px, 1fr))" }}>
           {[
             { id: "visa", label: "Visa" }, { id: "mastercard", label: "Mastercard" }, { id: "amex", label: "American Express" },
             { id: "paypal", label: "PayPal" }, { id: "applepay", label: "Apple Pay" }, { id: "googlepay", label: "Google Pay" },
-            { id: "afterpay", label: "Afterpay" }, { id: "klarna", label: "Klarna" },
+            // Afterpay / Klarna aren't offered at checkout; shown only if an older save picked them.
+            ...[{ id: "afterpay", label: "Afterpay" }, { id: "klarna", label: "Klarna" }].filter((b) => footerBadges.includes(b.id)),
           ].map((badge) => (
             <Checkbox key={badge.id} label={badge.label} checked={footerBadges.includes(badge.id)}
               onChange={() => {
@@ -1748,498 +1482,6 @@ function PaymentsSettings({ settings, setSettings, originalSettings, setOriginal
   );
 }
 
-function TaxesSettings({ settings, setSettings, hasChanges, saveSection, savingSection }: any) {
-  const [isAdding, setIsAdding] = useState(false);
-  const [country, setCountry] = useState("");
-  const [region, setRegion] = useState("");
-  const [rate, setRate] = useState("");
-
-  const handleAdd = () => {
-    if (!country || !rate) return;
-    // region is optional: empty = country-wide rate, set = state/province
-    // override (e.g. country "Canada" + region "Ontario" for HST).
-    const newRates = [...(settings.taxes?.rates || []), { country, region: region.trim(), rate }];
-    setSettings({ ...settings, taxes: { ...settings.taxes, rates: newRates } });
-    setIsAdding(false);
-    setCountry("");
-    setRegion("");
-    setRate("");
-  };
-
-  const handleDelete = (index: number) => {
-    const newRates = settings.taxes.rates.filter((_: any, i: number) => i !== index);
-    setSettings({ ...settings, taxes: { ...settings.taxes, rates: newRates } });
-  };
-
-  return (
-    <div className="space-y-16">
-      <header className="flex flex-col gap-2 mb-12">
-        <div className="flex justify-between items-end">
-          <div>
-            <h2 className="text-5xl font-black tracking-tighter text-white uppercase italic leading-none">Tax Settings</h2>
-            <p className="text-xs text-slate-400 tracking-[0.3em] uppercase mt-4 font-bold">Set up country-specific tax rates to calculate at checkout</p>
-          </div>
-          <div className="flex items-center gap-4">
-            <button 
-              onClick={() => setIsAdding(!isAdding)} 
-              className="bg-white/5 border border-white/10 px-8 py-4 rounded-2xl text-[10px] font-black tracking-[0.3em] flex items-center gap-3 hover:bg-white/10 transition-all text-white shadow-xl shadow-black/20"
-            >
-              {isAdding ? <X size={16} className="text-rose-400" /> : <Plus size={16} className="text-violet-400" />} 
-              {isAdding ? "Cancel" : "Add Tax Rate"}
-            </button>
-            {hasChanges('taxes') && (
-              <button
-                onClick={() => saveSection('taxes', { taxes: settings.taxes })}
-                disabled={savingSection === 'taxes'}
-                className="bg-violet-600 text-white px-12 py-4 rounded-2xl text-[10px] font-black tracking-[0.3em] shadow-2xl shadow-violet-600/40 hover:bg-violet-500 transition-all border border-violet-400/20"
-              >
-                {savingSection === 'taxes' ? 'SYNCHRONIZING...' : 'PUBLISH CHANGES'}
-              </button>
-            )}
-          </div>
-        </div>
-      </header>
-
-      {isAdding && (
-        <section className="glass-card rounded-[3rem] p-12 border border-violet-500/20 bg-violet-500/[0.03] space-y-12 relative overflow-hidden animate-in zoom-in-95 duration-500">
-          <div className="absolute inset-0 bg-gradient-to-br from-violet-500/10 to-transparent pointer-events-none" />
-          <SectionHeader 
-            title="Add Tax Rate" 
-            subtitle="Define tax requirements for a specific country or region" 
-            icon={Percent} 
-            color="rose"
-          />
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-12 relative z-10">
-            <InputField
-              label="COUNTRY"
-              icon={Globe}
-              placeholder="e.g. Canada"
-              value={country}
-              onChange={(e: any) => setCountry(e.target.value)}
-            />
-            <InputField
-              label="STATE / PROVINCE (OPTIONAL)"
-              icon={Globe}
-              placeholder="e.g. Ontario — blank = whole country"
-              value={region}
-              onChange={(e: any) => setRegion(e.target.value)}
-            />
-            <InputField
-              label="TAX RATE (%)"
-              icon={Hash}
-              placeholder="13"
-              value={rate}
-              onChange={(e: any) => setRate(e.target.value)}
-              className="font-mono"
-            />
-          </div>
-          <div className="flex gap-6 relative z-10">
-            <button 
-              onClick={handleAdd} 
-              className="bg-violet-600 text-white px-12 py-4 rounded-2xl text-[10px] font-black tracking-[0.3em] shadow-2xl shadow-violet-600/30 hover:bg-violet-500 active:scale-95 transition-all"
-            >
-              SAVE TAX RATE
-            </button>
-            <button 
-              onClick={() => setIsAdding(false)} 
-              className="bg-white/5 text-slate-400 px-12 py-4 rounded-2xl text-[10px] font-black tracking-[0.3em] hover:bg-white/10 transition-all"
-            >
-              CANCEL
-            </button>
-          </div>
-        </section>
-      )}
-
-      <section className="glass-card rounded-[3rem] p-12 border border-white/5 space-y-12 relative overflow-hidden">
-        <div className="absolute inset-0 bg-gradient-to-bl from-violet-500/[0.02] to-transparent pointer-events-none" />
-        <SectionHeader 
-          title="Active Tax Rates" 
-          subtitle="Tax rates calculated at checkout for each country" 
-          icon={Database} 
-          color="violet"
-        />
- 
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8 pt-4 relative z-10">
-          {(!settings.taxes?.rates || settings.taxes.rates.length === 0) && (
-            <div className="col-span-full h-64 flex flex-col items-center justify-center border-2 border-dashed border-white/5 rounded-[3rem] gap-6">
-              <div className="w-16 h-16 rounded-full bg-white/5 flex items-center justify-center">
-                <Percent size={32} className="text-slate-700" />
-              </div>
-              <p className="text-[10px] text-slate-600 font-black uppercase tracking-[0.4em]">No tax rates configured yet</p>
-            </div>
-          )}
-          
-          {settings.taxes?.rates?.map((r: any, idx: number) => (
-            <motion.div 
-              key={idx} 
-              initial={{ opacity: 0, scale: 0.9 }}
-              animate={{ opacity: 1, scale: 1 }}
-              className="bg-white/[0.02] border border-white/5 rounded-[2.5rem] p-10 hover:border-violet-500/30 transition-all group relative overflow-hidden"
-            >
-              <div className="absolute inset-0 bg-gradient-to-br from-violet-500/[0.03] to-transparent opacity-0 group-hover:opacity-100 transition-opacity" />
-              <button 
-                onClick={() => handleDelete(idx)}
-                aria-label="Delete tax rate"
-                className="absolute top-8 right-8 p-3 bg-white/5 rounded-2xl text-slate-600 hover:text-rose-400 hover:bg-rose-500/10 transition-all z-20"
-              >
-                <Trash2 size={16} />
-              </button>
-              <div className="space-y-8 relative z-10">
-                <div className="flex items-center gap-4">
-                  <div className="w-10 h-10 rounded-xl bg-violet-500/10 flex items-center justify-center border border-violet-500/20">
-                    <Globe size={18} className="text-violet-400" />
-                  </div>
-                  <h4 className="text-sm font-black text-white uppercase tracking-[0.15em] italic">
-                    {r.country}{r.region ? ` · ${r.region}` : ""}
-                  </h4>
-                </div>
-                <div className="space-y-2">
-                  <p className="text-[9px] text-slate-600 font-black uppercase tracking-[0.3em]">Tax Rate</p>
-                  <p className="text-5xl font-black text-white font-mono tracking-tighter italic">{r.rate}<span className="text-violet-500/50 text-2xl ml-1">%</span></p>
-                </div>
-                <div className="flex items-center gap-3 px-5 py-2 bg-emerald-500/10 rounded-2xl border border-emerald-500/20 w-fit">
-                  <div className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse shadow-[0_0_10px_rgba(16,185,129,0.5)]" />
-                  <span className="text-[9px] font-black text-emerald-400 uppercase tracking-widest">Active</span>
-                </div>
-              </div>
-            </motion.div>
-          ))}
-        </div>
-      </section>
-    </div>
-  );
-}
-
-// DesignerSettings removed — the designer tab is a full-screen StudioEditor rendered by Dashboard
-
-function _DesignerSettings_REMOVED({ settings, setSettings, hasChanges, saveSection, savingSection }: any) {
-  const [uploadingLogo, setUploadingLogo] = useState(false);
-  const [uploadingFavicon, setUploadingFavicon] = useState(false);
-
-  const handleAssetUpload = async (e: React.ChangeEvent<HTMLInputElement>, type: 'logo' | 'favicon') => {
-    const file = e.target.files?.[0];
-    if (!file) return;
-
-    if (type === 'logo') setUploadingLogo(true);
-    else setUploadingFavicon(true);
-
-    try {
-      const url = await adminApi.uploadBrandAsset(file, type);
-      setSettings({
-        ...settings,
-        design: {
-          ...settings.design,
-          [type === 'logo' ? 'logoUrl' : 'faviconUrl']: url
-        }
-      });
-    } catch (err) {
-      toast.error(`Error uploading ${type}`);
-    } finally {
-      if (type === 'logo') setUploadingLogo(false);
-      else setUploadingFavicon(false);
-    }
-  };
-
-  const currentFont = settings.design?.font || 'Inter';
-  const currentColor = settings.design?.primaryColor || '#000000';
-  const logoUrl = settings.design?.logoUrl;
-
-  return (
-    <div className="space-y-8">
-      <div className="flex justify-between items-end">
-         <div>
-            <h2 className="text-4xl font-black tracking-tight uppercase">SHOP DESIGNER</h2>
-            <p className="text-[11px] text-neutral-400 mt-2">Configure the visual identity, typography, and layout of your public storefront.</p>
-         </div>
-         {hasChanges('design') && (
-            <button 
-              onClick={() => saveSection('design', { design: settings.design })}
-              disabled={savingSection === 'design'}
-              className="bg-[#A855F7] text-white px-8 py-2.5 rounded-full text-[10px] font-bold tracking-widest shadow-lg shadow-purple-200 hover:bg-purple-600 transition-all"
-            >
-              {savingSection === 'design' ? 'SAVING...' : 'PUBLISH DESIGN'}
-            </button>
-         )}
-      </div>
-      
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
-         <section className="bg-white border border-neutral-100 rounded-[2rem] p-8 shadow-sm space-y-8">
-            <div className="space-y-6">
-               <div>
-                  <h3 className="text-sm font-bold tracking-tight mb-1">Visual Identity</h3>
-               </div>
-
-               <div className="grid grid-cols-2 gap-8">
-                  <div className="space-y-4">
-                     <label className="text-[10px] font-bold text-neutral-400 uppercase tracking-widest block">Primary Theme Color</label>
-                     <div className="flex items-center gap-4">
-                        <div className="w-12 h-12 rounded-2xl shadow-inner border border-neutral-100" style={{ backgroundColor: currentColor }}></div>
-                        <input 
-                           type="color" 
-                           value={currentColor} 
-                           onChange={e => setSettings({...settings, design: {...settings.design, primaryColor: e.target.value}})}
-                           className="h-10 w-24 cursor-pointer bg-transparent border-none" 
-                        />
-                     </div>
-                  </div>
-
-                  <div className="space-y-4">
-                     <label className="text-[10px] font-bold text-neutral-400 uppercase tracking-widest block">Typography</label>
-                     <select 
-                       className="w-full bg-neutral-50 border border-neutral-100 rounded-xl px-4 py-3 text-xs outline-none focus:border-neutral-200"
-                       value={currentFont}
-                       onChange={e => setSettings({...settings, design: {...settings.design, font: e.target.value}})}
-                     >
-                        <option value="Inter">Inter (Sans-serif Modern)</option>
-                        <option value="Outfit">Outfit (Geometric Soft)</option>
-                        <option value="Roboto">Roboto (Clean Standard)</option>
-                        <option value="Playfair Display">Playfair (Classic Serif)</option>
-                     </select>
-                  </div>
-               </div>
-
-               <div className="pt-6 border-t border-neutral-50 space-y-6">
-                  <div>
-                     <h3 className="text-sm font-bold tracking-tight mb-1">Brand Assets</h3>
-                  </div>
-                  
-                  <div className="grid grid-cols-2 gap-6">
-                     <div className="space-y-4">
-                        <label className="text-[10px] font-bold text-neutral-400 uppercase tracking-widest block">Shop Logo</label>
-                        <div className="border-2 border-dashed border-neutral-200 rounded-2xl p-4 flex flex-col items-center justify-center relative overflow-hidden bg-neutral-50/50 hover:bg-neutral-50 transition-colors h-32">
-                           {uploadingLogo ? (
-                              <p className="text-[10px] font-bold animate-pulse text-purple-500">UPLOADING...</p>
-                           ) : logoUrl ? (
-                              <>
-                                 <img src={logoUrl} alt="Logo" className="max-h-16 object-contain z-10" />
-                                 <div className="absolute inset-0 bg-white/80 opacity-0 hover:opacity-100 transition-opacity flex items-center justify-center z-20">
-                                    <span className="text-[10px] font-bold tracking-widest">CHANGE</span>
-                                 </div>
-                              </>
-                           ) : (
-                              <>
-                                 <div className="w-8 h-8 rounded-full bg-neutral-200 mb-2 flex items-center justify-center"><Plus size={14} /></div>
-                                 <p className="text-[10px] font-bold text-neutral-400">UPLOAD LOGO</p>
-                              </>
-                           )}
-                           <input type="file" className="absolute inset-0 w-full h-full opacity-0 cursor-pointer z-30" accept="image/*" onChange={e => handleAssetUpload(e, 'logo')} />
-                        </div>
-                     </div>
-
-                     <div className="space-y-4">
-                        <label className="text-[10px] font-bold text-neutral-400 uppercase tracking-widest block">Favicon</label>
-                        <div className="border-2 border-dashed border-neutral-200 rounded-2xl p-4 flex flex-col items-center justify-center relative overflow-hidden bg-neutral-50/50 hover:bg-neutral-50 transition-colors h-32">
-                           {uploadingFavicon ? (
-                              <p className="text-[10px] font-bold animate-pulse text-purple-500">UPLOADING...</p>
-                           ) : settings.design?.faviconUrl ? (
-                              <>
-                                 <img src={settings.design.faviconUrl} alt="Favicon" className="w-8 h-8 object-contain z-10" />
-                                 <div className="absolute inset-0 bg-white/80 opacity-0 hover:opacity-100 transition-opacity flex items-center justify-center z-20">
-                                    <span className="text-[10px] font-bold tracking-widest">CHANGE</span>
-                                 </div>
-                              </>
-                           ) : (
-                              <>
-                                 <div className="w-8 h-8 rounded-full bg-neutral-200 mb-2 flex items-center justify-center"><Plus size={14} /></div>
-                                 <p className="text-[10px] font-bold text-neutral-400">UPLOAD ICON</p>
-                              </>
-                           )}
-                           <input type="file" className="absolute inset-0 w-full h-full opacity-0 cursor-pointer z-30" accept="image/*" onChange={e => handleAssetUpload(e, 'favicon')} />
-                        </div>
-                     </div>
-                  </div>
-               </div>
-            </div>
-         </section>
-
-         <section className="bg-neutral-100 rounded-[2rem] p-4 flex flex-col relative overflow-hidden">
-            <h3 className="text-[10px] font-bold text-neutral-400 uppercase tracking-widest mb-4 ml-4 mt-2">Live Preview</h3>
-            
-            {/* The Mock Window */}
-            <div className="flex-1 bg-white rounded-3xl shadow-lg border border-neutral-200/50 overflow-hidden flex flex-col" style={{ fontFamily: currentFont }}>
-               {/* Browser bar */}
-               <div className="bg-neutral-50 border-b border-neutral-100 px-4 py-3 flex gap-2 items-center">
-                  <div className="w-3 h-3 rounded-full bg-red-400"></div>
-                  <div className="w-3 h-3 rounded-full bg-amber-400"></div>
-                  <div className="w-3 h-3 rounded-full bg-green-400"></div>
-                  <div className="mx-auto bg-white px-3 py-1 rounded shadow-sm text-[8px] text-neutral-400 flex items-center gap-1">
-                     <Lock size={8} /> lyricalmyricalbooks.com
-                  </div>
-               </div>
-
-               {/* Mock Content */}
-               <div className="flex-1 p-6 flex flex-col relative">
-                  {/* Mock Nav */}
-                  <div className="flex justify-between items-center mb-12">
-                     <div className="text-xl font-black tracking-tighter">
-                        {logoUrl ? <img src={logoUrl} className="h-6 object-contain" /> : "F✶M"}
-                     </div>
-                     <div className="flex gap-4 text-[10px] font-bold tracking-widest opacity-30 uppercase">
-                        <span>Shop</span>
-                        <span>Archive</span>
-                        <span>Cart</span>
-                     </div>
-                  </div>
-
-                  {/* Mock Hero */}
-                  <div className="max-w-[200px] space-y-4">
-                     <h1 className="text-3xl font-black leading-none tracking-tight">The Art of Storytelling.</h1>
-                     <p className="text-[10px] leading-relaxed opacity-50">Discover rare editions and exclusive prints customized to your aesthetic.</p>
-                     
-                     <div className="pt-4 flex gap-2">
-                        <div className="px-6 py-2 rounded-full text-[9px] font-bold text-white tracking-widest" style={{ backgroundColor: currentColor }}>
-                           SHOP NOW
-                        </div>
-                        <div className="px-4 py-2 rounded-full text-[9px] font-bold border border-neutral-200 tracking-widest">
-                           LEARN MORE
-                        </div>
-                     </div>
-                  </div>
-
-                  {/* Decorative Elements */}
-                  <div className="absolute -right-12 bottom-12 w-48 h-64 bg-neutral-50 rounded-xl border border-neutral-100 shadow-xl overflow-hidden -rotate-6">
-                     <div className="w-full h-32 bg-neutral-200/50 animate-pulse"></div>
-                     <div className="p-4 space-y-2">
-                        <div className="w-3/4 h-3 rounded bg-neutral-200"></div>
-                        <div className="w-1/2 h-3 rounded bg-neutral-200"></div>
-                     </div>
-                  </div>
-               </div>
-            </div>
-         </section>
-      </div>
-    </div>
-  );
-}
-
-// ─────────────────────────────────────────────────────────────
-// Inventory Sync component
-// ─────────────────────────────────────────────────────────────
-function InventorySync({ lastSync }: { lastSync?: string }) {
-  const [syncing, setSyncing] = useState(false);
-  const [result, setResult] = useState<any>(null);
-  const [error, setError] = useState<string | null>(null);
-  const [lastSyncTime, setLastSyncTime] = useState<string | undefined>(lastSync);
-  const [confirming, setConfirming] = useState(false);
-
-  const handleSync = async () => {
-    setConfirming(false);
-    setSyncing(true);
-    setError(null);
-    setResult(null);
-    try {
-      const res = await adminApi.syncInventoryFromLegacy();
-      setResult(res);
-      setLastSyncTime(new Date().toISOString());
-      toast.success("Inventory synced");
-    } catch (err: any) {
-      setError(err.message || "Sync failed");
-    } finally {
-      setSyncing(false);
-    }
-  };
-
-  const fmtTime = (iso?: string) => {
-    if (!iso) return "Never";
-    return new Date(iso).toLocaleString("en-CA", { month: "short", day: "numeric", hour: "2-digit", minute: "2-digit" });
-  };
-
-  const columns: Column<any>[] = [
-    { key: "title", header: "Book", lead: true, render: (r) => (<div><div style={{ overflowWrap: "anywhere" }}>{r.title || "(untitled)"}</div><div className="rp-hint rp-mono">{r.slug || "no slug"}</div></div>) },
-    { key: "key", header: "Legacy key", render: (r) => <span className="rp-mono">{r.matched ? r.legacyKey : "—"}</span> },
-    { key: "stock", header: "Units", numeric: true, render: (r) => r.stock },
-    { key: "status", header: "Status", render: (r) => <StatusBadge tone={r.matched ? "success" : "warning"}>{r.matched ? "Synced" : "No match"}</StatusBadge> },
-  ];
-
-  return (
-    <SectionCard title="Inventory sync" description="Reconcile stock levels with the legacy inventory system."
-      actions={
-        <PrimaryButton onClick={() => setConfirming(true)} disabled={syncing}>{syncing ? "Syncing…" : "Sync inventory"}</PrimaryButton>
-      }>
-      <p className="rp-hint" style={{ margin: "0 0 16px" }}>
-        Last sync: <span className="rp-mono">{fmtTime(lastSyncTime)}</span>. Books are matched by slug and normalized title, so a book's slug must equal its legacy inventory key.
-      </p>
-      <div className="rp-card" style={{ padding: 16, boxShadow: "none", background: "var(--rp-surface-sunken)", display: "flex", flexWrap: "wrap", gap: 24 }}>
-        <div><div className="rp-label">Source</div><div className="rp-mono">lyricalmyrical-default-rtdb</div></div>
-        <div><div className="rp-label">Destination</div><div className="rp-mono">firestore / public_books</div></div>
-      </div>
-
-      {error && (
-        <div role="alert" style={{ marginTop: 16, padding: 16, background: "var(--rp-danger-tint)", color: "var(--rp-danger)", border: "2px solid var(--rp-danger)" }}>
-          <strong>✕ Sync failed.</strong> {error}
-        </div>
-      )}
-
-      {result && (
-        <div className="rp-stack" style={{ marginTop: 16 }}>
-          <div style={{ display: "flex", flexWrap: "wrap", gap: 8 }}>
-            <StatusBadge tone="success">{result.synced} records synced</StatusBadge>
-            {result.unmatched > 0 && <StatusBadge tone="warning">{result.unmatched} unmatched</StatusBadge>}
-            <StatusBadge>{result.legacyTotal} legacy entries</StatusBadge>
-          </div>
-          <DataTable caption="Inventory sync results" columns={columns} rows={result.results} rowKey={(r: any) => r.id} />
-          {result.unmatched > 0 && (
-            <p className="rp-hint" style={{ margin: 0 }}>
-              Unmatched books need their slug aligned with a legacy inventory key. Edit the slug in Books, then sync again.
-            </p>
-          )}
-        </div>
-      )}
-
-      {!result && !error && !syncing && (
-        <div style={{ marginTop: 16 }}>
-          <div className="rp-label" style={{ marginBottom: 8 }}>Known legacy keys</div>
-          <div style={{ display: "flex", flexWrap: "wrap", gap: 8 }}>
-            {["altrove", "hound", "archaeology", "sistema", "nobody", "collective", "Subverso meme"].map((k) => <StatusBadge key={k}>{k}</StatusBadge>)}
-          </div>
-        </div>
-      )}
-
-      <ConfirmDialog open={confirming} title="Sync inventory now?" confirmLabel="Sync inventory"
-        message="This overwrites the stock level of every matched book with the legacy system's value. Unmatched books are left unchanged."
-        onConfirm={handleSync} onCancel={() => setConfirming(false)} />
-    </SectionCard>
-  );
-}
-
-export function SectionHeader({ title, subtitle, icon: Icon, color = "violet" }: any) {
-  const tone: any = { violet: "var(--rp-primary)", cyan: "var(--rp-info)", emerald: "var(--rp-success)", amber: "var(--rp-warning)", rose: "var(--rp-danger)" };
-  return (
-    <div className="flex items-center gap-4">
-      <div aria-hidden="true" style={{ width: 44, height: 44, display: "grid", placeItems: "center", flexShrink: 0, background: "#fff", border: "2px solid #100f0d", color: tone[color] || tone.violet, boxShadow: "2px 2px 0 rgba(16,15,13,.18)" }}>
-        {Icon && <Icon size={20} />}
-      </div>
-      <div>
-        <h3 style={{ margin: 0, fontSize: 20, lineHeight: 1.05, textTransform: "uppercase" }}>{title}</h3>
-        {subtitle && <p style={{ margin: "4px 0 0", fontSize: 11, color: "#5f5950", fontWeight: 600 }}>{subtitle}</p>}
-      </div>
-    </div>
-  );
-}
-
-export function InputField({ label, icon: Icon, value, onChange, placeholder, type = "text", className = "", hint, error }: any) {
-  const id = useId();
-  return (
-    <div className={className} style={{ display: "flex", flexDirection: "column", gap: 6 }}>
-      {label && <label htmlFor={id} style={{ fontSize: 9, fontWeight: 700, letterSpacing: "0.16em", textTransform: "uppercase", color: "#5f5950" }}>{label}</label>}
-      <div style={{ position: "relative" }}>
-        {Icon && <Icon size={16} aria-hidden="true" style={{ position: "absolute", left: 12, top: "50%", transform: "translateY(-50%)", color: "#5f5950", pointerEvents: "none" }} />}
-        <input id={id} type={type} value={value} placeholder={placeholder} onChange={onChange}
-          aria-invalid={error ? true : undefined} aria-describedby={hint || error ? `${id}-d` : undefined}
-          style={{ width: "100%", minHeight: 44, padding: Icon ? "10px 12px 10px 38px" : "10px 12px", fontSize: 13 }} />
-      </div>
-      {(hint || error) && <span id={`${id}-d`} role={error ? "alert" : undefined} style={{ fontSize: 11, color: error ? "#b4271a" : "#5f5950" }}>{error || hint}</span>}
-    </div>
-  );
-}
-
-export function Switch({ checked, onChange, label = "Toggle setting" }: { checked: boolean; onChange: (val: boolean) => void; label?: string }) {
-  return (
-    <button type="button" role="switch" aria-checked={!!checked} aria-label={label} onClick={() => onChange(!checked)}
-      className="rp-toggle-track" style={{ borderRadius: 0, background: checked ? "#e8402a" : "#e4dac5" }} />
-  );
-}
-
 /** Write-only field for secrets: never echoes the stored value back into the page. */
 // Write-only key box. Every edit is passed up (clearing the box cancels the change),
 // a key that fails `validate` is never passed up, and a stored key can be removed.
@@ -2251,10 +1493,10 @@ export function SecretField({ label, placeholder, stored, onCommit, validate, on
   const problem = validate ? validate(draft) : "";
   return (
     <div>
-      <InputField label={label} icon={Lock} type="password" value={draft} placeholder={stored ? "Stored — enter a new key to replace it" : placeholder}
+      <TextField label={label} type="password" autoComplete="new-password" spellCheck={false} value={draft} placeholder={stored ? "Stored — enter a new key to replace it" : placeholder}
         error={problem || undefined}
         hint={!problem && stored ? "✓ A key is stored. It is never shown here." : undefined}
-        onChange={(e: any) => {
+        onChange={(e) => {
           const value = e.target.value;
           setDraft(value);
           const trimmed = value.trim();
@@ -2269,10 +1511,3 @@ export function SecretField({ label, placeholder, stored, onCommit, validate, on
   );
 }
 
-const AlertCircle = ({ size, className }: any) => (
-  <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={className}>
-    <circle cx="12" cy="12" r="10" />
-    <line x1="12" y1="8" x2="12" y2="12" />
-    <line x1="12" y1="16" x2="12.01" y2="16" />
-  </svg>
-);

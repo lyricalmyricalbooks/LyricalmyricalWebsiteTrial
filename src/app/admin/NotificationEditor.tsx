@@ -9,6 +9,7 @@ import { GmailSendingCard } from "./GmailSendingCard";
 import { currentRows, emailLogBadge, emailLogDetail, needsAttention } from "./emailLogDisplay";
 import { fillSample, insertAt, PLACEHOLDERS, problemTemplates, templateProblems, withRequiredPlaceholders, type TemplateFields } from "./emailTemplateChecks";
 import { adminApi } from "./api";
+import { useSettingsDirty } from "./settingsDirty";
 import {
   DataTable, GhostButton, LoadingState, SaveBar, SectionCard, SectionHead, SecondaryButton, SelectField, StatusBadge, Tabs, TextArea, TextField, Toggle, useConfirm,
 } from "./riso/components";
@@ -435,6 +436,7 @@ export function NotificationEditor() {
     }
   };
 
+  useSettingsDirty("notifications", !loading && JSON.stringify(data) !== original);
   if (loading) return <LoadingState label="Loading notification templates…" />;
 
   const currentTemplate = data[activeTab] || DEFAULT_SETTINGS[activeTab];

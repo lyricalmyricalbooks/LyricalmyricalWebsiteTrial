@@ -42,7 +42,9 @@ describe("shipping safety diagnostics", () => {
     expect(ids.some(id => id.endsWith(":countries"))).toBe(true);
     expect(ids.some(id => id.endsWith(":duplicates"))).toBe(true);
     expect(ids.some(id => id.endsWith(":negative"))).toBe(true);
-    expect(ids.some(id => id.endsWith(":delivery"))).toBe(true);
+    // A missing transit time is a neutral hint, never a checkout-readiness issue.
+    expect(ids.some(id => id.endsWith(":delivery"))).toBe(false);
+    expect(summary.hints.some(h => h.id.endsWith(":delivery"))).toBe(true);
     expect(ids.some(id => id.endsWith(":duplicate"))).toBe(true);
     expect(ids.some(id => id.endsWith(":name"))).toBe(true);
   });

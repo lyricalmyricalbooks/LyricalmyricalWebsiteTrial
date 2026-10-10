@@ -2,7 +2,8 @@ import { useEffect, useState } from 'react';
 import { adminApi } from './api';
 import type { LocalFulfillmentConfig } from '../features/site/types';
 import { quoteLocalFulfillment, validateLocalFulfillment } from '../features/site/localFulfillment';
-import { PrimaryButton, SecondaryButton, DestructiveButton, SectionCard, TextField, TextArea, Toggle, SelectField } from './riso/components';
+import { SecondaryButton, DestructiveButton, SectionCard, TextField, TextArea, Toggle, SelectField, SaveBar } from './riso/components';
+import { useSettingsDirty } from './settingsDirty';
 
 // Toronto postal codes all begin with M.
 const TORONTO_AREA = ['M'];
@@ -13,6 +14,8 @@ export function useLocalFulfillmentDraft(load = true) {
   const [notice, setNotice] = useState('');
   const [busy, setBusy] = useState(false);
   const [loaded, setLoaded] = useState(false);
+  // What is saved in Firestore, so the quick pickup switch can save only its own change.
+  const [saved, setSaved] = useState<LocalFulfillmentConfig | null>(null);
   useEffect(() => {
     if (!load) return;
     let active = true;
@@ -22,18 +25,22 @@ export function useLocalFulfillmentDraft(load = true) {
       const text = (value: unknown) => typeof value === 'string' ? value : '';
       const records = (value: unknown) => Array.isArray(value) ? value : [];
       const common = (record: any) => ({ ...record, id: text(record?.id) || crypto.randomUUID(), enabled: record?.enabled === true, name: text(record?.name), price: typeof record?.price === 'number' ? record.price : NaN, instructions: text(record?.instructions), estimate: text(record?.estimate) });
-      setConfig({ enabled: raw.enabled === true, pickupLocations: records(raw.pickupLocations).map(record => ({ ...common(record), hours: text(record?.hours), postalPrefixes: records(record?.postalPrefixes).map(text), address: Object.fromEntries(['street', 'city', 'state', 'zip', 'country'].map(field => [field, text(record?.address?.[field])])) as any })), deliveryZones: records(raw.deliveryZones).map(record => ({ ...common(record), minimumSubtotal: typeof record?.minimumSubtotal === 'number' ? (record as any).minimumSubtotal : NaN, postalPrefixes: records(record?.postalPrefixes).map(text), postalCodes: records(record?.postalCodes).map(text) })) });
+      const next: LocalFulfillmentConfig = { enabled: raw.enabled === true, pickupLocations: records(raw.pickupLocations).map(record => ({ ...common(record), hours: text(record?.hours), postalPrefixes: records(record?.postalPrefixes).map(text), address: Object.fromEntries(['street', 'city', 'state', 'zip', 'country'].map(field => [field, text(record?.address?.[field])])) as any })), deliveryZones: records(raw.deliveryZones).map(record => ({ ...common(record), minimumSubtotal: typeof record?.minimumSubtotal === 'number' ? (record as any).minimumSubtotal : NaN, postalPrefixes: records(record?.postalPrefixes).map(text), postalCodes: records(record?.postalCodes).map(text) })) };
+      setConfig(next);
+      setSaved(next);
       if (validateLocalFulfillment(raw).length) setNotice('Saved local configuration needs repair. Review all fields before saving.');
       setLoaded(true);
     }).catch(() => { if (active) setNotice('Could not load local fulfillment. Reload before saving.'); });
     return () => { active = false; };
   }, [load]);
-  return { config, setConfig, notice, setNotice, busy, setBusy, loaded };
+  return { config, setConfig, notice, setNotice, busy, setBusy, loaded, saved, setSaved };
 }
 
 export function LocalFulfillmentSettings({ draft }: { draft?: ReturnType<typeof useLocalFulfillmentDraft> } = {}) {
   const localDraft = useLocalFulfillmentDraft(!draft);
-  const { config, setConfig, notice, setNotice, busy, setBusy, loaded } = draft ?? localDraft;
+  const { config, setConfig, notice, setNotice, busy, setBusy, loaded, saved, setSaved } = draft ?? localDraft;
+  const dirty = loaded && !!saved && JSON.stringify(saved) !== JSON.stringify(config);
+  useSettingsDirty('local-fulfillment', dirty);
   const [postal, setPostal] = useState('');
   const [subtotal, setSubtotal] = useState('0');
   const errors = validateLocalFulfillment(config);
@@ -48,26 +55,31 @@ export function LocalFulfillmentSettings({ draft }: { draft?: ReturnType<typeof 
     const problems = validateLocalFulfillment(next);
     if (problems.length) { setNotice(problems.join(' ')); return false; }
     setBusy(true);
-    try { await adminApi.updateLocalFulfillment(next); setNotice('Local fulfillment saved.'); return true; }
+    try { await adminApi.updateLocalFulfillment(next); setSaved(next); setNotice('Local fulfillment saved.'); return true; }
     catch (error) { setNotice(error instanceof Error ? error.message : 'Could not save local fulfillment.'); return false; }
     finally { setBusy(false); }
   }
   // One click: turn on (creating a Toronto pickup if there isn't one) or off, and save straight away.
+  // Applied to the saved settings only, so other unsaved edits on this page are never saved with it.
+  const withQuickPickup = (base: LocalFulfillmentConfig, on: boolean): LocalFulfillmentConfig => {
+    const locations = base.pickupLocations.length ? base.pickupLocations : [newTorontoPickup()];
+    return on
+      ? { ...base, enabled: true, pickupLocations: locations.map((location, index) => index === 0 ? { ...location, enabled: true, address: { ...location.address, state: location.address.state || 'ON', country: location.address.country || 'Canada' } } : location) }
+      : { ...base, pickupLocations: base.pickupLocations.map(location => ({ ...location, enabled: false })) };
+  };
   async function setQuickPickup(on: boolean) {
-    const locations = config.pickupLocations.length ? config.pickupLocations : [newTorontoPickup()];
-    const next = on
-      ? { ...config, enabled: true, pickupLocations: locations.map((location, index) => index === 0 ? { ...location, enabled: true, address: { ...location.address, state: location.address.state || 'ON', country: location.address.country || 'Canada' } } : location) }
-      : { ...config, pickupLocations: config.pickupLocations.map(location => ({ ...location, enabled: false })) };
-    const previous = config;
-    setConfig(next);
-    if (!(await save(next))) setConfig(previous);
+    const base = saved ?? config;
+    const nextSaved = withQuickPickup(base, on);
+    if (!(await save(nextSaved))) return;
+    // Keep the owner's other unsaved edits on screen, with the pickup switch applied.
+    setConfig(current => (current === base || JSON.stringify(current) === JSON.stringify(base)) ? nextSaved : withQuickPickup(current, on));
   }
   const quotes = quoteLocalFulfillment(config, { country: 'CA', zip: postal }, subtotal === '' ? NaN : Number(subtotal), [{ quantity: 1 }]);
   return <div className="rp-stack">
     <fieldset disabled={!loaded || busy} style={{ border: 0, padding: 0, margin: 0 }} className="rp-stack">
     <SectionCard title="Pickup & local delivery" description="Let Toronto shoppers collect their order in person, and deliver to nearby postal areas. Everything starts switched off until you turn it on. Storefront labels and look are in Studio.">
       <Toggle label="Free local pickup for Toronto shoppers" checked={pickupOn} onChange={on => void setQuickPickup(on)} />
-      <p className="rp-hint">{pickupOn ? 'On — shoppers with a Toronto postal code (starting with M) see a free "Local pickup" option at checkout. This switch saves immediately.' : 'Off. Switch on to offer free pickup to Toronto shoppers — no other setup needed. You can add your address, hours and instructions below.'}</p>
+      <p className="rp-hint">{pickupOn ? 'On — shoppers with a Toronto postal code (starting with M) see a free "Local pickup" option at checkout. This switch saves straight away, on its own — other edits below still need Save.' : 'Off. Switch on to offer free pickup to Toronto shoppers — no other setup needed. You can add your address, hours and instructions below.'}</p>
       <Toggle label="Enable local fulfillment (pickup and delivery)" checked={config.enabled} onChange={enabled => setConfig({ ...config, enabled })} />
     </SectionCard>
 
@@ -121,7 +133,8 @@ export function LocalFulfillmentSettings({ draft }: { draft?: ReturnType<typeof 
     </SectionCard>
     {!!errors.length && <SectionCard title="Fix before saving"><ul>{errors.map(error => <li key={error}>{error}</li>)}</ul></SectionCard>}
     <p role="status">{notice}</p>
-    <PrimaryButton disabled={!loaded || busy || errors.length > 0} onClick={() => void save(config)}>Save local fulfillment</PrimaryButton>
     </fieldset>
+    <SaveBar dirty={dirty} saving={busy} message={errors.length ? `Fix before saving: ${errors[0]}` : 'You have unsaved pickup & delivery changes.'}
+      onSave={() => { if (!errors.length) void save(config); else setNotice(errors.join(' ')); }} onDiscard={() => { if (saved) setConfig(saved); setNotice(''); }} />
   </div>;
 }

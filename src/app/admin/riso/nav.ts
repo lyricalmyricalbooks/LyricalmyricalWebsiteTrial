@@ -17,6 +17,7 @@ export const NAV: NavEntry[] = [
     { id: "general", label: "General" },
     { id: "shipping", label: "Shipping" },
     { id: "payments", label: "Payments" },
+    { id: "taxes", label: "Taxes" },
     { id: "designer", label: "Design" },
     { id: "notifications", label: "Notifications" },
   ] },
