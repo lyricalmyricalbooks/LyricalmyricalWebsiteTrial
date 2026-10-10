@@ -44,4 +44,21 @@ async function claimEmailSend(db, purpose, email, { now = Date.now(), failOpen =
   }
 }
 
-module.exports = { CONTACT_LIMITS, emailKey, normaliseEmail, nextEmailWindow, claimEmailSend };
+// Abandoned-cart reminders go to an address any visitor can type, so the email carries nothing
+// they wrote except a plain first name ("Hi Sam"); anything else reads "Hi there".
+function reminderFirstName(name) {
+  const first = String(name || "").trim().split(/\s+/)[0] || "";
+  return /^[\p{L}][\p{L}'’-]{0,29}$/u.test(first) ? first : "there";
+}
+
+// At most this many abandoned-cart reminders a day across every address, so forged carts can
+// never turn the shop's mailbox into a bulk sender. Carts over the cap wait for the next day.
+const ABANDONED_CART_DAILY_CAP = 25;
+
+// Pure: the daily counter after one more send, or null when today's cap is reached.
+function nextDailyCount(saved, day, cap = ABANDONED_CART_DAILY_CAP) {
+  const count = saved && saved.day === day ? Number(saved.count) || 0 : 0;
+  return count >= cap ? null : { day, count: count + 1 };
+}
+
+module.exports = { reminderFirstName, ABANDONED_CART_DAILY_CAP, nextDailyCount, CONTACT_LIMITS, emailKey, normaliseEmail, nextEmailWindow, claimEmailSend };

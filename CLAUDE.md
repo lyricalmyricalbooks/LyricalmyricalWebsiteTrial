@@ -970,7 +970,8 @@ on the order). Both checks run in `fetchValidDiscount` / both checkout paths; to
 - **Abandoned carts:** `firestore.rules` limits browser writes to the cart fields and blocks `notified*`, and a
   recovered cart can't be reopened. `abandonedCartSweep` rebuilds items and prices from `books`, escapes the text,
   skips carts older than 7 days and throttles to one reminder per address every 3 days (`abandoned-cart-throttle`,
-  server-only). Deploy rules and functions together.
+  server-only), plus a shop-wide cap of 25 reminders per Toronto day (`abandoned-cart-throttle/_daily`,
+  `nextDailyCount`); the email uses only a plain first name from the cart (`reminderFirstName`, else "there"). Deploy rules and functions together.
 - Order tracking accepts `#`/spaces in order numbers (`features/site/orderNumber.ts`).
 
 ## Bug sweep #2 (6 October 2026)
