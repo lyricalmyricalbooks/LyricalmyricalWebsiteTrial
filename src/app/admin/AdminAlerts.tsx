@@ -39,8 +39,8 @@ export function AdminAlerts({ alerts, onOpenOrder, onOpenOrders, onOpenWebhook, 
             <span className="rp-hint" style={{ display: "block", marginTop: 2 }}>{a.detail}</span>
           </div>
           <div style={{ display: "flex", gap: 8 }}>
-            <PrimaryButton size="sm" onClick={() => (a.action === "notifications" ? onOpenNotifications() : a.action === "webhook" ? onOpenWebhook() : a.action === "order" ? onOpenOrder(a.orderIds[0]) : onOpenOrders())}>
-              {a.action === "notifications" ? "Open Notifications" : a.action === "webhook" ? "Open webhook health" : a.action === "order" ? "Open order" : "Review orders"}
+            <PrimaryButton size="sm" onClick={() => (a.action === "notifications" ? onOpenNotifications() : a.action === "webhook" || a.action === "payments" ? onOpenWebhook() : a.action === "order" ? onOpenOrder(a.orderIds[0]) : onOpenOrders())}>
+              {a.action === "notifications" ? "Open Notifications" : a.action === "payments" ? "Open Payments" : a.action === "webhook" ? "Open webhook health" : a.action === "order" ? "Open order" : "Review orders"}
             </PrimaryButton>
             <SecondaryButton size="sm" onClick={() => dismiss(a)}>Dismiss</SecondaryButton>
           </div>

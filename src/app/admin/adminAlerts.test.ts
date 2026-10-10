@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { buildAdminAlerts, alertSignature } from "./adminAlerts";
+import { buildAdminAlerts, alertSignature, settingsAlerts } from "./adminAlerts";
 
 const now = Date.parse("2026-10-06T21:00:00Z");
 const ago = (min: number) => new Date(now - min * 60000).toISOString();
@@ -101,5 +101,13 @@ describe("gift cards not issued", () => {
     for (const order of [paid(5), paid(30, { giftCardsIssuedAt: "t" }), paid(30, { isTest: true })]) {
       expect(buildAdminAlerts([order], null, now).map(a => a.id)).not.toContain("gift-cards-not-issued");
     }
+  });
+});
+
+describe("settings alerts", () => {
+  it("warns site-wide while test mode is on", () => {
+    expect(settingsAlerts({ payments: { testMode: true } })).toEqual([expect.objectContaining({ id: "test-mode", action: "payments" })]);
+    expect(settingsAlerts({ payments: { testMode: false } })).toEqual([]);
+    expect(settingsAlerts(null)).toEqual([]);
   });
 });
