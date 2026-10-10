@@ -39,6 +39,7 @@ const { resolveCountry } = require("./shippingGeo");
 const { REQUIRED_WEBHOOK_EVENTS, modesToTry, intentAsSession, paidIntentOrderId, webhookEndpointReport, signingSecrets, reversalState, ordersDueReversalCheck, failedRefundId } = require("./stripeRecovery");
 const { orderMoneyFmt, chargedTotalFmt, refundAmountText, withoutTrackingLines } = require("./emailMoney");
 const { optOutId, unsubscribeToken, tokenMatches, footerAddress, normEmail: normMarketingEmail } = require("./marketingOptOut");
+const { runReviewRequests, REVIEW_REQUEST_TEMPLATE } = require("./reviewRequests");
 const { checkoutCurrencyOf, paidAmountCheck, toMinor, discountDateState, purchaseProblem, paypalCreateRequestId, lateFailureMayMarkFailed, refundProviderOf, paypalReversalCaptureId, discountUsedUp, checkoutRefusal, manualPaidRefusal, stripeIntentKey, cancelRefusal, mismatchResolved, stripePaymentTaken, previousAttemptPaid, paypalRefundedTotalMinor } = require("./paymentGuards");
 const { canViewOrder, publicOrderView } = require("./orderAccess");
 const { returnTransition, publicReturn, returnRestockItems } = require("./returns");
@@ -3681,6 +3682,8 @@ exports.downloadDigitalAsset = onRequest(
 // 4. Notification Settings and Helper Functions
 // ──────────────────────────────────────────────────────────────
 const DEFAULT_NOTIFICATIONS = {
+  // Settings › Notifications: off by default (`enabled: false`); `delayDays` after shipping (functions/reviewRequests.js).
+  review_request: REVIEW_REQUEST_TEMPLATE,
   brand: {
     logoUrl: "",
     brandColor: "#e8402a",
@@ -6129,6 +6132,20 @@ exports.unpaidPaymentSweep = onSchedule(
       const outbox = await runEmailOutbox();
       if (outbox.tried || outbox.prunedLog || outbox.prunedOutbox) console.log("unpaidPaymentSweep: email queue", outbox);
     } catch (err) { console.error("unpaidPaymentSweep: email retry queue failed:", err.message); }
+
+    // "How was your book?" emails N days after shipping, when switched on (own try/catch).
+    try {
+      const notificationSettings = await loadNotificationSettings();
+      if (notificationSettings.review_request?.enabled === true) {
+        const unsubscribeKey = await marketingUnsubscribeKey();
+        const result = await runReviewRequests({
+          db, notificationSettings, compileEmailTemplate, siteLink, escapeHtml, optOutId,
+          unsubscribeUrl: email => siteLink(`/track?unsubscribe=1&e=${encodeURIComponent(normMarketingEmail(email))}&t=${unsubscribeToken(email, unsubscribeKey)}`),
+          sendEmail: message => sendEmail({ ...message, secret: RESEND_API_KEY.value() }),
+        });
+        if (result.sent) console.log("unpaidPaymentSweep: review requests", result);
+      }
+    } catch (err) { console.error("unpaidPaymentSweep: review requests failed:", err.message); }
 
     if (!found.length) return;
     // Stamp only after the alert really went out: a failed send leaves the orders
