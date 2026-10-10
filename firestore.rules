@@ -274,6 +274,21 @@ service cloud.firestore {
         && (!('source' in request.resource.data) || (request.resource.data.source is string && request.resource.data.source.size() <= 60));
       allow read, update, delete: if isAdmin();
     }
+    match /inventoryLog/{entryId} {
+      // Inventory › stock adjustment history: admin-only, append-only (written with the stock change).
+      allow read: if isAdmin();
+      allow create: if isAdmin()
+        && request.resource.data.keys().hasOnly(["bookId", "variantId", "title", "edition", "from", "to", "delta", "reason", "note", "at", "by"])
+        && request.resource.data.bookId is string && request.resource.data.bookId.size() <= 160
+        && request.resource.data.from is int && request.resource.data.to is int && request.resource.data.delta is int
+        && request.resource.data.reason is string && request.resource.data.reason.size() <= 40
+        && shortText(request.resource.data.get("note", ""), 500);
+      allow update, delete: if false;
+    }
+    match /inventoryCosts/{bookId} {
+      // Cost prices per book (CAD). Books are public, so costs live here, admin-only.
+      allow read, write: if isAdmin();
+    }
     match /contactMessages/{messageId} {
       // Storefront contact form: anyone can send; only admin (and Functions) can read/change.
       allow create: if request.resource.data.keys().hasOnly(["name", "email", "phone", "subject", "message", "page", "status", "createdAt"])
@@ -289,7 +304,7 @@ service cloud.firestore {
       allow read, delete: if isAdmin();
       allow update: if isAdmin()
         && request.resource.data.diff(resource.data).affectedKeys().hasOnly(["status"])
-        && request.resource.data.status in ["new", "emailed", "read", "archived"];
+        && request.resource.data.status in ["new", "emailed", "read", "archived", "replied"];
     }
     match /stockAlerts/{alertId} {
       // Shoppers can sign up for a back-in-stock email; only admin (and Functions) can read/change.

@@ -364,7 +364,7 @@ export function Dashboard() {
         return <AnalyticsDashboard setActiveTab={(tab: string) => { if (tab === "general" || tab === "notifications" || tab === "taxes") { setSettingsTab(tab); setActiveTab("settings"); } else setActiveTab(tab); }} onEditBook={handleEditBook} />;
       case "catalog": return <BookCatalog onEdit={handleEditBook} onAdd={handleAddBook} refreshTrigger={catalogRefreshKey} />;
       case "customers": return <Customers />;
-      case "inventory": return <Inventory />;
+      case "inventory": return <Inventory onEditBook={handleEditBook} />;
       case "discounts": return <Discounts />;
       case "giftCards": return <GiftCards openId={openGiftCard} onOpened={() => setOpenGiftCard(null)} />;
       case "reviews": return <ReviewsModeration />;
