@@ -8,9 +8,8 @@ import {
   doc,
   updateDoc,
   writeBatch,
-  getDoc,
   deleteField,
-  deleteDoc,
+  documentId,
 } from "firebase/firestore/lite";
 import { liteDb } from "../../lib/firestoreLite";
 
@@ -27,6 +26,13 @@ export type Review = {
   /** Public reply from the store owner (admin-written). */
   reply?: { body: string; at: string };
 };
+
+/** Splits a list into groups of `size` (Firestore "in" queries take up to 30 values). */
+export function chunk<T>(list: T[], size: number): T[][] {
+  const out: T[][] = [];
+  for (let i = 0; i < list.length; i += size) out.push(list.slice(i, i + size));
+  return out;
+}
 
 // Older reviews kept the email on the public document; moved once per admin session.
 let legacyEmailsMoved = false;
@@ -96,9 +102,11 @@ export const reviewsApi = {
       }
       legacyEmailsMoved = true;
     }
-    await Promise.all(reviews.filter(r => !out[r.id]).map(async r => {
-      const snap = await getDoc(doc(liteDb, "reviewContacts", r.id)).catch(() => null);
-      if (snap?.exists()) out[r.id] = String(snap.data().email || "");
+    // One query per 30 ids (Firestore's "in" limit) instead of one read per review.
+    const ids = reviews.map(r => r.id).filter(id => id && !out[id]);
+    await Promise.all(chunk(ids, 30).map(async part => {
+      const snap = await getDocs(query(collection(liteDb, "reviewContacts"), where(documentId(), "in", part))).catch(() => null);
+      snap?.docs.forEach(d => { out[d.id] = String(d.data().email || ""); });
     }));
     return out;
   },
@@ -114,8 +122,12 @@ export const reviewsApi = {
     clearApprovedCache();
   },
 
+  /** Deletes the review and its admin-only reviewer email together, so no orphaned address is left. */
   remove: async (id: string) => {
-    await deleteDoc(doc(liteDb, "reviews", id));
+    const batch = writeBatch(liteDb);
+    batch.delete(doc(liteDb, "reviews", id));
+    batch.delete(doc(liteDb, "reviewContacts", id));
+    await batch.commit();
     clearApprovedCache();
   },
 

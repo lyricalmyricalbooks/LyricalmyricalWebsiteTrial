@@ -37,6 +37,8 @@ function Queue() {
   const [titles, setTitles] = useState<Record<string, string>>({});
   const [replying, setReplying] = useState<Review | null>(null);
   const [replyText, setReplyText] = useState("");
+  // The browse list is capped at the newest 200 (pending ones are always all loaded).
+  const [capped, setCapped] = useState(false);
 
   async function load() {
     setLoading(true); setError(false);
@@ -46,6 +48,7 @@ function Queue() {
         getDocs(query(collection(db, "reviews"), orderBy("createdAt", "desc"), limit(200))),
         getDocs(query(collection(db, "reviews"), where("status", "==", "pending"))),
       ]);
+      setCapped(snap.docs.length >= 200);
       const byId = new Map<string, Review>();
       for (const d of [...snap.docs, ...pendingSnap.docs]) byId.set(d.id, { id: d.id, ...(d.data() as any) });
       const list: Review[] = [...byId.values()].sort((a: any, b: any) => String(b.createdAt || "").localeCompare(String(a.createdAt || "")));
@@ -120,7 +123,11 @@ function Queue() {
       </div>
       <div className="rp-filter-bar">
         <Tabs<Filter> label="Review status" value={filter} onChange={(f) => { setFilter(f); setSelected(new Set()); }}
-          tabs={(["pending", "approved", "rejected", "all"] as const).map((f) => ({ id: f, label: f[0].toUpperCase() + f.slice(1), count: counts[f] }))} />
+          tabs={(["pending", "approved", "rejected", "all"] as const).map((f) => {
+            const label = f[0].toUpperCase() + f.slice(1);
+            // Only pending is complete once the newest-200 cap is hit; say so instead of a wrong total.
+            return capped && f !== "pending" ? { id: f, label: `${label} · ${counts[f]}+` } : { id: f, label, count: counts[f] };
+          })} />
       </div>
 
       <FilterBar>
