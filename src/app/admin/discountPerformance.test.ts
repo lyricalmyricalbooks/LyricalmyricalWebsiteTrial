@@ -31,3 +31,10 @@ describe("automatic offers", () => {
     expect(copy).not.toHaveProperty("id");
   });
 });
+
+describe("duplicate clears the expiry", () => {
+  it("never copies an old end date", () => {
+    expect(duplicateDiscount({ id: "x", code: "OLD", expiryDate: "2025-01-01" }, []).expiryDate).toBe("");
+    expect(duplicateDiscount({ id: "y", method: "automatic", title: "T", expiryDate: "2025-01-01" }, []).expiryDate).toBe("");
+  });
+});

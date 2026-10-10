@@ -3,8 +3,10 @@ import { today } from "./discountState";
  * `otherCodes`: codes of the shop's other discounts — two copies of one code make checkout ambiguous.
  * Automatic offers (method "automatic") have no code; blank entries in otherCodes are ignored.
  * `giftBook`: the catalog record picked as the free gift, when the dialog has it loaded.
+ * `savedExpiry`: the expiry already saved on the code being edited. A past date is refused only when
+ * this edit sets it, so an expired code can still be edited (e.g. paused or re-described).
  */
-export function validateDiscountDraft(form: any, now = today(), otherCodes: string[] = [], giftBook?: any): Record<string, string> {
+export function validateDiscountDraft(form: any, now = today(), otherCodes: string[] = [], giftBook?: any, savedExpiry = ""): Record<string, string> {
   const errors: Record<string, string> = {};
   const automatic = form.method === "automatic";
   const code = String(form.code || "").trim();
@@ -24,7 +26,7 @@ export function validateDiscountDraft(form: any, now = today(), otherCodes: stri
   if (form.type === "fixed" && !(Number(form.value) > 0)) errors.value = "Enter an amount greater than zero.";
   if (form.appliesTo === "categories" && !(form.selectedCategories || []).length) errors.applies = "Choose at least one category.";
   if (form.appliesTo === "products" && !(form.selectedProducts || []).length) errors.applies = "Choose at least one book.";
-  if (form.expiryDate && form.expiryDate < now) errors.expiryDate = "Choose today or a future date.";
+  if (form.expiryDate && form.expiryDate !== savedExpiry && form.expiryDate < now) errors.expiryDate = "Choose today or a future date.";
   if (form.startDate && form.expiryDate && form.expiryDate < form.startDate) errors.expiryDate = "The end date must be on or after the start date.";
   if (form.usageLimit !== "" && (!(Number(form.usageLimit) >= 1) || !Number.isInteger(Number(form.usageLimit)))) errors.usageLimit = "Use a whole-number limit of at least 1.";
   if (form.minOrderAmount !== "" && Number(form.minOrderAmount) < 0) errors.minOrderAmount = "Minimum order cannot be negative.";

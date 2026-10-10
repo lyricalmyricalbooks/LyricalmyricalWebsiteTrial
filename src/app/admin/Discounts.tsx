@@ -79,7 +79,7 @@ function DiscountDialog({ initial, otherCodes = [], books, shopCategories, onClo
   }));
 
   const validate = () => {
-    const e = validateDiscountDraft(form, undefined, otherCodes, giftBook);
+    const e = validateDiscountDraft(form, undefined, otherCodes, giftBook, isEdit ? String(initial?.expiryDate || "") : "");
     setErrors(e);
     return Object.keys(e).length === 0;
   };
@@ -265,7 +265,7 @@ function DiscountDialog({ initial, otherCodes = [], books, shopCategories, onClo
 
         <div style={{ display: "grid", gap: 12, gridTemplateColumns: "repeat(auto-fit, minmax(190px, 1fr))" }}>
           <TextField label="Start date (optional)" type="date" value={form.startDate || ""} onChange={e => set("startDate", e.target.value)} hint={automatic ? "The offer stays off until this day — schedule a sale ahead of time." : "Code stays off until this day — schedule a sale ahead of time."} />
-          <TextField label="Expiry date (optional)" type="date" min={today()} value={form.expiryDate || ""} onChange={e => set("expiryDate", e.target.value)} hint={automatic ? "Last day the offer applies." : "Last day the code works."} error={errors.expiryDate} />
+          <TextField label="Expiry date (optional)" type="date" min={isEdit && initial?.expiryDate ? undefined : today()} value={form.expiryDate || ""} onChange={e => set("expiryDate", e.target.value)} hint={automatic ? "Last day the offer applies." : "Last day the code works."} error={errors.expiryDate} />
           <TextField label="Minimum order (CA$)" type="number" min={0} value={form.minOrderAmount} onChange={e => set("minOrderAmount", e.target.value)} placeholder="No minimum" error={errors.minOrderAmount} />
           <TextField label="Minimum quantity" type="number" min={0} step={1} value={form.minQuantity} onChange={e => set("minQuantity", e.target.value)} placeholder="No minimum" error={errors.minQuantity} />
           {form.type !== "freeship" && form.type !== "gift" && <TextField label="Maximum discount (CA$)" type="number" min={0} value={form.maxDiscountAmount ?? ""} onChange={e => set("maxDiscountAmount", e.target.value)} placeholder="No cap" hint="Most this code can take off one order, e.g. 20% off up to $15." error={errors.maxDiscountAmount} />}
