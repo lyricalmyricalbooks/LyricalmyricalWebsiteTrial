@@ -120,7 +120,21 @@ service cloud.firestore {
         // The guest submits only a method/option ID. Functions build the
         // priced fulfillment snapshot from current server configuration.
         && (!('orderNote' in request.resource.data) || (request.resource.data.orderNote is string && request.resource.data.orderNote.size() <= 500)));
-      allow update, delete: if isAdmin();
+      allow update: if isAdmin();
+      // Paid, refunded or shipped orders (or ones with money waiting on them) are kept
+      // for the shop's records; only unpaid/cancelled/test orders may be deleted
+      // (mirrors deleteRefusal in src/app/admin/orderListHelpers.ts).
+      allow delete: if isAdmin() && (resource.data.get('isTest', false) == true || (
+        !(resource.data.get('paymentStatus', '') in ['paid', 'refunded', 'refund_pending', 'partially_refunded'])
+        && resource.data.get('paidAt', null) == null
+        && resource.data.get('partiallyRefunded', false) != true
+        && !(resource.data.get('refundedAmountMinor', 0) > 0)
+        && !(resource.data.get('fulfillmentStatus', '') in ['shipped', 'out_for_delivery', 'delivered', 'collected'])
+        && resource.data.get('shippedAt', null) == null
+        && resource.data.get('reconciliationPending', null) == null
+        && resource.data.get('paymentMismatch', null) == null
+        && resource.data.get('giftCardConflict', null) == null
+        && resource.data.get('duplicatePayments', []).size() == 0));
     }
     // Server-only counters for the public-endpoint rate limits (functions/rateLimit.js).
     match /rate-limits/{id} {

@@ -3,6 +3,7 @@ import { BOOK_FIELDS_DOC, cleanBookFields, type BookFieldDef } from "../features
 import { alternatesFor, type AltBase, type AlternateTemplate } from "../features/site/templateAlternates";
 import { newOrderAccessKey, rememberOrderAccess, savedOrderAccess, orderAccessHeaders } from "../lib/orderAccessClient";
 import { addressKey, addressIssues, packingKey, dispatchProblem, disputeOpen, queueOf, fulfillmentMethod, trackingFields } from "./fulfillment";
+import { deleteRefusal } from "./orderListHelpers";
 import { restampPreorderItems } from "../features/site/preorder";
 import { themeWrite } from "./themeWrite";
 import { draftFieldUpdate, readDraftField } from "./themeStore";
@@ -962,15 +963,19 @@ export const adminApi = {
     return result;
   },
 
-  // Owner-initiated removal of orders (any state). Firestore rules allow admin
-  // deletes. This only removes records: it does not refund, restock or touch Stripe.
+  // Owner-initiated removal of unpaid, cancelled and test orders only (deleteRefusal,
+  // mirrored by the orders delete rule). This only removes records: it does not refund, restock or touch Stripe.
   deleteOrders: async (orderIds: string[]) => {
     let deleted = 0;
     const failed: string[] = [];
+    // Paid, refunded and shipped orders are never deleted (deleteRefusal; also firestore.rules).
+    const refused: Array<{ id: string; reason: string }> = [];
     for (const id of orderIds) {
       try {
         const snap = await getDoc(doc(db, "orders", id));
         const label = snap.exists() ? (snap.data().orderId || id) : id;
+        const reason = snap.exists() ? deleteRefusal(snap.data()) : "";
+        if (reason) { refused.push({ id, reason }); continue; }
         await deleteDoc(doc(db, "orders", id));
         try { await deleteDoc(doc(db, "order-operations", id)); } catch { /* none to remove */ }
         deleted += 1;
@@ -979,7 +984,7 @@ export const adminApi = {
         failed.push(id);
       }
     }
-    return { deleted, failed };
+    return { deleted, failed, refused };
   },
 
   registerStripePaymentDomain: async (origin: string) => {
