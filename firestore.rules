@@ -67,6 +67,11 @@ service cloud.firestore {
     match /adminSecrets/{docId} {
       allow read, write: if isAdmin();
     }
+    // Nightly backup outcome (functions nightlyFirestoreBackup); Settings › General › Backups & export.
+    match /systemStatus/{docId} {
+      allow read: if isAdmin();
+      allow write: if false;
+    }
     match /emailLog/{entryId} {
       allow read: if isAdmin();
       allow write: if false;

@@ -1131,6 +1131,8 @@ export function Checkout() {
     if (response.status !== 400 && response.status !== 409) return null;
     // Per-shopper hold cap (functions/stockHolds.js HOLD_LIMITS): the shop's own words.
     if (data?.code === "hold_limit") return new CopyError(checkoutDesign, "coHoldLimit");
+    // Settings › General › Store status › Maintenance: the server refuses every new checkout.
+    if (data?.code === "store_closed") return new CopyError(checkoutDesign, "coStoreClosed");
     return message ?new CopyError(checkoutDesign, "coServerRefused", { reason: message }) : null;
   };
 

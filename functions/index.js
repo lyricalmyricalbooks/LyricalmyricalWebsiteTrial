@@ -45,6 +45,7 @@ const { hitLimit, LIMITS, clientIpOf } = require("./rateLimit");
 const { reserveStock, releaseStock, releaseStockForOrder, StockHoldError, holdOwner } = require("./stockHolds");
 const { preorderActive, preorderLine, preorderEmailLines } = require("./preorder");
 const { claimEmailSend } = require("./emailThrottle");
+const { shopOrigin, checkoutClosed, dailyDigestEnabled, backupStatusRecord } = require("./shopSettings");
 const { MAX_ATTEMPTS, LEASE_MS, LOG_RETENTION_DAYS, GAVE_UP_RETENTION_DAYS, cleanRecipients, cleanSubject, cleanFromName, nextRetryAt, isPermanentEmailError, canSendNow, publicOutboxEntry, staleOrderEmailReason, daysAgoIso, withRequiredPlaceholders, blankUnknownPlaceholders } = require("./emailOutbox");
 
 admin.initializeApp();
@@ -671,6 +672,13 @@ function getStateCode(stateName) {
   return US_STATES[clean] || CA_PROVINCES[clean] || stateName.toUpperCase();
 }
 
+// Shippo "address_from": Settings › General › Location (street, city, province, postal code,
+// country, phone), each blank field falling back to the original Toronto address.
+function originAddress(settings) {
+  const origin = shopOrigin(settings);
+  return { ...origin, state: getStateCode(origin.state), country: getCountryCode(origin.country) || "CA" };
+}
+
 // fetch() with a hard timeout so a slow/hung third party can never stall a
 // request that sits on the checkout critical path. Resolves/rejects like fetch;
 // aborts (and throws) after `ms` milliseconds.
@@ -906,22 +914,12 @@ async function resolveShipping(items, order, profiles, freeShipping, settings, d
       const liveQuote = shippoToken ? await (async () => {
       const settingsDoc = await db.collection("settings").doc("website").get();
       const settings = settingsDoc.data() || {};
-      const origin = settings.location || {};
       const totalWeightLb = physicalItems.reduce((sum, item) => {
         const grams = Number(item.weightGrams);
         return sum + ((Number.isFinite(grams) && grams > 0 ? grams / 453.592 : 1.5) * (item.quantity || 1));
       }, 0);
       const shipment = await callShippo("shipments/", "POST", {
-        address_from: {
-          name: settings.info?.name || "Lyricalmyrical Books",
-          street1: origin.street || "456 Montrose Ave",
-          city: origin.city || "Toronto",
-          state: getStateCode(origin.state || "ON"),
-          zip: origin.zip || "M6G3H1",
-          country: getCountryCode(origin.country || "CA"),
-          phone: "6474096863",
-          email: "lyricalmyricalbooks@gmail.com",
-        },
+        address_from: originAddress(settings),
         address_to: {
           name: order.customer?.name || "Customer",
           street1: address.street,
@@ -1125,6 +1123,8 @@ async function priceOrder(order, { orderId = "", settings: knownSettings = null 
   if (!items.length) throw new PricingError("Order has no items.");
 
   const settings = knownSettings || (await db.collection("settings").doc("website").get()).data() || {};
+  // Settings › General › Store status › Maintenance: every checkout path is priced here, so this stops them all.
+  if (checkoutClosed(settings)) throw new PricingError("The shop is paused for maintenance, so checkout is closed for now. Please try again soon.", "store_closed");
   const testMode = settings.payments?.testMode === true;
   const email = order.customer?.email;
   const discountable = discountableItems(items);
@@ -1710,7 +1710,7 @@ exports.createStripeCheckoutSession = onBrowserRequest(
         }
         return res.status(200).json({ orderId, trackingKey, shipping: trusted.shipping, tax: trusted.tax, total: trusted.total, fulfillment: trusted.fulfillment });
       } catch (err) {
-        return res.status(400).json({ error: err.message, ...(err.code === "hold_limit" ? { code: err.code } : {}) });
+        return res.status(400).json({ error: err.message, ...(["hold_limit", "store_closed"].includes(err.code) ? { code: err.code } : {}) });
       }
     }
 
@@ -1750,7 +1750,7 @@ exports.createStripeCheckoutSession = onBrowserRequest(
         if (!paidNow) return res.status(409).json({ error: "Your gift card balance changed. Review your order and try again.", code: "gift_card_rejected" });
         return res.status(200).json({ paid: true });
       } catch (err) {
-        return res.status(400).json({ error: err.message, ...(err.code && /^(gift_card|discount_|hold_limit)/.test(err.code) ? { code: err.code.startsWith("gift_card") ? "gift_card_rejected" : err.code } : {}) });
+        return res.status(400).json({ error: err.message, ...(err.code && /^(gift_card|discount_|hold_limit|store_closed)/.test(err.code) ? { code: err.code.startsWith("gift_card") ? "gift_card_rejected" : err.code } : {}) });
       }
     }
 
@@ -4325,6 +4325,9 @@ exports.onOrderUpdated = onDocumentUpdated(
 exports.dailyOrderDigest = onSchedule(
   { schedule: "every day 08:00", timeZone: "America/Toronto", secrets: [RESEND_API_KEY] },
   async () => {
+    // Settings › Notifications › Shop alerts › Daily "orders needing you" email.
+    const notificationDoc = await db.collection("settings").doc("notifications").get().catch(() => null);
+    if (!dailyDigestEnabled(notificationDoc?.data?.() || {})) return;
     const [paidSnap, opsSnap] = await Promise.all([
       db.collection("orders").where("paymentStatus", "==", "paid").get(),
       db.collection("order-operations").get(),
@@ -4587,18 +4590,8 @@ exports.getShippoRates = onBrowserRequest(
 
       const settingsDoc = await db.collection("settings").doc("website").get();
       const settings = settingsDoc.data() || {};
-      const origin = settings.location || {};
 
-      const addressFrom = {
-        name: settings.info?.name || "Lyricalmyrical Books",
-        street1: origin.street || "456 Montrose Ave",
-        city: origin.city || "Toronto",
-        state: getStateCode(origin.state || "ON"),
-        zip: origin.zip || "M6G3H1",
-        country: getCountryCode(origin.country || "CA"),
-        phone: "6474096863",
-        email: "lyricalmyricalbooks@gmail.com"
-      };
+      const addressFrom = originAddress(settings);
 
       const addressTo = {
         name: address.name || "Customer",
@@ -4923,7 +4916,6 @@ exports.createShippingLabel = onBrowserRequest(
       // 1. Resolve Settings (API keys and Origin address)
       const settingsDoc = await db.collection("settings").doc("website").get();
       const settings = settingsDoc.data() || {};
-      const origin = settings.location || {};
 
       const shippoToken = await getShippoToken();
 
@@ -4968,16 +4960,7 @@ exports.createShippingLabel = onBrowserRequest(
         return;
       }
 
-      const addressFrom = {
-        name: settings.info?.name || "Lyricalmyrical Books",
-        street1: origin.street || "456 Montrose Ave",
-        city: origin.city || "Toronto",
-        state: getStateCode(origin.state || "ON"),
-        zip: origin.zip || "M6G3H1",
-        country: getCountryCode(origin.country || "CA"),
-        phone: "6474096863",
-        email: "lyricalmyricalbooks@gmail.com"
-      };
+      const addressFrom = originAddress(settings);
 
       // 2. Resolve Destination Address
       const dest = order.customer.address;
@@ -6146,11 +6129,20 @@ exports.nightlyFirestoreBackup = onSchedule(
     const projectId = process.env.GCLOUD_PROJECT || admin.app().options.projectId;
     const client = new admin.firestore.v1.FirestoreAdminClient();
     const day = new Date().toISOString().slice(0, 10);
-    const [operation] = await client.exportDocuments({
-      name: client.databasePath(projectId, "(default)"),
-      outputUriPrefix: `gs://${admin.app().options.storageBucket || `${projectId}.firebasestorage.app`}/backups/${day}`,
-      collectionIds: [],
-    });
-    console.log(`Firestore backup started: ${operation.name}`);
+    // Settings › General › Backups & export reads this admin-only record.
+    const statusRef = db.collection("systemStatus").doc("backup");
+    const previous = (await statusRef.get().catch(() => null))?.data?.() || null;
+    try {
+      const [operation] = await client.exportDocuments({
+        name: client.databasePath(projectId, "(default)"),
+        outputUriPrefix: `gs://${admin.app().options.storageBucket || `${projectId}.firebasestorage.app`}/backups/${day}`,
+        collectionIds: [],
+      });
+      console.log(`Firestore backup started: ${operation.name}`);
+      await statusRef.set(backupStatusRecord({ ok: true, day, at: new Date().toISOString(), operation: operation.name })).catch(err => console.error("Could not record backup status:", err.message));
+    } catch (err) {
+      await statusRef.set(backupStatusRecord({ ok: false, day, at: new Date().toISOString(), error: err.message, previous })).catch(e => console.error("Could not record backup status:", e.message));
+      throw err;
+    }
   }
 );
