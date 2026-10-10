@@ -560,6 +560,8 @@ export const adminApi = {
       try {
         await adminApi.writePrivateKeys(secrets);
         await setDoc(docRef, publicSettings, { mergeFields: Object.keys(publicSettings) });
+        if (secrets.stripe) await adminApi.markKeysMigrated("stripe").catch(() => {});
+        if (secrets.resend) await adminApi.markKeysMigrated("resend").catch(() => {});
         Object.assign(merged, publicSettings);
       } catch (err) {
         console.warn("Could not move secret keys out of public settings:", err);
@@ -568,7 +570,7 @@ export const adminApi = {
       }
     }
     const flags = await adminApi.getPrivateKeyFlags();
-    merged.payments = { ...merged.payments, stripe: { ...(merged.payments?.stripe || {}), secretKeyStored: flags.stripeLive, testSecretKeyStored: flags.stripeTest } };
+    merged.payments = { ...merged.payments, stripe: { ...(merged.payments?.stripe || {}), secretKeyStored: flags.stripeLive, testSecretKeyStored: flags.stripeTest, ...(flags.stripeMigrated ? { keysWerePublic: true } : {}) } };
     merged.communications = { ...merged.communications, resendApiKeyStored: flags.resend };
     // Older designs never chose a themeStyle: render them in Riso Noir (content untouched).
     if (merged.design) merged.design = withRisoNoirDefault(merged.design);
@@ -1315,7 +1317,16 @@ export const adminApi = {
   getPrivateKeyFlags: async () => {
     const read = async (id: string) => { try { const s = await getDoc(doc(db, "adminSecrets", id)); return s.exists() ? s.data() as any : {}; } catch { return {}; } };
     const [stripe, resend] = await Promise.all([read("stripe"), read("resend")]);
-    return { stripeLive: !!stripe.secretKey, stripeTest: !!stripe.testSecretKey, resend: !!resend.apiKey };
+    return {
+      stripeLive: !!stripe.secretKey, stripeTest: !!stripe.testSecretKey, resend: !!resend.apiKey,
+      // Set when a key was found in the public settings and moved here: only then is "rotate it" advice shown.
+      stripeMigrated: stripe.migratedFromPublic === true, resendMigrated: resend.migratedFromPublic === true,
+    };
+  },
+
+  /** Records that a secret was found in public settings and moved to adminSecrets (Settings › Payments / Notifications warn to rotate it). */
+  markKeysMigrated: async (kind: "stripe" | "resend") => {
+    await setDoc(doc(db, "adminSecrets", kind), { migratedFromPublic: true, migratedAt: serverTimestamp() }, { merge: true });
   },
 
   /** Save settings/notifications with the Resend key moved to adminSecrets. */

@@ -83,4 +83,13 @@ function risoLayout(inner, { logoUrl = "", accent = "", theme = "light", year = 
 </html>`;
 }
 
-module.exports = { RISO, RISO_THEMES, risoPalette, risoAccent, risoButton, risoize, risoLayout };
+// The order table goes where {{items_table}} sits in the (already line-broken) body; a body
+// without the placeholder gets the table under the button. Never both.
+function placeItemsTable(bodyHtml, tableHtml) {
+  const token = /\{\{\s*items_table\s*\}\}/g;
+  const table = String(tableHtml || "").replace(/\s*\n\s*/g, " ");
+  if (token.test(bodyHtml)) return { body: String(bodyHtml).replace(token, () => table), after: "" };
+  return { body: String(bodyHtml), after: table };
+}
+
+module.exports = { RISO, RISO_THEMES, risoPalette, risoAccent, risoButton, risoize, risoLayout, placeItemsTable };

@@ -19,7 +19,7 @@ const crypto = require("crypto");
 const { browserRequestHandler } = require("./appCheck");
 const { Resend } = require("resend");
 const { explainEmailError } = require("./emailErrors");
-const { risoButton, risoLayout } = require("./emailTheme");
+const { risoButton, risoLayout, placeItemsTable } = require("./emailTheme");
 const Stripe = require("stripe");
 const { calculateShipping, applyStockDelta } = require("./orderMath");
 const { quoteShipping, pickQuote, parseWeightGrams } = require("./shippingEngine");
@@ -3882,12 +3882,14 @@ function compileEmailTemplate(templateId, settings, vars, additionalSection) {
     const text = String(value ?? "");
     // The order table is HTML: it belongs in the body only.
     subject = subject.replace(regex, () => (key === "items_table" ? "" : text.replace(/[\r\n]+/g, " ")));
-    body = body.replace(regex, () => (key === "items_table" ? text : escapeHtml(text)));
+    // items_table is placed after line breaks are added (placeItemsTable), so it is left in the body here.
+    if (key !== "items_table") body = body.replace(regex, () => escapeHtml(text));
     if (key !== "items_table") signoff = signoff.replace(regex, () => escapeHtml(text));
   }
 
   subject = blankUnknownPlaceholders(subject).replace(/\s{2,}/g, " ").trim();
-  body = blankUnknownPlaceholders(body);
+  // Keep {{items_table}} for placeItemsTable; every other unknown placeholder reads as blank.
+  body = blankUnknownPlaceholders(body.replace(/\{\{\s*items_table\s*\}\}/g, "\u0000ITEMS\u0000")).replace(/\u0000ITEMS\u0000/g, "{{items_table}}");
   buttonText = blankUnknownPlaceholders(buttonText);
   signoff = blankUnknownPlaceholders(signoff);
 
@@ -3895,12 +3897,9 @@ function compileEmailTemplate(templateId, settings, vars, additionalSection) {
   const buttonUrl = /^https?:\/\//i.test(String(vars.button_url || "")) ? escapeHtml(String(vars.button_url)) : "";
   const ctaButtonHtml = buttonText && buttonUrl ? risoButton(buttonUrl, buttonText, brandColor, brand.emailTheme) : "";
 
-  let itemsTableHtml = "";
-  if (vars.items_table) {
-    itemsTableHtml = vars.items_table;
-  }
-
-  const finalBody = body.replace(/\n/g, "<br/>");
+  const placed = placeItemsTable(body.replace(/\n/g, "<br/>"), vars.items_table || "");
+  const finalBody = placed.body;
+  const itemsTableHtml = placed.after;
   const signoffHtml = signoff.replace(/\n/g, "<br/>");
 
   const html = risoLayout(`
