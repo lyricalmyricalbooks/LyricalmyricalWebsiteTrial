@@ -1,7 +1,9 @@
-import { openFirstActionQueue } from "./Orders";
-import { useState, useEffect, useMemo, useCallback } from "react";
+import { openFirstActionQueue, openOrdersQueue } from "./Orders";
+import { useState, useEffect, useMemo, useCallback, useRef } from "react";
 import { Area, AreaChart, CartesianGrid, ResponsiveContainer, Tooltip, XAxis, YAxis } from "recharts";
 import { adminApi } from "./api";
+import { getOrdersCached } from "./ordersCache";
+import { salesReportCsv } from "./salesReport";
 import { launchReadiness } from "./launchReadiness";
 import toast from "react-hot-toast";
 import {
@@ -9,8 +11,8 @@ import {
   SectionHead, StatusBadge, Tabs, type Column,
 } from "./riso/components";
 import {
-  bestSellers, customerMix, dormantStock, newsletterSummary, reprintWatch, reviewSummary, splitPeriods, stockValue, titleStock, toFulfil,
-  totals, REORDER_COVER_DAYS,
+  bestSellers, customerMix, dormantStock, newestSales, newsletterSummary, orderStatusWords, orderTodos, reprintWatch, reviewSummary,
+  splitPeriods, stockValue, titleStock, toFulfil, totals, REORDER_COVER_DAYS,
 } from "./overviewInsights";
 import { buildSeries, conversionRate, dailyWindow, funnelRates, funnelTotals, sumField, type SeriesPoint } from "./overviewTraffic";
 import { Figure, ReadinessPanel, RunRow, Trend, money, percent } from "./OverviewParts";
@@ -52,7 +54,10 @@ export function AnalyticsDashboard({ setActiveTab, onEditBook }: { setActiveTab?
   const [daily, setDaily] = useState<{ rows: any[] | null; error: boolean }>({ rows: null, error: false });
   const [allOrders, setAllOrders] = useState<{ orders: any[] | null; error: boolean }>({ orders: null, error: false });
   const [stock, setStock] = useState<{ books: any[] | null; error: boolean }>({ books: null, error: false });
-  const [audience, setAudience] = useState<{ data: { reviews: any[]; subscribers: any[] } | null; error: boolean }>({ data: null, error: false });
+  const [audience, setAudience] = useState<{ data: { reviews: any[]; subscribers: any[]; pendingReviews?: number | null } | null; error: boolean }>({ data: null, error: false });
+  // Unread messages and open privacy requests for the run sheet (null = couldn't be counted).
+  const [counts, setCounts] = useState<{ unreadMessages: number | null; openPrivacyRequests: number | null } | null>(null);
+  const chartTabIds = useRef({ revenue: "ov-chart-tab-revenue", traffic: "ov-chart-tab-traffic" });
   const [launch, setLaunch] = useState<{ parts: any | null; error: boolean }>({ parts: null, error: false });
 
   const loadDaily = useCallback(() => {
@@ -70,12 +75,13 @@ export function AnalyticsDashboard({ setActiveTab, onEditBook }: { setActiveTab?
     ]).then(([settings, shippingProfiles, emailLog]) => setLaunch({ parts: { settings, shippingProfiles, emailLog }, error: false }))
       .catch(() => setLaunch({ parts: null, error: true }));
     // The whole catalogue and every order, so 90-day and 1-year figures are never cut off.
-    adminApi.getAllOrders().then((o: any[]) => { setAllOrders({ orders: o, error: false }); setLoadedAt(new Date()); })
+    getOrdersCached({ force: reloadKey > 0 }).then((o: any[]) => { setAllOrders({ orders: o, error: false }); setLoadedAt(new Date()); })
       .catch(() => setAllOrders({ orders: null, error: true }));
     adminApi.getAllBooks().then((b: any[]) => setStock({ books: b, error: false }))
       .catch(() => setStock({ books: null, error: true }));
     adminApi.getAudienceSnapshot().then((d: any) => setAudience({ data: d, error: false }))
       .catch(() => setAudience({ data: null, error: true }));
+    adminApi.getAdminBadgeCounts().then(setCounts).catch(() => setCounts({ unreadMessages: null, openPrivacyRequests: null }));
   }, [reloadKey, loadDaily]);
 
   const refresh = () => {
@@ -130,7 +136,13 @@ export function AnalyticsDashboard({ setActiveTab, onEditBook }: { setActiveTab?
   const funnel = useMemo(() => funnelRates(funnelTotals(dw.current)), [dw.current]);
   const cartToCheckout = funnel[2].ofPrevious;
 
-  const reviews = audience.data ? reviewSummary(audience.data.reviews) : null;
+  const reviews = useMemo(() => {
+    if (!audience.data) return null;
+    const s = reviewSummary(audience.data.reviews);
+    // The server count sees every pending review, not just the newest 200.
+    return typeof audience.data.pendingReviews === "number" ? { ...s, pending: audience.data.pendingReviews } : s;
+  }, [audience.data]);
+  const todos = useMemo(() => (allOrders.orders ? orderTodos(allOrders.orders) : null), [allOrders.orders]);
   const subs = audience.data && periods ? newsletterSummary(audience.data.subscribers, periods.start) : null;
 
   // "Today" has no hourly data, so its chart shows the last 7 days for context.
@@ -142,13 +154,31 @@ export function AnalyticsDashboard({ setActiveTab, onEditBook }: { setActiveTab?
       (chartTab === "traffic" ? `${sumOf("visits").toLocaleString()} visitors, ${sumOf("orders").toLocaleString()} sales.` : `${money(sumOf("revenue"))} from ${sumOf("orders").toLocaleString()} paid orders.`)
     : "No chart data for this period.";
 
-  const recentOrders = useMemo(() => (allOrders.orders || []).filter(o => o.isTest !== true).slice(0, 6), [allOrders.orders]);
+  // Real sales only: abandoned/unpaid card attempts and test orders are not orders to look at here.
+  const recentOrders = useMemo(() => newestSales(allOrders.orders || []), [allOrders.orders]);
   const recentColumns: Column<any>[] = [
-    { key: "id", header: "Order", lead: true, render: o => <span className="rp-mono">{o.orderId}</span> },
-    { key: "cust", header: "Customer", render: o => o.customer?.name || "—" },
+    { key: "id", header: "Order", lead: true, render: o => <a className="rp-mono" href={`#orders/${encodeURIComponent(o.id)}`} aria-label={`Open order ${o.orderId || o.id}`}>{o.orderId || o.id}</a> },
+    { key: "cust", header: "Customer", render: o => o.customer?.name || o.customer?.email || "—" },
     { key: "total", header: "Total", numeric: true, render: o => money(o.total) },
-    { key: "pay", header: "Payment", render: o => <StatusBadge tone={o.paymentStatus === "paid" ? "success" : "danger"}>{o.paymentStatus === "paid" ? "Paid" : "Unpaid"}</StatusBadge> },
+    { key: "pay", header: "Status", render: o => { const w = orderStatusWords(o); return <StatusBadge tone={w === "Refunded" || w === "Needs attention" ? "warning" : w === "Paid · to send" ? "info" : "success"}>{w}</StatusBadge>; } },
   ];
+
+  const downloadReport = () => {
+    if (!periods) return;
+    const csv = salesReportCsv(periods.current, periods.startKey, periods.endKey);
+    const url = URL.createObjectURL(new Blob([csv], { type: "text/csv;charset=utf-8" }));
+    const a = document.createElement("a");
+    a.href = url; a.download = `sales-report-${periods.startKey}-to-${periods.endKey}.csv`; a.click();
+    URL.revokeObjectURL(url);
+  };
+  const onChartTabKey = (e: React.KeyboardEvent) => {
+    if (!["ArrowLeft", "ArrowRight", "Home", "End"].includes(e.key)) return;
+    e.preventDefault();
+    const next = chartTab === "revenue" ? "traffic" : "revenue";
+    const target = e.key === "Home" ? "revenue" : e.key === "End" ? "traffic" : next;
+    setChartTab(target);
+    requestAnimationFrame(() => document.getElementById(chartTabIds.current[target])?.focus());
+  };
 
   const ordersLoading = !insights && !allOrders.error;
   const stockLoading = stock.books === null && !stock.error;
@@ -157,7 +187,9 @@ export function AnalyticsDashboard({ setActiveTab, onEditBook }: { setActiveTab?
   const refreshLabel = loadedAt ? `Updated ${loadedAt.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}` : "Loading…";
 
   const story = insights ? leadStory({ cur: insights.cur, prev: insights.prev, top: insights.top, days, phrase: meta.phrase, money }) : null;
-  const openTodos = insights && reviews ? insights.fulfil.length + reviews.pending + insights.reprint.length + insights.shelf.soldOut : null;
+  const openTodos = insights && reviews && todos ? insights.fulfil.length + reviews.pending + insights.reprint.length + insights.shelf.soldOut
+    + todos.requests.length + todos.giftCardsMissing.length + todos.awaitingRelease.length
+    + (counts?.unreadMessages || 0) + (counts?.openPrivacyRequests || 0) : null;
   const today = new Date().toLocaleDateString(undefined, { weekday: "long", day: "numeric", month: "long", year: "numeric" });
   const onFlare = "var(--rp-on-primary)";
 
@@ -170,9 +202,10 @@ export function AnalyticsDashboard({ setActiveTab, onEditBook }: { setActiveTab?
           <span aria-live="polite">{refreshLabel}</span>
         </div>
         <div className="rp-ov-mast-row">
-          <h1 className="rp-ov-title">The shop today</h1>
+          <h2 className="rp-ov-title">The shop today</h2>
           <div className="rp-ov-mast-actions">
             <SecondaryButton size="sm" onClick={refresh} disabled={ordersLoading}>Refresh</SecondaryButton>
+            <SecondaryButton size="sm" onClick={downloadReport} disabled={!periods}>Download sales report (CSV)</SecondaryButton>
             <Tabs<Period> label="Period" value={period} onChange={setPeriod} tabs={PERIODS.map(p => ({ id: p.id, label: p.label }))} />
           </div>
         </div>
@@ -198,13 +231,15 @@ export function AnalyticsDashboard({ setActiveTab, onEditBook }: { setActiveTab?
             </div>
             <div className="rp-ov-switch" role="tablist" aria-label="Chart">
               {(["revenue", "traffic"] as const).map(id => (
-                <button key={id} type="button" role="tab" aria-selected={chartTab === id} onClick={() => setChartTab(id)}>
+                <button key={id} id={chartTabIds.current[id]} type="button" role="tab" aria-selected={chartTab === id}
+                  aria-controls="ov-chart-panel" tabIndex={chartTab === id ? 0 : -1} onKeyDown={onChartTabKey} onClick={() => setChartTab(id)}>
                   {id === "revenue" ? "Revenue" : "Traffic"}
                 </button>
               ))}
             </div>
           </div>
 
+          <div id="ov-chart-panel" role="tabpanel" aria-labelledby={chartTabIds.current[chartTab]}>
           {allOrders.error ? <ErrorState title="Chart unavailable" description="Orders could not be loaded, so the trend can't be drawn." onRetry={refresh} />
             : chartTab === "traffic" && daily.error ? <ErrorState title="Traffic unavailable" description="Visits could not be loaded." onRetry={loadDaily} />
             : !periods || (chartTab === "traffic" && !trafficReady) ? <LoadingState label="Loading chart…" />
@@ -257,6 +292,7 @@ export function AnalyticsDashboard({ setActiveTab, onEditBook }: { setActiveTab?
                 </details>
               </>
             )}
+          </div>
         </article>
 
         <aside className="rp-ov-run" aria-labelledby="ov-run-title">
@@ -274,6 +310,16 @@ export function AnalyticsDashboard({ setActiveTab, onEditBook }: { setActiveTab?
               detail={`On course to sell out within ${REORDER_COVER_DAYS} days`} onOpen={() => setActiveTab?.("inventory")} openLabel="Open inventory" />
             <RunRow label="print books or editions sold out" count={insights ? insights.shelf.soldOut : null} loading={ordersLoading || stockLoading}
               detail="Customers can't buy these right now" onOpen={() => setActiveTab?.("inventory")} openLabel="Open inventory" />
+            <RunRow label="cancel or return requests" count={todos ? todos.requests.length : null} loading={ordersLoading}
+              detail="Customers asked from their order page" onOpen={() => { openOrdersQueue("Needs attention"); setActiveTab?.("orders"); }} openLabel="Answer requests" />
+            <RunRow label="gift cards not issued" count={todos ? todos.giftCardsMissing.length : null} loading={ordersLoading}
+              detail="Paid, but the buyer has no code yet" onOpen={() => setActiveTab?.("giftCards")} openLabel="Open gift cards" />
+            <RunRow label="pre-orders awaiting release" count={todos ? todos.awaitingRelease.length : null} loading={ordersLoading}
+              detail="Press Ready to ship now on each order when the books arrive" onOpen={() => { openOrdersQueue("Awaiting release"); setActiveTab?.("orders"); }} openLabel="Open pre-orders" />
+            <RunRow label="unread messages" count={counts ? counts.unreadMessages : null} loading={!counts}
+              detail="From the contact form on your website" onOpen={() => setActiveTab?.("messages")} openLabel="Read messages" />
+            <RunRow label="privacy requests" count={counts ? counts.openPrivacyRequests : null} loading={!counts}
+              detail="Customers asked for a copy or deletion of their data" onOpen={() => setActiveTab?.("general")} openLabel="Open privacy requests" />
           </ul>
           {(allOrders.error || audience.error || stock.error) && (
             <p className="rp-ov-run-sub">

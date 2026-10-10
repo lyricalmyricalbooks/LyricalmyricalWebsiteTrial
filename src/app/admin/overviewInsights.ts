@@ -207,6 +207,35 @@ export function toFulfil(orders: Order[], now = Date.now()) {
     .sort((a, b) => ts(a.createdAt) - ts(b.createdAt));
 }
 
+/** Run-sheet counts read from orders: open cancel/return requests, gift cards not issued, pre-orders awaiting release. */
+export function orderTodos(orders: Order[], now = Date.now()) {
+  const real = orders.filter(o => o && o.isTest !== true);
+  const paidAt = (o: Order) => Date.parse(o.paidAt || o.updatedAt || o.createdAt || "") || now;
+  return {
+    requests: real.filter(o => o.customerRequest?.status === "open"),
+    giftCardsMissing: real.filter(o => o.paymentStatus === "paid" && !o.giftCardsIssuedAt
+      && (o.items || []).some((i: any) => i?.giftCard === true) && now - paidAt(o) >= 10 * 60 * 1000),
+    awaitingRelease: real.filter(o => isRealPaidOrder(o) && queueOf(o) === "Awaiting release"),
+  };
+}
+
+/** Newest real, paid (or refunded) orders — abandoned/unpaid card attempts are not sales. */
+export const newestSales = (orders: Order[], limit = 6) =>
+  orders.filter(o => o?.isTest !== true && (o.paymentStatus === "paid" || o.paymentStatus === "refunded"))
+    .sort((a, b) => ts(b.createdAt) - ts(a.createdAt)).slice(0, limit);
+
+/** Plain words for an order's state on the Overview. */
+export function orderStatusWords(o: Order): string {
+  if (o.paymentStatus === "refunded") return "Refunded";
+  if (o.partiallyRefunded) return "Partly refunded";
+  const q = queueOf(o);
+  if (q === "Completed") return "Completed";
+  if (q === "In transit") return "Shipped";
+  if (q === "Awaiting release") return "Pre-order";
+  if (q === "Needs attention") return "Needs attention";
+  return "Paid · to send";
+}
+
 export function reviewSummary(reviews: Array<Record<string, any>>) {
   const approved = reviews.filter(r => r.status === "approved");
   const rated = approved.filter(r => Number(r.rating) > 0);
