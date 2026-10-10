@@ -46,11 +46,24 @@ describe("planImport", () => {
   });
 
   it("matches by ISBN (ignoring hyphens), then SKU, and writes only changed fields", () => {
-    const plan = planImport("ISBN,SKU,Price,Stock,Title\n9780306406157,,25,7,\n,NF-1,18.5,4,\n", books);
+    const plan = planImport("ISBN,SKU,Price,Stock,Title\n9780306406157,,25,7,\n,NF-1,18.5,4,\n", books, [], { stockMode: "set" });
     expect(plan.rows[0]).toMatchObject({ action: "update", bookId: "b1", patch: { retailPrice: 25 } });
     expect(plan.rows[0].patch).not.toHaveProperty("stockLevel");
     expect(plan.rows[1]).toMatchObject({ action: "update", bookId: "b2", patch: { stockLevel: 4 } });
     expect(plan.rows[1].changes).toEqual([{ field: "stockLevel", label: "Stock", from: "0", to: "4" }]);
+  });
+
+  it("leaves live stock alone by default and says what the file wanted", () => {
+    const plan = planImport("SKU,Stock\nNF-1,4\n", books);
+    expect(plan.rows[0].action).toBe("unchanged");
+    expect(plan.rows[0].warnings.join(" ")).toContain("live is 0, file says 4");
+  });
+
+  it("imports weight, sale dates, tags, shipping profile and extra images", () => {
+    const plan = planImport("ID,Weight,Sale starts,Tags,Shipping profile,Extra image URLs\nb1,450 g,2026-11-01,a; b,general-profile,https://img.test/b.jpg | https://img.test/c.jpg\n", books);
+    expect(plan.rows[0].patch).toMatchObject({ weight: "450 g", saleStartsAt: "2026-11-01", tags: ["a", "b"], shippingProfileId: "general-profile" });
+    expect(plan.rows[0].patch.photos.map((p: any) => p.url)).toEqual(["https://img.test/a.jpg", "https://img.test/b.jpg", "https://img.test/c.jpg"]);
+    expect(planImport("ID,Weight\nb1,heavy\n", books).rows[0].action).toBe("error");
   });
 
   it("creates new books as drafts with editor defaults and never publishes", () => {

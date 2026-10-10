@@ -2,7 +2,7 @@ import { useRef, useState } from "react";
 import { Download, Upload } from "lucide-react";
 import { adminApi } from "./api";
 import { importTemplateCsv, IMPORT_COLUMNS, planImport, type ImportPlan, type ImportRow } from "./catalogImport";
-import { Dialog, PrimaryButton, SecondaryButton, StatusBadge, type BadgeTone } from "./riso/components";
+import { Dialog, PrimaryButton, SecondaryButton, SelectField, StatusBadge, type BadgeTone } from "./riso/components";
 import { normalizeCategories } from "../features/site/navItems";
 
 const MAX_FILE_BYTES = 5 * 1024 * 1024;
@@ -38,17 +38,25 @@ export function BookImportDialog({ books, onClose, onDone }: { books: any[]; onC
   const [progress, setProgress] = useState(0);
   const [results, setResults] = useState<Result[] | null>(null);
 
+  const [stockMode, setStockMode] = useState<"leave" | "set">("leave");
+  const [source, setSource] = useState<{ text: string; shopCategories: string[]; profiles: string[] } | null>(null);
   const work = plan ? plan.rows.filter(r => r.action === "create" || r.action === "update") : [];
+
+  const replan = (src: typeof source, mode: "leave" | "set") => {
+    if (src) setPlan(planImport(src.text, books, src.shopCategories, { stockMode: mode, shippingProfiles: src.profiles }));
+  };
 
   async function choose(file: File | undefined) {
     if (!file) return;
     setReadError(""); setPlan(null); setResults(null); setFileName(file.name);
     if (file.size > MAX_FILE_BYTES) { setReadError("That file is larger than 5 MB. Split it into smaller files and import them one at a time."); return; }
     try {
-      const [text, settings] = await Promise.all([file.text(), adminApi.getPublicSettings().catch(() => null)]);
+      const [text, settings, profiles] = await Promise.all([file.text(), adminApi.getPublicSettings().catch(() => null), adminApi.getShippingProfiles().catch(() => [])]);
       const defined = (settings as any)?.design?.categories;
       const shopCategories = Array.isArray(defined) ? normalizeCategories(defined).map((c: any) => c?.name).filter(Boolean) : [];
-      setPlan(planImport(text, books, shopCategories));
+      const src = { text, shopCategories, profiles: (profiles as any[]).map(p => p.id) };
+      setSource(src);
+      replan(src, stockMode);
     } catch {
       setReadError("This file couldn't be read. Save it from your spreadsheet as CSV (comma separated) and try again.");
     }
@@ -100,7 +108,7 @@ export function BookImportDialog({ books, onClose, onDone }: { books: any[]; onC
           <ul className="rp-hint" style={{ margin: 0, paddingLeft: 18 }}>
             <li>Easiest: <strong>Export CSV</strong>, edit it in Excel, Numbers or Google Sheets, save as CSV and import it here.</li>
             <li>Books are matched by <strong>ID</strong>, then <strong>ISBN</strong>, then <strong>SKU</strong>. Rows that match nothing become <strong>new draft books</strong>.</li>
-            <li>A blank cell keeps what the book has now. To end a sale, type 0 in Sale price. A Stock number replaces the current count.</li>
+            <li>A blank cell keeps what the book has now. To end a sale, type 0 in Sale price. Stock numbers are only written when you choose “Set stock to the file's numbers”. Extra image URLs are separated with “|”.</li>
             <li>Import never publishes. Publish new books from the catalog afterwards; it checks each one first.</li>
           </ul>
           <p className="rp-hint" style={{ margin: 0 }}>Columns it reads: {IMPORT_COLUMNS.map(c => c.label).join(", ")}. Categories are separated with “;”.</p>
@@ -131,6 +139,12 @@ export function BookImportDialog({ books, onClose, onDone }: { books: any[]; onC
                 <StatusBadge tone="neutral">{plan.counts.unchanged} unchanged</StatusBadge>
                 {plan.counts.error > 0 && <StatusBadge tone="danger">{plan.counts.error} with problems (skipped)</StatusBadge>}
               </div>
+              <SelectField label="Stock numbers in the file" value={stockMode} disabled={busy}
+                hint="Sales since the file was exported would be undone by its stock numbers, so they are only used when you choose to."
+                onChange={e => { const mode = e.target.value as "leave" | "set"; setStockMode(mode); replan(source, mode); }}>
+                <option value="leave">Leave stock unchanged (show differences only)</option>
+                <option value="set">Set stock to the file's numbers</option>
+              </SelectField>
               {plan.ignoredColumns.length > 0 && <p className="rp-hint" style={{ margin: 0 }}>Ignored columns: {plan.ignoredColumns.join(", ")}.</p>}
               <ol aria-label="Import preview" style={{ margin: 0, padding: 0, listStyle: "none", maxHeight: 380, overflow: "auto", borderTop: "1px solid var(--rp-border)" }}>
                 {shown.map(row => (

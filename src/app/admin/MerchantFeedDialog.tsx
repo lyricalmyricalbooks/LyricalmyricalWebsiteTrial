@@ -3,6 +3,7 @@ import { Copy } from "lucide-react";
 import toast from "react-hot-toast";
 import { FEED_FILE, merchantFeedItems } from "../features/site/merchantFeed.mjs";
 import { Dialog, PrimaryButton, SecondaryButton, StatusBadge } from "./riso/components";
+import { sharedIsbns } from "./catalogList";
 
 const feedUrl = () => `${window.location.origin}${import.meta.env.BASE_URL.replace(/\/$/, "")}/${FEED_FILE}`;
 const siteUrl = () => `${window.location.origin}${import.meta.env.BASE_URL.replace(/\/$/, "")}`;
@@ -16,6 +17,7 @@ export function MerchantFeedDialog({ open, onClose, books }: { open: boolean; on
   const [live, setLive] = useState<"checking" | "yes" | "no">("checking");
   const feed = useMemo(() => (open ? merchantFeedItems(siteUrl(), books) : { items: [], skipped: [] }), [open, books]);
   const noIsbn = feed.items.filter(i => !i.gtin).length;
+  const shared = useMemo(() => (open ? sharedIsbns(books) : []), [open, books]);
 
   useEffect(() => {
     if (!open) return;
@@ -63,6 +65,14 @@ export function MerchantFeedDialog({ open, onClose, books }: { open: boolean; on
             Drafts, scheduled books and gift cards are never listed.
             {noIsbn > 0 && " Books with a valid ISBN-13 match Google's book data and usually show more often."}
           </p>
+          {shared.length > 0 && (
+            <div role="status" className="rp-stack" style={{ gap: 4 }}>
+              <StatusBadge tone="warning">{shared.length} ISBN{shared.length === 1 ? "" : "s"} used by more than one listing</StatusBadge>
+              <ul className="rp-hint" style={{ margin: 0, paddingLeft: 18 }} aria-label="Listings sharing an ISBN">
+                {shared.map(s => <li key={s.isbn}><span className="rp-mono">{s.isbn}</span>: {s.titles.join(", ")}. Google may merge or reject these; give each edition its own ISBN.</li>)}
+              </ul>
+            </div>
+          )}
           {feed.skipped.length > 0 && (
             <ul className="rp-hint" style={{ margin: 0, paddingLeft: 18, maxHeight: 180, overflow: "auto" }} aria-label="Books left out of the feed">
               {feed.skipped.map((s, i) => <li key={`${s.id}-${i}`}><strong>{s.title}</strong>: {s.reason}</li>)}
