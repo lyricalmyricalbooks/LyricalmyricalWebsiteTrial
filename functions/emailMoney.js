@@ -33,6 +33,38 @@ function refundAmountText(order) {
 
 // The shipped email when no tracking number was entered: drop the lines about the carrier's
 // tracking, and "with {{tracking_carrier}}", so the customer doesn't see blanks.
+// What the "Order refunded" email should say (pure). `redemptions` = the gift cards the order was
+// paid with (chargedRedemptions), CAD cents. Returns null when no email should go out: a lost
+// chargeback is the bank taking the money back, not a refund from the shop.
+function refundEmailFacts(order, redemptions = []) {
+  if (!order || (order.refund && order.refund.provider === "dispute")) return null;
+  const giftMinor = order.giftCardsRestoredAt
+    ? (redemptions || []).reduce((sum, r) => sum + (Number(r && r.minor) || 0), 0) : 0;
+  const providerRefund = order.refund && order.refund.provider && order.refund.provider !== "manual";
+  // A manual refund records the CAD order total; the customer paid what their emails showed.
+  const money = providerRefund || order.refundedAmountMinor != null ? refundAmountText(order) : chargedTotalFmt(order);
+  const moneyZero = !(Number(money.replace(/[^\d.]/g, "")) > 0);
+  const giftText = giftMinor > 0 ? `CA$${(giftMinor / 100).toFixed(2)}` : "";
+  const cards = (redemptions || []).map(r => r && r.last4 ? `••••${r.last4}` : "").filter(Boolean).join(", ");
+  return { amountText: moneyZero && giftText ? giftText : money, giftText, cards, giftOnly: moneyZero && !!giftText };
+}
+
+// Drops sentences that only apply to a card/bank refund (a gift-card-only refund is instant).
+function withoutBankRefundSentences(body) {
+  return String(body || "").split("\n").map(line => line.split(/(?<=[.!?])\s+/)
+    .filter(sentence => !/original payment method|business days|bank/i.test(sentence)).join(" ")).join("\n");
+}
+
+// Pickup / local-delivery updates have no carrier at all: drop every line that names one.
+function withoutCarrierLines(body) {
+  return String(body || "")
+    .split("\n")
+    .filter(line => !/\{\{\s*tracking_(?:carrier|number|url)\s*\}\}|carrier'?s website/i.test(line))
+    .join("\n")
+    .replace(/\n{3,}/g, "\n\n")
+    .trim();
+}
+
 function withoutTrackingLines(body) {
   return String(body || "")
     .split("\n")
@@ -43,4 +75,4 @@ function withoutTrackingLines(body) {
     .trim();
 }
 
-module.exports = { orderMoneyFmt, chargedTotalFmt, refundAmountText, withoutTrackingLines };
+module.exports = { orderMoneyFmt, chargedTotalFmt, refundAmountText, withoutTrackingLines, withoutCarrierLines, refundEmailFacts, withoutBankRefundSentences };

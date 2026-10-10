@@ -130,3 +130,10 @@ export function customersToCsv(rows: CustomerRow[], consent?: (c: CustomerRow) =
   ].map(csvCell).join(","));
   return [head.map(csvCell).join(","), ...lines].join("\n");
 }
+
+/** Distinct countries across customers, most customers first. */
+export function customerCountries(rows: CustomerRow[]): { country: string; count: number }[] {
+  const m = new Map<string, number>();
+  for (const c of rows) if (c.country) m.set(c.country, (m.get(c.country) || 0) + 1);
+  return Array.from(m, ([country, count]) => ({ country, count })).sort((a, b) => b.count - a.count || a.country.localeCompare(b.country));
+}

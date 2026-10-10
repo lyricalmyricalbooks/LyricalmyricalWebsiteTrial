@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { buildCustomers, consentOf, copiesOf, customerStats, customersToCsv, parseTags, segmentOf } from "./customerInsights";
+import { buildCustomers, consentOf, copiesOf, customerCountries, customerStats, customersToCsv, parseTags, segmentOf } from "./customerInsights";
 
 const NOW = new Date("2026-09-29").getTime();
 const o = (email: string, total: number, date: string, extra: any = {}) => ({
@@ -52,5 +52,13 @@ describe("customerInsights", () => {
     const rows = buildCustomers([o("a@x.com", 10, "2026-09-01"), o("a@x.com", 10, "2026-09-02"), o("b@x.com", 20, "2026-09-02", { customer: { email: "b@x.com", name: "=cmd" } })], NOW);
     expect(customerStats(rows)).toMatchObject({ total: 2, repeat: 1, repeatRate: 0.5, avgLtv: 20 });
     expect(customersToCsv(rows)).toContain(`"'=cmd"`);
+  });
+  it("spend is net of partial refunds and countries are listed", () => {
+    const rows = buildCustomers([
+      o("a@x.com", 100, "2026-09-01", { refundedAmountMinor: 2500, expectedAmountMinor: 10000, shippingAddress: { country: "Canada" } }),
+      o("b@x.com", 10, "2026-09-01", { shippingAddress: { country: "Canada" } }),
+    ], NOW);
+    expect(rows.find((r) => r.key === "a@x.com")!.totalSpent).toBe(75);
+    expect(customerCountries(rows)).toEqual([{ country: "Canada", count: 2 }]);
   });
 });

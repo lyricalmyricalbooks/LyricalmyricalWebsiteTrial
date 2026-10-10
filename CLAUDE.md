@@ -139,7 +139,8 @@ npm run logs
   Recipients/subjects are validated (no CR/LF; a bad address is permanent, never queued); `emailLog` rows older than
   90 days and given-up entries older than 30 are pruned. Admin: Settings › Notifications › **Waiting to send**
   (Retry now / Stop via `sendTestEmail` actions `emailQueue`/`retryEmail`/`cancelEmail`, summary only). Don't queue
-  sends that already retry themselves (webhook-missed alert, abandoned cart, back-in-stock, daily digest).
+  sends that already retry themselves (webhook-missed alert, abandoned cart, daily digest); back-in-stock is
+  queued (`backInStock`) because its trigger only runs on a restock.
   Each try is bounded (nodemailer 15–20 s timeouts, Resend raced at 20 s with an idempotency key `<queueId>:<from>`),
   the sweep runs the queue after the payment checks with a 30 s budget (`timeoutSeconds: 300`), and a delivered entry is
   marked `status: "sent"` before it is deleted, so a failed cleanup never resends. Entries carry `orderId`/`giftCardId`
@@ -150,6 +151,17 @@ npm run logs
   Templates: unknown `{{placeholders}}` send as blank, `{{items_table}}` only fills the body, the gift-card `{{code}}` line is re-added if removed
   (`REQUIRED_PLACEHOLDERS`, mirrored in `admin/emailTemplateChecks.ts`), buttons need an http(s) link. Send test uses
   the editor's unsaved words and branding.
+- **Shop alerts & Gmail check:** `loadNotificationSettings` returns `shopAlerts { newOrder, shipped }` (on unless
+  `settings/notifications.shopAlerts` turns them off; an older `new_order_admin.enabled` is honoured) — Settings ›
+  Notifications › **Emails to the shop**. Gmail sending › **Check connection** = `sendTestEmail` action `verifyGmail`
+  (nodemailer `verify()`, nothing sent). Email branding goes through `risoAccent` (#hex only) and `safeLogoUrl` (https,
+  escaped) in `emailTheme.js` and its admin mirror. Customer and shop emails are gated separately (pausing
+  "Order Paid"/"Order Shipped" never stops the shop copy). Pickup (`ready_for_pickup`) and local delivery
+  (`out_for_delivery`, `delivered`) send the Delivery template without carrier lines (`localMethodOf` reads
+  `fulfillment.method`, then `fulfillmentSelection.method`). Refund emails use `refundEmailFacts` (`emailMoney.js`):
+  none for a lost dispute, gift-card refunds named, manual refunds in the charged currency; a partial refund
+  (`refundedAmountMinor` rising while paid) sends `partialRefund_<minor>`. Sandbox gift-card purchases email only
+  the shop (`[TEST]`, one copy).
 - **Email delivery log:** every `sendEmail` attempt (sent or failed, with a plain-English reason from
   `functions/emailErrors.js`) is written to the admin-only `emailLog` collection and listed in
   Settings › Notifications › **Recent deliveries**. Customer and shop-copy sends are attempted
@@ -958,7 +970,8 @@ on the order). Both checks run in `fetchValidDiscount` / both checkout paths; to
 - **Abandoned carts:** `firestore.rules` limits browser writes to the cart fields and blocks `notified*`, and a
   recovered cart can't be reopened. `abandonedCartSweep` rebuilds items and prices from `books`, escapes the text,
   skips carts older than 7 days and throttles to one reminder per address every 3 days (`abandoned-cart-throttle`,
-  server-only). Deploy rules and functions together.
+  server-only), plus a shop-wide cap of 25 reminders per Toronto day (`abandoned-cart-throttle/_daily`,
+  `nextDailyCount`); the email uses only a plain first name from the cart (`reminderFirstName`, else "there"). Deploy rules and functions together.
 - Order tracking accepts `#`/spaces in order numbers (`features/site/orderNumber.ts`).
 
 ## Bug sweep #2 (6 October 2026)
@@ -1462,7 +1475,7 @@ for display in `features/site/promotions.ts` / `discountMath.ts` (`*.parity.test
   Manual orders: More order actions › Payment received — mark paid (`canMarkManualPaid` → server `markOrderPaid`).
   **Partial refunds:** `refundOrder` takes `amountMinor` + `restockLines` (`functions/partialRefund.js`); the order stays paid
   with `partiallyRefunded`/`refundedAmountMinor`, restocks only ticked lines/inspected copies; a later full refund refunds the
-  rest without double restock. Not yet: customer email for partials, rollback of a bank-failed partial refund.
+  rest without double restock. Partial refunds email the customer (from main's order-email fixes); not yet: rollback of a bank-failed partial refund.
   Partial returns allowed (`functions/returns.js`). Resend confirmation stamps `confirmationEmailRequestedAt`; `emailLog`
   rows carry `orderId` and Order detail lists them. Parcel presets in `settings/parcelPresets`.
 - **Books:** list rules in `admin/catalogList.ts`, editor rules in `admin/bookEditorState.ts` (`editorDirty` ignores
@@ -1485,6 +1498,6 @@ for display in `features/site/promotions.ts` / `discountMath.ts` (`*.parity.test
   (`maintenance.enabled`) closes checkout server-side in `priceOrder` (`store_closed` → Text & labels › Checkout ›
   `coStoreClosed`); General › Store status sets it and the construction wall. Shippo origin from General › Location
   (`functions/shopSettings.js`). `nightlyFirestoreBackup` → admin-only `systemStatus/backup`. Taxes in the menu
-  (`TaxesSettings.tsx`, shape unchanged). `shopAlerts.dailyOrderDigest` / `new_order_admin.enabled` in notifications.
+  (`TaxesSettings.tsx`, shape unchanged). Shop alerts (Notifications › Shop alerts) = `shopAlerts.newOrder` / `.shipped` / `.dailyOrderDigest` (older `new_order_admin.enabled` is the newOrder fallback).
   `{{items_table}}` placement via mirrored `placeItemsTable`. `adminSecrets/*.migratedFromPublic` gates "rotate key" warnings.
 - **Deploy** Firestore rules + indexes + Functions with this frontend. A second admin email was not added (owner must name it).

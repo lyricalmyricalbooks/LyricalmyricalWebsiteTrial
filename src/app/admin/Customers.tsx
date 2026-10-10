@@ -4,7 +4,7 @@ import toast from "react-hot-toast";
 import { adminApi } from "./api";
 import { getOrdersCached } from "./ordersCache";
 import {
-  buildCustomers, consentOf, copiesOf, customerStats, customersToCsv, parseTags, CONSENT_LABELS, SEGMENT_LABELS,
+  buildCustomers, consentOf, copiesOf, customerCountries, customerStats, customersToCsv, parseTags, CONSENT_LABELS, SEGMENT_LABELS,
   type Consent, type CustomerRow, type CustomerSegment,
 } from "./customerInsights";
 import {
@@ -39,6 +39,7 @@ export function Customers({ initialQuery }: { initialQuery?: string } = {}) {
   const [sort, setSort] = useState<"spent" | "orders" | "recent" | "name">("spent");
   const [consentFilter, setConsentFilter] = useState<"all" | Consent>("all");
   const [tagFilter, setTagFilter] = useState("");
+  const [country, setCountry] = useState("");
   const [page, setPage] = useState(1);
   const [open, setOpen] = useState<CustomerRow | null>(null);
   const [exportOpen, setExportOpen] = useState(false);
@@ -82,10 +83,13 @@ export function Customers({ initialQuery }: { initialQuery?: string } = {}) {
     return c;
   }, [all]);
 
+  const countries = useMemo(() => customerCountries(all), [all]);
+
   const rows = useMemo(() => {
     const s = q.trim().toLowerCase();
     return all
       .filter((c) => (seg === "all" || c.segment === seg)
+        && (!country || c.country === country)
         && (!s || `${c.email} ${c.name} ${c.city}`.toLowerCase().includes(s))
         && (consentFilter === "all" || consentFor(c) === consentFilter)
         && (!tagFilter || (noteFor(c)?.tags || []).includes(tagFilter)))
@@ -94,9 +98,9 @@ export function Customers({ initialQuery }: { initialQuery?: string } = {}) {
         : sort === "recent" ? b.lastOrderAt - a.lastOrderAt
         : sort === "name" ? (a.name || a.email).localeCompare(b.name || b.email)
         : b.totalSpent - a.totalSpent);
-  }, [all, seg, q, sort, consentFilter, tagFilter, consent, hashes, notes]);
+  }, [all, seg, country, q, sort, consentFilter, tagFilter, consent, hashes, notes]);
 
-  useEffect(() => setPage(1), [seg, q, sort, consentFilter, tagFilter]);
+  useEffect(() => setPage(1), [seg, country, q, sort, consentFilter, tagFilter]);
   const pageCount = Math.max(1, Math.ceil(rows.length / PAGE_SIZE));
   const pageRows = rows.slice((Math.min(page, pageCount) - 1) * PAGE_SIZE, Math.min(page, pageCount) * PAGE_SIZE);
 
@@ -187,6 +191,12 @@ export function Customers({ initialQuery }: { initialQuery?: string } = {}) {
           <option value="recent">Most recent</option>
           <option value="name">Name A–Z</option>
         </SelectField>
+        {countries.length > 1 && (
+          <SelectField label="Filter by country" hideLabel value={country} onChange={(e) => setCountry(e.target.value)}>
+            <option value="">All countries</option>
+            {countries.map((c) => <option key={c.country} value={c.country}>{c.country} ({c.count})</option>)}
+          </SelectField>
+        )}
         <SecondaryButton icon={<Download size={16} aria-hidden />} onClick={() => setExportOpen(true)}>Export CSV</SecondaryButton>
       </FilterBar>
       <SectionCard flush title="Customers" description={`${rows.length} customer${rows.length === 1 ? "" : "s"} · built from all ${orders.length} orders (paid, non-test; refunds taken off)`}>
