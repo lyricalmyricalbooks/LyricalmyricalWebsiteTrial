@@ -30,6 +30,9 @@ export function dollarsToMinor(value: unknown): number {
 export function matchesGiftCard(card: any, query: string): boolean {
   const q = query.trim().toLowerCase().replace(/^•+/, "");
   if (!q) return true;
+  // A whole code as typed or pasted: hyphens, spaces and case don't matter.
+  const bare = (v: any) => String(v || "").toUpperCase().replace(/[^A-Z0-9]/g, "");
+  if (bare(q).length >= 8 && bare(card?.code) === bare(q)) return true;
   return [card?.last4, card?.recipientEmail, card?.recipientName, card?.purchaserEmail, card?.orderId]
     .some((v) => String(v || "").toLowerCase().includes(q));
 }
@@ -65,6 +68,14 @@ const HISTORY_LABEL: Record<string, string> = {
   disabled: "Disabled", enabled: "Enabled again", emailed: "Code emailed",
 };
 export const historyLabel = (type: string) => HISTORY_LABEL[type] || type;
+
+/** "+CA$10.00" / "−CA$5.00" for a history line; "" when no money moved. Removals keep their minus sign. */
+export function historyAmount(entry: any): string {
+  const minor = Number(entry?.minor) || 0;
+  if (!minor) return "";
+  const out = entry?.type === "redeemed" || minor < 0;
+  return `${out ? "−" : "+"}${formatMinor(Math.abs(minor))}`;
+}
 
 const toTime = (v: any) => (typeof v?.toDate === "function" ? v.toDate().getTime() : Date.parse(String(v || ""))) || 0;
 export const createdTime = (card: any) => toTime(card?.createdAt);

@@ -11,7 +11,7 @@ import {
   SecondaryButton, SectionCard, StatusBadge, Tabs, TextArea, TextField, Toggle, useConfirm, type Column,
 } from "./riso/components";
 import {
-  createdTime, dollarsToMinor, formatMinor, giftCardStatus, historyLabel, historyTime, issuePayload, maskedCode, matchesGiftCard,
+  createdTime, dollarsToMinor, formatMinor, giftCardStatus, historyAmount, historyLabel, historyTime, issuePayload, maskedCode, matchesGiftCard,
   type GiftCardStatus,
 } from "./giftCardsAdmin";
 
@@ -58,7 +58,7 @@ function IssueDialog({ onClose, onIssued }: { onClose: () => void; onIssued: () 
   if (issued) {
     return (
       <Dialog open onClose={onClose} title="Gift card created" badge="🎁"
-        description="This is the only time the full code is shown here at a glance — copy it now if you need to pass it on yourself. You can always open the card again from the list."
+        description="Copy the code now if you're passing it on yourself. You can see it again any time: open the card from the Gift cards list."
         footer={<PrimaryButton onClick={onClose}>Done</PrimaryButton>}>
         <div className="rp-stack" style={{ gap: 12 }}>
           <p className="rp-mono" style={{ fontSize: "var(--rp-text-xl)", margin: 0, overflowWrap: "anywhere" }} aria-label={`Gift card code ${issued.code.split("").join(" ")}`}>{issued.code}</p>
@@ -232,7 +232,7 @@ function CardDrawer({ card, onClose, onChanged }: { card: any; onClose: () => vo
                   <li key={i} style={{ borderTop: "1px solid var(--rp-divider)", paddingTop: 8 }}>
                     <div style={{ display: "flex", justifyContent: "space-between", gap: 8, flexWrap: "wrap" }}>
                       <strong>{historyLabel(h.type)}</strong>
-                      {Number(h.minor) ? <span className="rp-mono">{Number(h.minor) > 0 && h.type !== "redeemed" ? "+" : h.type === "redeemed" ? "−" : ""}{formatMinor(Math.abs(Number(h.minor)))}</span> : null}
+                      {historyAmount(h) ? <span className="rp-mono">{historyAmount(h)}</span> : null}
                     </div>
                     <div className="rp-hint">
                       {when(historyTime(h))}
@@ -302,7 +302,6 @@ export function GiftCards({ openId, onOpened }: { openId?: string | null; onOpen
     { key: "source", header: "Source", render: ({ card }) => <Source card={card} /> },
     { key: "status", header: "Status", render: ({ status }) => <StatusBadge tone={status.tone}>{status.label}</StatusBadge> },
     { key: "created", header: "Created", render: ({ card }) => when(createdTime(card)) },
-    { key: "open", header: "Details", render: ({ card }) => <SecondaryButton size="sm" onClick={() => setSelectedId(card.id)} aria-label={`View gift card ending ${card.last4}`}>View</SecondaryButton> },
   ];
 
   if (loading) return <LoadingState label="Loading gift cards…" />;
@@ -334,11 +333,11 @@ export function GiftCards({ openId, onOpened }: { openId?: string | null; onOpen
             { id: "test", label: "Test", count: counts.test },
           ]} />
           <FilterBar>
-            <div className="rp-grow"><SearchField label="Search gift cards" placeholder="Search by last 4 characters or email…" value={search} onChange={(e) => setSearch(e.target.value)} /></div>
+            <div className="rp-grow"><SearchField label="Search gift cards" placeholder="Search by code, last 4 characters or email…" value={search} onChange={(e) => setSearch(e.target.value)} /></div>
             {issueButton}
           </FilterBar>
           <SectionCard flush title="Gift cards" description={`${rows.length} of ${cards.length}`}>
-            <DataTable caption="Gift cards" columns={columns} rows={rows} rowKey={(r) => r.card.id}
+            <DataTable caption="Gift cards" columns={columns} rows={rows} rowKey={(r) => r.card.id} onRowClick={(r) => setSelectedId(r.card.id)}
               empty={<EmptyState title="No gift cards match" description="Try a different status or search."
                 action={<SecondaryButton onClick={() => { setFilter("all"); setSearch(""); }}>Reset filters</SecondaryButton>} />} />
           </SectionCard>

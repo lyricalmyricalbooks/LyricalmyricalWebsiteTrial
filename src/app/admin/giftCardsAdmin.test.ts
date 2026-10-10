@@ -37,3 +37,19 @@ describe("gift card admin helpers", () => {
     expect(ok).toEqual({ ok: true, payload: { amountMinor: 2500, recipientEmail: "sam@x.com", expiresOn: "2027-01-01", note: "Raffle prize", sendEmail: true } });
   });
 });
+
+describe("history amounts and code search", () => {
+  it("shows a minus for removed money and for redemptions", async () => {
+    const { historyAmount } = await import("./giftCardsAdmin");
+    expect(historyAmount({ type: "adjusted", minor: -1000 })).toBe("−CA$10.00");
+    expect(historyAmount({ type: "adjusted", minor: 500 })).toBe("+CA$5.00");
+    expect(historyAmount({ type: "redeemed", minor: 250 })).toBe("−CA$2.50");
+    expect(historyAmount({ type: "disabled", minor: 0 })).toBe("");
+  });
+  it("finds a card by its whole code, ignoring hyphens, spaces and case", () => {
+    const card = { code: "ABCD-EFGH-JKMN-PQRS", last4: "PQRS" };
+    expect(matchesGiftCard(card, "abcd efgh jkmn pqrs")).toBe(true);
+    expect(matchesGiftCard(card, "ABCDEFGHJKMNPQRS")).toBe(true);
+    expect(matchesGiftCard(card, "ABCDEFGHJKMNPQRT")).toBe(false);
+  });
+});
