@@ -30,6 +30,9 @@ export function dollarsToMinor(value: unknown): number {
 export function matchesGiftCard(card: any, query: string): boolean {
   const q = query.trim().toLowerCase().replace(/^•+/, "");
   if (!q) return true;
+  // A whole code as typed or pasted: hyphens, spaces and case don't matter.
+  const bare = (v: any) => String(v || "").toUpperCase().replace(/[^A-Z0-9]/g, "");
+  if (bare(q).length >= 8 && bare(card?.code) === bare(q)) return true;
   return [card?.last4, card?.recipientEmail, card?.recipientName, card?.purchaserEmail, card?.orderId]
     .some((v) => String(v || "").toLowerCase().includes(q));
 }
@@ -62,10 +65,38 @@ export function issuePayload(form: { amount: string; recipientEmail: string; rec
 
 const HISTORY_LABEL: Record<string, string> = {
   issued: "Issued", redeemed: "Used at checkout", refunded: "Money put back (refund)", adjusted: "Balance adjusted",
-  disabled: "Disabled", enabled: "Enabled again", emailed: "Code emailed",
+  disabled: "Disabled", enabled: "Enabled again", emailed: "Code emailed", expiry: "Expiry changed",
 };
 export const historyLabel = (type: string) => HISTORY_LABEL[type] || type;
+
+/** "+CA$10.00" / "−CA$5.00" for a history line; "" when no money moved. Removals keep their minus sign. */
+export function historyAmount(entry: any): string {
+  const minor = Number(entry?.minor) || 0;
+  if (!minor) return "";
+  const out = entry?.type === "redeemed" || minor < 0;
+  return `${out ? "−" : "+"}${formatMinor(Math.abs(minor))}`;
+}
 
 const toTime = (v: any) => (typeof v?.toDate === "function" ? v.toDate().getTime() : Date.parse(String(v || ""))) || 0;
 export const createdTime = (card: any) => toTime(card?.createdAt);
 export const historyTime = (entry: any) => toTime(entry?.at);
+
+// Spreadsheet-safe cell: a leading = + - @ (not a plain number) can't start a formula (as orderCsv.ts).
+function cell(v: any) {
+  const text = String(v ?? "");
+  const safe = /^[=+\-@\t\r]/.test(text) && !/^-?\d+(\.\d+)?$/.test(text) ? `'${text}` : text;
+  return `"${safe.replace(/"/g, '""')}"`;
+}
+
+/** Admin › Gift cards › Export CSV. Codes are masked unless `fullCodes` (the owner confirms that first). */
+export function giftCardsCsv(cards: any[], { fullCodes = false, today = shopDate() }: { fullCodes?: boolean; today?: string } = {}): string {
+  const header = ["Code", "Balance (CAD)", "Initial value (CAD)", "Status", "Recipient name", "Recipient email", "Source", "Order", "Created", "Expires"];
+  const money = (m: any) => ((Number(m) || 0) / 100).toFixed(2);
+  const created = (c: any) => { const t = createdTime(c); return t ? new Date(t).toISOString().slice(0, 10) : ""; };
+  const rows = cards.map((c) => [
+    fullCodes ? c.code || maskedCode(c) : maskedCode(c), money(c.balanceMinor), money(c.initialMinor), giftCardStatus(c, today).label,
+    c.recipientName || "", c.recipientEmail || "", c.source === "order" ? "Bought in the shop" : "Issued by you", c.orderId || "",
+    created(c), c.expiresOn || "",
+  ]);
+  return [header, ...rows].map((r) => r.map(cell).join(",")).join("\r\n");
+}

@@ -49,3 +49,10 @@ describe("automatic offers and free gifts", () => {
     expect(validateDiscountDraft({ ...auto, type: "gift", giftBookId: "b", giftVariantId: "pb" }, "2026-10-08", [], { variants: [{ id: "pb" }] })).toEqual({});
   });
 });
+
+describe("editing expired codes", () => {
+  it("allows keeping a past expiry that was already saved, but not setting a new past one", () => {
+    expect(validateDiscountDraft({ ...valid, expiryDate: "2026-01-01" }, "2026-10-09", [], undefined, "2026-01-01").expiryDate).toBeUndefined();
+    expect(validateDiscountDraft({ ...valid, expiryDate: "2026-02-01" }, "2026-10-09", [], undefined, "2026-01-01").expiryDate).toBeTruthy();
+  });
+});

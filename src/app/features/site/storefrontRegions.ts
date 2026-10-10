@@ -80,6 +80,7 @@ export const REGION_GROUPS: RegionGroup[] = [
     { id: "reviewsHeading", label: "Reviews heading" }, { id: "reviewsList", label: "Published reviews" },
     { id: "reviewsEmpty", label: "Reviews loading & empty state" }, { id: "reviewsTitle", label: "Review title" },
     { id: "reviewsBody", label: "Review body" }, { id: "reviewsAuthor", label: "Review author" }, { id: "reviewsDate", label: "Review date" },
+    { id: "reviewsVerified", label: "Verified purchase badge" }, { id: "reviewsFeatured", label: "Featured review label" },
     { id: "reviewsForm", label: "Write a review" }, { id: "reviewsReply", label: "Publisher replies" },
     { id: "reviewsGuidance", label: "Review moderation note" },
   ] },

@@ -5,12 +5,13 @@ import { useEffect, useMemo, useState } from "react";
 import { Copy, Plus } from "lucide-react";
 import toast from "react-hot-toast";
 import { adminApi } from "./api";
+import { copyText } from "./clipboard";
 import {
-  DataTable, Dialog, Drawer, EmptyState, ErrorState, FilterBar, LoadingState, MetricCard, PrimaryButton, SearchField,
+  ActionMenu, DataTable, Dialog, Drawer, EmptyState, ErrorState, FilterBar, LoadingState, MetricCard, PrimaryButton, SearchField,
   SecondaryButton, SectionCard, StatusBadge, Tabs, TextArea, TextField, Toggle, useConfirm, type Column,
 } from "./riso/components";
 import {
-  createdTime, dollarsToMinor, formatMinor, giftCardStatus, historyLabel, historyTime, issuePayload, maskedCode, matchesGiftCard,
+  createdTime, dollarsToMinor, formatMinor, giftCardStatus, giftCardsCsv, historyAmount, historyLabel, historyTime, issuePayload, maskedCode, matchesGiftCard,
   type GiftCardStatus,
 } from "./giftCardsAdmin";
 
@@ -20,9 +21,7 @@ const LINK = { color: "inherit", textDecoration: "underline", textUnderlineOffse
 const when = (t: number) => (t ? new Date(t).toLocaleDateString(undefined, { year: "numeric", month: "short", day: "numeric" }) : "—");
 const day = (d: string) => (/^\d{4}-\d{2}-\d{2}$/.test(d || "") ? new Date(`${d}T12:00:00Z`).toLocaleDateString(undefined, { year: "numeric", month: "short", day: "numeric", timeZone: "UTC" }) : "—");
 
-async function copy(text: string, what = "Code") {
-  try { await navigator.clipboard.writeText(text); toast.success(`${what} copied`); } catch { toast.error(`Couldn't copy — select the ${what.toLowerCase()} and copy it by hand.`); }
-}
+const copy = (text: string, what = "Code") => copyText(text, what);
 
 function Source({ card }: { card: any }) {
   if (card.source === "order" && card.orderId) {
@@ -59,7 +58,7 @@ function IssueDialog({ onClose, onIssued }: { onClose: () => void; onIssued: () 
   if (issued) {
     return (
       <Dialog open onClose={onClose} title="Gift card created" badge="🎁"
-        description="This is the only time the full code is shown here at a glance — copy it now if you need to pass it on yourself. You can always open the card again from the list."
+        description="Copy the code now if you're passing it on yourself. You can see it again any time: open the card from the Gift cards list."
         footer={<PrimaryButton onClick={onClose}>Done</PrimaryButton>}>
         <div className="rp-stack" style={{ gap: 12 }}>
           <p className="rp-mono" style={{ fontSize: "var(--rp-text-xl)", margin: 0, overflowWrap: "anywhere" }} aria-label={`Gift card code ${issued.code.split("").join(" ")}`}>{issued.code}</p>
@@ -168,9 +167,41 @@ function ResendDialog({ card, onClose, onDone }: { card: any; onClose: () => voi
   );
 }
 
+function ExpiryDialog({ card, onClose, onDone }: { card: any; onClose: () => void; onDone: () => void }) {
+  const [date, setDate] = useState(String(card.expiresOn || ""));
+  const [reason, setReason] = useState("");
+  const [error, setError] = useState("");
+  const [saving, setSaving] = useState(false);
+  const save = async (expiresOn: string) => {
+    setSaving(true); setError("");
+    try {
+      await adminApi.giftCardAdmin("setExpiry", { id: card.id, expiresOn, ...(reason.trim() ? { reason: reason.trim() } : {}) });
+      toast.success(expiresOn ? `Card now expires ${day(expiresOn)}` : "Card no longer expires");
+      onDone();
+    } catch (err: any) {
+      setError(err?.message || "The expiry couldn't be changed.");
+    } finally { setSaving(false); }
+  };
+  return (
+    <Dialog open onClose={onClose} title={`Change expiry · ${maskedCode(card)}`}
+      description={card.expiresOn ? `Currently expires ${day(card.expiresOn)}. Check your province's gift card rules before shortening it.` : "This card never expires right now."}
+      footer={<>
+        <SecondaryButton onClick={onClose}>Cancel</SecondaryButton>
+        {card.expiresOn && <SecondaryButton disabled={saving} onClick={() => save("")}>Remove expiry</SecondaryButton>}
+        <PrimaryButton disabled={saving || !date} onClick={() => save(date)}>{saving ? "Saving…" : "Save expiry"}</PrimaryButton>
+      </>}>
+      <div className="rp-stack" style={{ gap: 12 }}>
+        <TextField label="Expires on" type="date" value={date} onChange={(e) => setDate(e.target.value)} data-autofocus hint="Last day the card works (shop time, Toronto)." />
+        <TextField label="Reason (optional)" value={reason} maxLength={300} onChange={(e) => setReason(e.target.value)} placeholder="e.g. Extended as a courtesy" hint="Kept in the card's history." />
+        {error && <p role="alert" className="rp-error-text" style={{ margin: 0 }}>{error}</p>}
+      </div>
+    </Dialog>
+  );
+}
+
 function CardDrawer({ card, onClose, onChanged }: { card: any; onClose: () => void; onChanged: () => void }) {
   const [ask, confirmNode] = useConfirm();
-  const [sub, setSub] = useState<null | "adjust" | "resend">(null);
+  const [sub, setSub] = useState<null | "adjust" | "resend" | "expiry">(null);
   const [busy, setBusy] = useState(false);
   const status = giftCardStatus(card);
   const history = [...(Array.isArray(card.history) ? card.history : [])].sort((a, b) => historyTime(b) - historyTime(a));
@@ -205,6 +236,7 @@ function CardDrawer({ card, onClose, onChanged }: { card: any; onClose: () => vo
           {card.enabled === false
             ? <SecondaryButton disabled={busy} onClick={() => setEnabled(true)}>Enable</SecondaryButton>
             : <SecondaryButton disabled={busy} onClick={() => setEnabled(false)}>Disable</SecondaryButton>}
+          <SecondaryButton disabled={busy} onClick={() => setSub("expiry")}>Change expiry</SecondaryButton>
           <SecondaryButton disabled={busy} onClick={() => setSub("resend")}>Resend email</SecondaryButton>
           <PrimaryButton disabled={busy} onClick={() => setSub("adjust")}>Adjust balance</PrimaryButton>
         </>}>
@@ -233,7 +265,7 @@ function CardDrawer({ card, onClose, onChanged }: { card: any; onClose: () => vo
                   <li key={i} style={{ borderTop: "1px solid var(--rp-divider)", paddingTop: 8 }}>
                     <div style={{ display: "flex", justifyContent: "space-between", gap: 8, flexWrap: "wrap" }}>
                       <strong>{historyLabel(h.type)}</strong>
-                      {Number(h.minor) ? <span className="rp-mono">{Number(h.minor) > 0 && h.type !== "redeemed" ? "+" : h.type === "redeemed" ? "−" : ""}{formatMinor(Math.abs(Number(h.minor)))}</span> : null}
+                      {historyAmount(h) ? <span className="rp-mono">{historyAmount(h)}</span> : null}
                     </div>
                     <div className="rp-hint">
                       {when(historyTime(h))}
@@ -249,6 +281,7 @@ function CardDrawer({ card, onClose, onChanged }: { card: any; onClose: () => vo
         </div>
       </Drawer>
       {sub === "adjust" && <AdjustDialog card={card} onClose={() => setSub(null)} onDone={() => { setSub(null); onChanged(); }} />}
+      {sub === "expiry" && <ExpiryDialog card={card} onClose={() => setSub(null)} onDone={() => { setSub(null); onChanged(); }} />}
       {sub === "resend" && <ResendDialog card={card} onClose={() => setSub(null)} onDone={() => { setSub(null); onChanged(); }} />}
       {confirmNode}
     </>
@@ -263,6 +296,7 @@ export function GiftCards({ openId, onOpened }: { openId?: string | null; onOpen
   const [filter, setFilter] = useState<Filter>("all");
   const [selectedId, setSelectedId] = useState<string | null>(openId || null);
   const [issuing, setIssuing] = useState(false);
+  const [ask, confirmNode] = useConfirm();
 
   const load = async () => {
     setFailed(false);
@@ -303,11 +337,20 @@ export function GiftCards({ openId, onOpened }: { openId?: string | null; onOpen
     { key: "source", header: "Source", render: ({ card }) => <Source card={card} /> },
     { key: "status", header: "Status", render: ({ status }) => <StatusBadge tone={status.tone}>{status.label}</StatusBadge> },
     { key: "created", header: "Created", render: ({ card }) => when(createdTime(card)) },
-    { key: "open", header: "Details", render: ({ card }) => <SecondaryButton size="sm" onClick={() => setSelectedId(card.id)} aria-label={`View gift card ending ${card.last4}`}>View</SecondaryButton> },
   ];
 
   if (loading) return <LoadingState label="Loading gift cards…" />;
   if (failed) return <ErrorState description="Gift cards could not be loaded. If this is the first time, the gift card rules may not be deployed yet." onRetry={() => { setLoading(true); load(); }} />;
+
+  const exportCsv = async (fullCodes: boolean) => {
+    if (fullCodes && !(await ask({ title: "Export with full codes?", message: "Anyone who gets this file can spend these gift cards. Keep it private and delete it when you're done.", confirmLabel: "Export full codes" }))) return;
+    try {
+      const url = URL.createObjectURL(new Blob([giftCardsCsv(rows.map((r) => r.card), { fullCodes })], { type: "text/csv;charset=utf-8" }));
+      const a = document.createElement("a");
+      a.href = url; a.download = `gift-cards${fullCodes ? "-full-codes" : ""}.csv`; a.click();
+      setTimeout(() => URL.revokeObjectURL(url), 1000);
+    } catch { toast.error("The file couldn't be created."); }
+  };
 
   const issueButton = <PrimaryButton icon={<Plus size={16} aria-hidden />} onClick={() => setIssuing(true)}>Issue gift card</PrimaryButton>;
 
@@ -335,11 +378,15 @@ export function GiftCards({ openId, onOpened }: { openId?: string | null; onOpen
             { id: "test", label: "Test", count: counts.test },
           ]} />
           <FilterBar>
-            <div className="rp-grow"><SearchField label="Search gift cards" placeholder="Search by last 4 characters or email…" value={search} onChange={(e) => setSearch(e.target.value)} /></div>
+            <div className="rp-grow"><SearchField label="Search gift cards" placeholder="Search by code, last 4 characters or email…" value={search} onChange={(e) => setSearch(e.target.value)} /></div>
+            <ActionMenu label="Export CSV" actions={[
+              { label: "Export CSV (codes hidden)", onSelect: () => { void exportCsv(false); } },
+              { label: "Export CSV with full codes…", onSelect: () => { void exportCsv(true); } },
+            ]} />
             {issueButton}
           </FilterBar>
           <SectionCard flush title="Gift cards" description={`${rows.length} of ${cards.length}`}>
-            <DataTable caption="Gift cards" columns={columns} rows={rows} rowKey={(r) => r.card.id}
+            <DataTable caption="Gift cards" columns={columns} rows={rows} rowKey={(r) => r.card.id} onRowClick={(r) => setSelectedId(r.card.id)}
               empty={<EmptyState title="No gift cards match" description="Try a different status or search."
                 action={<SecondaryButton onClick={() => { setFilter("all"); setSearch(""); }}>Reset filters</SecondaryButton>} />} />
           </SectionCard>
@@ -352,6 +399,7 @@ export function GiftCards({ openId, onOpened }: { openId?: string | null; onOpen
         </Dialog>
       )}
       {issuing && <IssueDialog onClose={() => setIssuing(false)} onIssued={load} />}
+      {confirmNode}
     </div>
   );
 }

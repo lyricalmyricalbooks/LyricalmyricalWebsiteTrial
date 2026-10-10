@@ -830,6 +830,8 @@ export const COPY_SCHEMA: CopyGroup[] = [
       { key: "reviewsEmpty", label: "Empty message", default: "Be the first to share your thoughts on this book." },
       { key: "reviewsAuthor", label: "Review author credit", default: "— {author}", hint: "Use {author} for the reviewer name." },
       { key: "reviewsReply", label: "Store reply label", default: "Reply from Lyricalmyrical Books" },
+      { key: "reviewsVerified", label: "Verified purchase badge", default: "Verified purchase", hint: "Shown on reviews whose writer bought the book here." },
+      { key: "reviewsFeatured", label: "Featured review label", default: "Featured review", hint: "Shown on reviews you pin to the top in Admin › Reviews." },
       { key: "reviewsThanks", label: "Submitted message", default: "Thanks — your review has been submitted for moderation." },
       { key: "reviewsWrite", label: "Form heading", default: "Write a review" },
       { key: "reviewsRating", label: "Rating label", default: "Your rating" },

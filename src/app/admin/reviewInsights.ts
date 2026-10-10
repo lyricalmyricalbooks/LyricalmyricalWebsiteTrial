@@ -38,3 +38,28 @@ export function moderationOutcome(ids: string[], results: PromiseSettledResult<u
       : `${plural(done.length)} ${status}; ${failed.length} failed and ${failed.length === 1 ? "stays" : "stay"} selected — try again.`;
   return { done, failed, message };
 }
+
+/**
+ * Who bought what: lower-cased customer email → book ids on their paid, non-test orders
+ * (box-set parts count as the books inside). Used to mark "Verified purchase" when approving.
+ */
+export function purchaseIndex(orders: any[]): Map<string, Set<string>> {
+  const index = new Map<string, Set<string>>();
+  for (const o of orders || []) {
+    if (o?.isTest === true || o?.paymentStatus !== "paid") continue;
+    const email = String(o.customer?.email || "").trim().toLowerCase();
+    if (!email) continue;
+    const books = index.get(email) || new Set<string>();
+    for (const item of Array.isArray(o.items) ? o.items : []) {
+      if (item?.id) books.add(String(item.id));
+      for (const part of Array.isArray(item?.components) ? item.components : []) if (part?.id) books.add(String(part.id));
+    }
+    index.set(email, books);
+  }
+  return index;
+}
+
+export function isVerifiedPurchase(review: { email?: string; bookId?: string }, index: Map<string, Set<string>>): boolean {
+  const email = String(review?.email || "").trim().toLowerCase();
+  return !!email && !!review?.bookId && !!index.get(email)?.has(review.bookId);
+}

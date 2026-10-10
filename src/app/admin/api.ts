@@ -1497,7 +1497,7 @@ export const adminApi = {
     const snap = await getDoc(doc(db, "giftCards", id));
     return snap.exists() ? ({ id: snap.id, ...snap.data() } as any) : null;
   },
-  giftCardAdmin: async (op: "issue" | "setEnabled" | "adjust" | "resend", payload: Record<string, any> = {}) => {
+  giftCardAdmin: async (op: "issue" | "setEnabled" | "adjust" | "resend" | "setExpiry", payload: Record<string, any> = {}) => {
     const idToken = await auth.currentUser?.getIdToken();
     if (!idToken) throw new Error("You must be signed in as admin.");
     const response = await functionFetch("createStripeCheckoutSession", {

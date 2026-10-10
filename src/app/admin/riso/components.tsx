@@ -285,9 +285,12 @@ export function StatusBadge({ tone = "neutral", children }: { tone?: BadgeTone; 
 export type Column<T> = { key: string; header: string; numeric?: boolean; lead?: boolean; render: (row: T) => ReactNode };
 export type RowState = "pending" | "failed" | "conflict";
 
-export function DataTable<T>({ columns, rows, rowKey, caption, empty, rowState, sticky }: {
+export function DataTable<T>({ columns, rows, rowKey, caption, empty, rowState, sticky, onRowClick }: {
   columns: Column<T>[]; rows: T[]; rowKey: (r: T) => string; caption: string; empty?: ReactNode;
   rowState?: (r: T) => RowState | undefined; sticky?: boolean;
+  /** Pointer shortcut: clicking anywhere on a row (outside its own links/buttons). Keep a keyboard
+   *  control for the same action inside the row, e.g. a button in the lead cell. */
+  onRowClick?: (r: T) => void;
 }) {
   if (!rows.length && empty) return <>{empty}</>;
   return (
@@ -297,7 +300,8 @@ export function DataTable<T>({ columns, rows, rowKey, caption, empty, rowState, 
         <thead><tr>{columns.map((c) => <th key={c.key} scope="col" className={c.numeric ? "rp-num" : undefined}>{c.header}</th>)}</tr></thead>
         <tbody>
           {rows.map((r) => (
-            <tr key={rowKey(r)} data-row-state={rowState?.(r)}>{columns.map((c) => <td key={c.key} className={cx(c.numeric && "rp-num", c.lead && "rp-lead")}>{c.render(r)}</td>)}</tr>
+            <tr key={rowKey(r)} data-row-state={rowState?.(r)} style={onRowClick ? { cursor: "pointer" } : undefined}
+              onClick={onRowClick ? (e) => { if (!(e.target as HTMLElement).closest?.("a,button,input,select,textarea,label")) onRowClick(r); } : undefined}>{columns.map((c) => <td key={c.key} className={cx(c.numeric && "rp-num", c.lead && "rp-lead")}>{c.render(r)}</td>)}</tr>
           ))}
         </tbody>
       </table>

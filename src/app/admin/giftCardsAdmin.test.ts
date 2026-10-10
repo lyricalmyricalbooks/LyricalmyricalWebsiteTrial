@@ -37,3 +37,30 @@ describe("gift card admin helpers", () => {
     expect(ok).toEqual({ ok: true, payload: { amountMinor: 2500, recipientEmail: "sam@x.com", expiresOn: "2027-01-01", note: "Raffle prize", sendEmail: true } });
   });
 });
+
+describe("history amounts and code search", () => {
+  it("shows a minus for removed money and for redemptions", async () => {
+    const { historyAmount } = await import("./giftCardsAdmin");
+    expect(historyAmount({ type: "adjusted", minor: -1000 })).toBe("−CA$10.00");
+    expect(historyAmount({ type: "adjusted", minor: 500 })).toBe("+CA$5.00");
+    expect(historyAmount({ type: "redeemed", minor: 250 })).toBe("−CA$2.50");
+    expect(historyAmount({ type: "disabled", minor: 0 })).toBe("");
+  });
+  it("finds a card by its whole code, ignoring hyphens, spaces and case", () => {
+    const card = { code: "ABCD-EFGH-JKMN-PQRS", last4: "PQRS" };
+    expect(matchesGiftCard(card, "abcd efgh jkmn pqrs")).toBe(true);
+    expect(matchesGiftCard(card, "ABCDEFGHJKMNPQRS")).toBe(true);
+    expect(matchesGiftCard(card, "ABCDEFGHJKMNPQRT")).toBe(false);
+  });
+});
+
+describe("gift card CSV", () => {
+  it("masks codes unless asked and blocks spreadsheet formulas", async () => {
+    const { giftCardsCsv } = await import("./giftCardsAdmin");
+    const cards = [{ code: "ABCD-EFGH-JKMN-PQRS", last4: "PQRS", balanceMinor: 1250, initialMinor: 2500, recipientName: "=HYPERLINK(1)", source: "admin", createdAt: "2026-10-01T10:00:00Z" }];
+    const masked = giftCardsCsv(cards, { today: "2026-10-09" });
+    expect(masked).toContain('"••••PQRS","12.50","25.00","Active","\'=HYPERLINK(1)"');
+    expect(masked).not.toContain("ABCD-EFGH");
+    expect(giftCardsCsv(cards, { fullCodes: true, today: "2026-10-09" })).toContain('"ABCD-EFGH-JKMN-PQRS"');
+  });
+});
