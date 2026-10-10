@@ -272,7 +272,7 @@ export function AnalyticsDashboard({ setActiveTab, onEditBook }: { setActiveTab?
               detail="Readers are waiting to see these" onOpen={() => setActiveTab?.("reviews")} openLabel="Moderate" />
             <RunRow label="titles to reprint soon" count={insights ? insights.reprint.length : null} loading={ordersLoading || stockLoading}
               detail={`On course to sell out within ${REORDER_COVER_DAYS} days`} onOpen={() => setActiveTab?.("inventory")} openLabel="Open inventory" />
-            <RunRow label="print titles sold out" count={insights ? insights.shelf.soldOut : null} loading={ordersLoading || stockLoading}
+            <RunRow label="print books or editions sold out" count={insights ? insights.shelf.soldOut : null} loading={ordersLoading || stockLoading}
               detail="Customers can't buy these right now" onOpen={() => setActiveTab?.("inventory")} openLabel="Open inventory" />
           </ul>
           {(allOrders.error || audience.error || stock.error) && (

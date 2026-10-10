@@ -7,19 +7,10 @@ import {
 
 import { Login } from "./Login";
 import { BookCatalog } from "./BookCatalog";
-import { BookEditor } from "./BookEditor";
-import { Discounts } from "./Discounts";
-import { GiftCards } from "./GiftCards";
-import { Customers } from "./Customers";
-import { Inventory } from "./Inventory";
 import { ordersNeedingWork, refreshOrdersCache } from "./Orders";
-import { OrdersDesk } from "./OrdersDesk.tsx";
 import { AdminAlerts } from "./AdminAlerts.tsx";
 import { buildAdminAlerts, type AdminAlert } from "./adminAlerts";
-import { AnalyticsDashboard } from "./AnalyticsDashboard";
-import { ShopSettings } from "./ShopSettings";
-import ReviewsModeration from "./ReviewsModeration";
-import Messages from "./Messages";
+import { getOrdersCached, setOrdersLoader } from "./ordersCache";
 import { adminApi } from "./api";
 import { scrubSavedSecrets } from "./privateKeys";
 import toast from "react-hot-toast";
@@ -35,6 +26,20 @@ import { adminDocumentTitle, hashForRoute, routeFromHash, sameSection } from "./
 
 // Studio is large and only opened from Settings › Design, so it loads in its own chunk.
 const StudioEditor = lazy(() => import("./studio/StudioWorkspace").then(m => ({ default: m.StudioWorkspace })));
+// Heavy admin pages load in their own chunks when first opened.
+const BookEditor = lazy(() => import("./BookEditor").then(m => ({ default: m.BookEditor })));
+const Discounts = lazy(() => import("./Discounts").then(m => ({ default: m.Discounts })));
+const GiftCards = lazy(() => import("./GiftCards").then(m => ({ default: m.GiftCards })));
+const Customers = lazy(() => import("./Customers").then(m => ({ default: m.Customers })));
+const Inventory = lazy(() => import("./Inventory").then(m => ({ default: m.Inventory })));
+const OrdersDesk = lazy(() => import("./OrdersDesk.tsx").then(m => ({ default: m.OrdersDesk })));
+const AnalyticsDashboard = lazy(() => import("./AnalyticsDashboard").then(m => ({ default: m.AnalyticsDashboard })));
+const ShopSettings = lazy(() => import("./ShopSettings").then(m => ({ default: m.ShopSettings })));
+const ReviewsModeration = lazy(() => import("./ReviewsModeration"));
+const Messages = lazy(() => import("./Messages"));
+
+// Every shared orders load also refreshes the Orders list memory (its instant return and "Ship orders").
+setOrdersLoader(refreshOrdersCache);
 
 const openSite = () => {
   const adminIdx = window.location.pathname.toLowerCase().indexOf("/admin");
@@ -123,20 +128,29 @@ export function Dashboard() {
 
   // Orders waiting on the publisher, shown as a badge on the Orders nav item.
   const [ordersBadge, setOrdersBadge] = useState(0);
+  const bootOrdersRead = useRef(false);
   // Unpaid/mismatched/disputed orders etc., shown above every admin page.
   const [alerts, setAlerts] = useState<AdminAlert[]>([]);
+  // Pending reviews, unread messages and open privacy requests (cheap server counts).
+  const [otherBadges, setOtherBadges] = useState<{ pendingReviews: number | null; unreadMessages: number | null; openPrivacyRequests: number | null }>({ pendingReviews: null, unreadMessages: null, openPrivacyRequests: null });
+  const [searchCustomerQuery, setSearchCustomerQuery] = useState<string | undefined>(undefined);
   useEffect(() => {
     if (!user) return;
     let alive = true;
-    const refresh = () =>
-      refreshOrdersCache()
+    // The first read shares any orders load already on its way (e.g. the Overview's); later ones force a fresh read.
+    const first = { current: !bootOrdersRead.current }; bootOrdersRead.current = true;
+    const refresh = () => {
+      adminApi.getAdminBadgeCounts().then((c) => { if (alive) setOtherBadges(c); }).catch(() => {});
+      return getOrdersCached({ force: !first.current })
         .then(async (data) => {
           const [webhook, emailLog] = await Promise.all([adminApi.getStripeWebhookStatus().catch(() => null), adminApi.getRecentEmailLog(50).catch(() => [])]);
           if (!alive) return;
           setOrdersBadge(ordersNeedingWork(data));
           setAlerts(buildAdminAlerts(data, webhook, Date.now(), emailLog));
         })
-        .catch(() => {});
+        .catch(() => {})
+        .finally(() => { first.current = false; });
+    };
     refresh();
     const timer = window.setInterval(refresh, 5 * 60 * 1000);
     return () => {
@@ -145,8 +159,6 @@ export function Dashboard() {
     };
     // Re-count when returning from an order, so finished work drops off the badge.
   }, [user, selectedOrder === null]);
-  // The list the order was opened from, for Previous / Next order.
-  const [stats, setStats] = useState<any>(null);
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [settings, setSettings] = useState<any>(null);
   const [originalSettings, setOriginalSettings] = useState<any>(null);
@@ -170,16 +182,15 @@ export function Dashboard() {
   };
 
   useEffect(() => {
-    // Debug bypass
-    const params = new URLSearchParams(window.location.search);
-    if (params.get('debug') === 'true') {
+    // Local development only: ?debug=true shows the admin without signing in. Production builds drop it
+    // (Firestore rules would refuse every read anyway, but the shell must never pretend to be signed in).
+    if (import.meta.env.DEV && new URLSearchParams(window.location.search).get("debug") === "true") {
       setUser({
         displayName: "Debug Admin",
         email: "lyricalmyricalbooks@gmail.com",
         photoURL: null
       });
       setLoading(false);
-      loadStats();
       loadSettings();
       return;
     }
@@ -188,7 +199,6 @@ export function Dashboard() {
       setUser(u);
       setLoading(false);
       if (u) {
-        loadStats();
         loadSettings();
       }
     });
@@ -255,14 +265,8 @@ export function Dashboard() {
     }
   };
 
-  async function loadStats() {
-    try {
-      const s = await adminApi.getStats();
-      setStats(s);
-    } catch (err) {
-      console.error(err);
-    }
-  }
+  // The old whole-collection stats read was never shown; kept as a no-op for the book editor's onSave.
+  const loadStats = () => {};
 
   // Name the browser tab after the page, so several admin tabs (and Back's history list) are told apart.
   const isSettingsPage = activeTab === "settings" || activeTab === "shipping" || activeTab === "payments";
@@ -363,7 +367,7 @@ export function Dashboard() {
       case "analytics":
         return <AnalyticsDashboard setActiveTab={(tab: string) => { if (tab === "general" || tab === "notifications" || tab === "taxes") { setSettingsTab(tab); setActiveTab("settings"); } else setActiveTab(tab); }} onEditBook={handleEditBook} />;
       case "catalog": return <BookCatalog onEdit={handleEditBook} onAdd={handleAddBook} refreshTrigger={catalogRefreshKey} />;
-      case "customers": return <Customers />;
+      case "customers": return <Customers initialQuery={searchCustomerQuery} />;
       case "inventory": return <Inventory />;
       case "discounts": return <Discounts />;
       case "giftCards": return <GiftCards openId={openGiftCard} onOpened={() => setOpenGiftCard(null)} />;
@@ -404,7 +408,12 @@ export function Dashboard() {
           <Sidebar
             open={sidebarOpen}
             onClose={() => setSidebarOpen(false)}
-            items={NAV.map((n) => (n.id === "orders" ? { ...n, badge: ordersBadge } : n))}
+            items={NAV.map((n) => {
+              // Orders counts open cancel/return requests too (they sit in Needs attention).
+              const badge = n.id === "orders" ? ordersBadge : n.id === "reviews" ? otherBadges.pendingReviews
+                : n.id === "messages" ? otherBadges.unreadMessages : n.id === "settings" ? otherBadges.openPrivacyRequests : undefined;
+              return badge === undefined ? n : { ...n, badge: badge || 0 };
+            })}
             activeId={showEditor ? null : navActive}
             activeChildId={navChild}
             onSelect={goTo}
@@ -441,7 +450,9 @@ export function Dashboard() {
             <IconButton label="Open navigation" className="rp-menu-only" aria-expanded={sidebarOpen} onClick={() => setSidebarOpen(true)}>
               <Menu size={20} aria-hidden />
             </IconButton>
-            <GlobalSearch destinations={destinations} onOpenBook={handleEditBook} />
+            <GlobalSearch destinations={destinations} onOpenBook={handleEditBook} shortcut={!showEditor && !(activeTab === "settings" && settingsTab === "designer")}
+              onOpenOrder={(id) => { setActiveTab("orders"); setShowEditor(false); setSelectedOrder({ id }); }}
+              onOpenCustomer={(q) => { setSearchCustomerQuery(q); goTo("customers"); }} />
             <div className="rp-topbar-actions">
               <span className="rp-status-pill rp-hide-md" role="status" data-tone={shopClosed ? "warning" : undefined}>
                 <span className="rp-status-dot" aria-hidden />
@@ -509,7 +520,7 @@ export function Dashboard() {
               animate={{ opacity: 1, y: 0 }}
               transition={{ duration: 0.18, ease: "easeOut" }}
             >
-              {content}
+              <Suspense fallback={<LoadingState label="Opening page…" />}>{content}</Suspense>
             </motion.div>
           </AnimatePresence>
         </div>
@@ -518,11 +529,11 @@ export function Dashboard() {
       <Dialog open={helpOpen} onClose={() => setHelpOpen(false)} title="Help & shortcuts" appearance={appearance}
         footer={<PrimaryButton onClick={() => setHelpOpen(false)}>Got it</PrimaryButton>}>
         <ul style={{ margin: 0, paddingLeft: 18, lineHeight: 1.7 }}>
-          <li>Use the search box to jump to any admin page or open a book by title, author, ISBN, or SKU.</li>
-          <li>Orders stay unpaid until the Stripe webhook confirms payment — never mark paid by hand unless you are reconciling a confirmed charge.</li>
-          <li>Theme changes are saved as a draft first; publish when you are ready for customers to see them.</li>
-          <li>Press Escape to close any dialog; focus returns to where you were.</li>
-          <li>The address bar keeps your place: reload, use the browser's Back and Forward buttons, or bookmark and share a page or order link.</li>
+          <li><strong>Search</strong> (top bar, or press <kbd>Ctrl</kbd>/<kbd>⌘</kbd>+<kbd>K</kbd>): jump to any admin page, open a book (title, author, ISBN, SKU), an order (number with or without #, customer email or name) or a customer.</li>
+          <li><strong>Payments:</strong> card (Stripe) and PayPal orders are marked paid automatically once the payment is confirmed. Cash and e-Transfer orders wait as pending: open the order and record the payment once the money has arrived.</li>
+          <li><strong>Design studio:</strong> changes are saved as a draft first; Publish when you're ready. Inside the studio, <kbd>Ctrl</kbd>/<kbd>⌘</kbd>+<kbd>K</kbd> opens Find anything and <kbd>Ctrl</kbd>/<kbd>⌘</kbd>+<kbd>S</kbd> saves.</li>
+          <li>Press <kbd>Escape</kbd> to close any dialog; focus returns to where you were.</li>
+          <li>The address bar keeps your place, so links can be bookmarked or shared: <code>#orders/&lt;id&gt;</code>, <code>#customers?q=&lt;email&gt;</code>, <code>#settings/payments</code>, <code>#gift-cards</code>, <code>#designer</code>. Reload and Back/Forward return to the same page.</li>
         </ul>
       </Dialog>
 
@@ -542,6 +553,7 @@ export function Dashboard() {
               className="rp-dialog rp-editor-panel"
               role="dialog" aria-modal="true" aria-label={editingBook ? "Edit book" : "New book"}
             >
+              <Suspense fallback={<LoadingState label="Opening book editor…" />}>
               <BookEditor
                 book={editingBook}
                 onClose={() => setShowEditor(false)}
@@ -553,6 +565,7 @@ export function Dashboard() {
                   loadStats();
                 }}
               />
+              </Suspense>
             </motion.div>
           </div>
         )}
