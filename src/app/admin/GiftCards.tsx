@@ -5,6 +5,7 @@ import { useEffect, useMemo, useState } from "react";
 import { Copy, Plus } from "lucide-react";
 import toast from "react-hot-toast";
 import { adminApi } from "./api";
+import { copyText } from "./clipboard";
 import {
   DataTable, Dialog, Drawer, EmptyState, ErrorState, FilterBar, LoadingState, MetricCard, PrimaryButton, SearchField,
   SecondaryButton, SectionCard, StatusBadge, Tabs, TextArea, TextField, Toggle, useConfirm, type Column,
@@ -20,9 +21,7 @@ const LINK = { color: "inherit", textDecoration: "underline", textUnderlineOffse
 const when = (t: number) => (t ? new Date(t).toLocaleDateString(undefined, { year: "numeric", month: "short", day: "numeric" }) : "—");
 const day = (d: string) => (/^\d{4}-\d{2}-\d{2}$/.test(d || "") ? new Date(`${d}T12:00:00Z`).toLocaleDateString(undefined, { year: "numeric", month: "short", day: "numeric", timeZone: "UTC" }) : "—");
 
-async function copy(text: string, what = "Code") {
-  try { await navigator.clipboard.writeText(text); toast.success(`${what} copied`); } catch { toast.error(`Couldn't copy — select the ${what.toLowerCase()} and copy it by hand.`); }
-}
+const copy = (text: string, what = "Code") => copyText(text, what);
 
 function Source({ card }: { card: any }) {
   if (card.source === "order" && card.orderId) {

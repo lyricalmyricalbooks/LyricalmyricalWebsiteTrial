@@ -7,6 +7,7 @@ import { discountState as state, today } from "./discountState";
 import { discountPerformance, duplicateDiscount, perfKey } from "./discountPerformance";
 import { validateDiscountDraft } from "./discountValidation";
 import { describeDiscount, tierSummary } from "./discountDescribe";
+import { copyText } from "./clipboard";
 import {
   ActionMenu, Checkbox, ConfirmDialog, DataTable, Dialog, EmptyState, ErrorState, FilterBar, IconButton, LoadingState,
   MetricCard, PrimaryButton, SearchField, SecondaryButton, SectionCard, SelectField, StatusBadge, TextArea, TextField,
@@ -70,6 +71,7 @@ function DiscountDialog({ initial, otherCodes = [], books, shopCategories, onClo
   const [saving, setSaving] = useState(false);
   const [errors, setErrors] = useState<Record<string, string>>({});
   const [giftSearch, setGiftSearch] = useState("");
+  const [bookSearch, setBookSearch] = useState("");
   const set = (k: string, v: any) => setForm((f: any) => ({ ...f, [k]: v }));
   const automatic = form.method === "automatic";
   const giftBook = (books || []).find(b => b.id === form.giftBookId);
@@ -258,13 +260,25 @@ function DiscountDialog({ initial, otherCodes = [], books, shopCategories, onClo
               {shopCategories !== null && <p className="rp-hint" style={{ gridColumn: "1 / -1", margin: "4px 0 0" }}>Categories come from Studio › Menus › Shop categories. A parent category also covers its sub-categories’ books, just like the shop’s category pages.</p>}
             </div>
           )}
-          {form.appliesTo === "products" && (
-            <div style={{ maxHeight: 220, overflowY: "auto", marginTop: 12, border: "1px solid var(--rp-border)", padding: "4px 12px" }}>
-              {books === null ? <p className="rp-hint">Loading catalog…</p>
-                : books.length === 0 ? <p className="rp-hint">No books in the catalog yet.</p>
-                : books.map(b => <Checkbox key={b.id} label={b.title} checked={(form.selectedProducts || []).includes(b.id)} onChange={() => toggleIn("selectedProducts", b.id)} />)}
-            </div>
-          )}
+          {form.appliesTo === "products" && (() => {
+            const chosen: string[] = form.selectedProducts || [];
+            const q = bookSearch.trim().toLowerCase();
+            const shown = (books || []).filter(b => !q || `${b.title || ""} ${b.isbn || ""}`.toLowerCase().includes(q));
+            return (
+              <div style={{ marginTop: 12 }}>
+                <div style={{ display: "flex", flexWrap: "wrap", gap: 12, alignItems: "flex-end" }}>
+                  <div className="rp-grow"><SearchField label="Find books" placeholder="Search by title or ISBN…" value={bookSearch} onChange={e => setBookSearch(e.target.value)} /></div>
+                  <span className="rp-hint" role="status">{chosen.length} selected</span>
+                </div>
+                <div style={{ maxHeight: 220, overflowY: "auto", marginTop: 8, border: "1px solid var(--rp-border)", padding: "4px 12px" }}>
+                  {books === null ? <p className="rp-hint">Loading catalog…</p>
+                    : books.length === 0 ? <p className="rp-hint">No books in the catalog yet.</p>
+                    : shown.length === 0 ? <p className="rp-hint">No books match “{bookSearch}”.</p>
+                    : shown.map(b => <Checkbox key={b.id} label={b.title} checked={chosen.includes(b.id)} onChange={() => toggleIn("selectedProducts", b.id)} />)}
+                </div>
+              </div>
+            );
+          })()}
         </fieldset>
 
         <div style={{ display: "grid", gap: 12, gridTemplateColumns: "repeat(auto-fit, minmax(190px, 1fr))" }}>
@@ -395,7 +409,7 @@ export function Discounts() {
         { label: "Edit", onSelect: () => { setEditing(d); setDialogOpen(true); } },
         { label: d.isActive ? "Pause" : "Activate", onSelect: () => handleToggle(d) },
         { label: "Duplicate", onSelect: () => { setEditing(duplicateDiscount(d, discounts.filter(x => !isAutomatic(x)).map(x => x.code))); setDialogOpen(true); } },
-        ...(isAutomatic(d) ? [] : [{ label: "Copy code", onSelect: () => { navigator.clipboard.writeText(d.code); toast.success("Code copied"); } }]),
+        ...(isAutomatic(d) ? [] : [{ label: "Copy code", onSelect: () => { void copyText(d.code); } }]),
         { label: "Delete", tone: "danger", onSelect: () => setDeleting(d) },
       ]} />
     ) },
