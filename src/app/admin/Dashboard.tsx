@@ -269,7 +269,6 @@ export function Dashboard() {
   };
 
   // The old whole-collection stats read was never shown; kept as a no-op for the book editor's onSave.
-  const loadStats = () => {};
 
   // Name the browser tab after the page, so several admin tabs (and Back's history list) are told apart.
   const isSettingsPage = activeTab === "settings" || activeTab === "shipping" || activeTab === "payments";
@@ -548,7 +547,8 @@ export function Dashboard() {
         footer={<PrimaryButton onClick={() => setHelpOpen(false)}>Got it</PrimaryButton>}>
         <ul style={{ margin: 0, paddingLeft: 18, lineHeight: 1.7 }}>
           <li><strong>Search</strong> (top bar, or press <kbd>Ctrl</kbd>/<kbd>⌘</kbd>+<kbd>K</kbd>): jump to any admin page, open a book (title, author, ISBN, SKU), an order (number with or without #, customer email or name) or a customer.</li>
-          <li><strong>Payments:</strong> card (Stripe) and PayPal orders are marked paid automatically once the payment is confirmed. Cash and e-Transfer orders wait as pending: open the order and record the payment once the money has arrived.</li>
+          <li><strong>Payments:</strong> card (Stripe) and PayPal orders are marked paid automatically once the payment is confirmed. Cash and e-Transfer orders wait as pending: open the order › <strong>More order actions</strong> › <strong>Payment received — mark paid</strong> once the money has arrived.</li>
+          <li><strong>Orders desk:</strong> <kbd>J</kbd>/<kbd>K</kbd> move to the next/previous order, <kbd>/</kbd> jumps to the search box, <kbd>Esc</kbd> clears it.</li>
           <li><strong>Design studio:</strong> changes are saved as a draft first; Publish when you're ready. Inside the studio, <kbd>Ctrl</kbd>/<kbd>⌘</kbd>+<kbd>K</kbd> opens Find anything and <kbd>Ctrl</kbd>/<kbd>⌘</kbd>+<kbd>S</kbd> saves.</li>
           <li>Press <kbd>Escape</kbd> to close any dialog; focus returns to where you were.</li>
           <li>The address bar keeps your place, so links can be bookmarked or shared: <code>#orders/&lt;id&gt;</code>, <code>#customers?q=&lt;email&gt;</code>, <code>#settings/payments</code>, <code>#gift-cards</code>, <code>#designer</code>. Reload and Back/Forward return to the same page.</li>
@@ -580,7 +580,6 @@ export function Dashboard() {
                   if (activeTab === "catalog") {
                     setCatalogRefreshKey(prev => prev + 1);
                   }
-                  loadStats();
                 }}
               />
               </Suspense>

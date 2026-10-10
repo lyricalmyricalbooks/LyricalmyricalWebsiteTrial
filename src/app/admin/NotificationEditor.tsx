@@ -79,6 +79,8 @@ type NotificationSettings = {
   delivery_update: TemplateFields;
   contact_reply: TemplateFields;
   gift_card: TemplateFields;
+  /** Off unless switched on (server checks enabled === true); sent delayDays after shipping. */
+  review_request: TemplateFields & { delayDays?: number };
   /** Shop's own alerts (not customer templates). new_order_admin is the paid-order email to the shop. */
   new_order_admin?: { enabled?: boolean };
   shopAlerts?: { dailyOrderDigest?: boolean };
@@ -162,6 +164,15 @@ const DEFAULT_SETTINGS: NotificationSettings = {
     buttonText: "Track shipment",
     signoff: "Best,\nThe Lyricalmyrical Team",
     enabled: true
+  },
+  // Mirrors functions/reviewRequests.js REVIEW_REQUEST_TEMPLATE.
+  review_request: {
+    subject: "How are you finding your book?",
+    body: "Hi {{customer_name}},\n\nWe hope your books from order {{order_id}} arrived safely. If you have a moment, we'd love to hear what you think — a short review helps other readers find their next book. Each title below opens its page, where the review form is.",
+    buttonText: "Write a review",
+    signoff: "Thanks for reading,\nThe Lyricalmyrical Team",
+    enabled: false,
+    delayDays: 14
   }
 };
 
@@ -389,7 +400,7 @@ export function NotificationEditor() {
   };
 
   const handleToggleActive = () => {
-    const isCurrentlyEnabled = currentTemplate.enabled !== false;
+    const isCurrentlyEnabled = activeTab === "review_request" ? currentTemplate.enabled === true : currentTemplate.enabled !== false;
     handleFieldChange("enabled", !isCurrentlyEnabled);
   };
 
@@ -459,7 +470,7 @@ export function NotificationEditor() {
   };
   const shopAlerts = data.shopAlerts || {};
   const setShopAlert = (patch: Record<string, unknown>) => setData((prev) => ({ ...prev, ...patch }));
-  const enabled = currentTemplate.enabled !== false;
+  const enabled = activeTab === "review_request" ? currentTemplate.enabled === true : currentTemplate.enabled !== false;
   const subjectPreview = fillSample(activeTab, currentTemplate.subject || DEFAULT_SETTINGS[activeTab].subject, orderPreviewVars((recentOrders || []).find((o) => o.id === previewOrderId)));
   const problems = templateProblems(activeTab, currentTemplate);
   const defaults = DEFAULT_SETTINGS[activeTab];
@@ -576,6 +587,12 @@ export function NotificationEditor() {
           </div>}>
           <div className="rp-stack" style={{ gap: 20 }}>
             <Toggle label="Send this email automatically" checked={enabled} onChange={() => handleToggleActive()} />
+            {activeTab === "review_request" && (
+              <TextField label="Days after shipping" type="number" min={1} max={90}
+                value={String((currentTemplate as any).delayDays ?? 14)}
+                hint="Sent once per order, this many days after it was shipped (1–90). Customers who unsubscribed are skipped."
+                onChange={(e) => handleFieldChange("delayDays" as any, Math.min(90, Math.max(1, Math.round(Number(e.target.value) || 14))) as any)} />
+            )}
             <TextField label="Subject line" value={currentTemplate.subject} placeholder="Subject line" onSelect={remember("subject")} onChange={(e) => handleFieldChange("subject", e.target.value)} />
             <TextArea label="Body copy" rows={7} value={currentTemplate.body} placeholder="Write your email body here…" onSelect={remember("body")} onChange={(e) => handleFieldChange("body", e.target.value)} />
             <TextField label="Button text" value={currentTemplate.buttonText} placeholder="View details" hint="Leave blank to hide the button." onChange={(e) => handleFieldChange("buttonText", e.target.value)} />

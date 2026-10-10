@@ -1445,3 +1445,46 @@ for display in `features/site/promotions.ts` / `discountMath.ts` (`*.parity.test
   gift-card amounts re-debited, `refundRequest` cleared, timeline note — once. Run **Fix webhook** after deploying.
 - **Totals:** `totalNeedsConfirming(server, shown, currency)` allows 5¢ in CAD and max(5¢, 1%) in USD/EUR. Customer
   emails' Total (`chargedTotalFmt`) and the Orders CSV `ChargedAmount` use `expectedAmountMinor`/`expectedCurrency` when set.
+
+## Admin improvement pass (10 October 2026)
+
+- **Inventory:** every stock edit goes through `inventoryApi.adjustStock` — a transaction over pure `planStockChange`
+  (`inventoryInsights.ts`): −/+/receive/undo apply a delta to the live count; a typed count refuses if the live count moved
+  unless confirmed. Writes only `stockLevel` / that edition's stock + an append-only admin `inventoryLog` row (reason).
+  Rows are per edition; box sets, gift cards, digital and untracked are read-only. 0 → >0 warns how many `stockAlerts`
+  will be emailed. Cost prices live in admin-only `inventoryCosts/{bookId}` (never on public books). Low-stock line:
+  `lowStockThreshold(settings)` (`settings/website.inventory.lowStockThreshold`, default 5). Old-shop sync moved to
+  Inventory › Advanced (`InventorySyncPanel.tsx`). "Can it run out" rules for Overview: `admin/stockRules.ts`
+  (tracked only when `trackInventory === true`).
+- **Orders:** desk refreshes only while visible and merges `onChanged(order)` (fired only on real changes) instead of
+  reloading; J/K, `/`, Esc. One search matcher `admin/orderSearch.ts`. Deletion only for unpaid/cancelled/test orders
+  (`deleteRefusal`, mirrored in the `orders` delete rule). `reconciliationPending` shows "Paid in Stripe — awaiting webhook".
+  Manual orders: More order actions › Payment received — mark paid (`canMarkManualPaid` → server `markOrderPaid`).
+  **Partial refunds:** `refundOrder` takes `amountMinor` + `restockLines` (`functions/partialRefund.js`); the order stays paid
+  with `partiallyRefunded`/`refundedAmountMinor`, restocks only ticked lines/inspected copies; a later full refund refunds the
+  rest without double restock. Not yet: customer email for partials, rollback of a bank-failed partial refund.
+  Partial returns allowed (`functions/returns.js`). Resend confirmation stamps `confirmationEmailRequestedAt`; `emailLog`
+  rows carry `orderId` and Order detail lists them. Parcel presets in `settings/parcelPresets`.
+- **Books:** list rules in `admin/catalogList.ts`, editor rules in `admin/bookEditorState.ts` (`editorDirty` ignores
+  recalculated fields, `needsPublishReview` only on becoming published/new issues, ISBN lookup Open Library → Google Books
+  fills empty fields only, weights stored "N unit"). `BookEditor` `onSave({ stayOpen })`. Import leaves stock unchanged unless
+  "Set stock to the file's numbers". `bulkPricing.planPriceChange` skips gift cards / sales not below the new price.
+- **Shell/Overview/Customers:** read-only order screens share `admin/ordersCache.ts` (call `invalidateOrders()` after
+  changes). Nav badges: `adminApi.getAdminBadgeCounts()`. Heavy admin pages are `React.lazy`. `?debug=true` is dev-only.
+  Customers: LTV net of refunds, "VIP · lapsed", marketing consent = `newsletter` minus `marketing-optout`, private notes/tags
+  in admin-only `customerNotes/{sha256(email)}`. Overview › Download sales report (`salesReport.ts`).
+- **Messages:** replies via `sendTestEmail` `action: "replyToMessage"` (`functions/messageReply.js`), stored in
+  `contactMessages.replies`, status `replied`; paged 100 at a time with server counts.
+- **Discounts/Gift cards/Reviews:** category discounts follow storefront membership (`functions/discountCategories.js` ↔
+  `features/site/discountCategories.ts`, parity-tested). `/?discount=CODE` share links (`features/site/sharedDiscount.ts`,
+  from `main.tsx`) pre-fill checkout; server stays authoritative. Summaries `admin/discountDescribe.ts`. Gift-card expiry:
+  `giftCardAdmin` `op: "setExpiry"`. Reviews: admin-set `verified` and `featured` (Studio-editable badge/label); deleting a
+  review deletes its `reviewContacts`. Review-request email `functions/reviewRequests.js` inside `unpaidPaymentSweep`
+  (`review_request.enabled` default off — the editor treats missing as off — and `delayDays` default 14).
+- **Settings:** `admin/settingsDirty.ts` guards leaving unsaved settings (+ beforeunload). Maintenance
+  (`maintenance.enabled`) closes checkout server-side in `priceOrder` (`store_closed` → Text & labels › Checkout ›
+  `coStoreClosed`); General › Store status sets it and the construction wall. Shippo origin from General › Location
+  (`functions/shopSettings.js`). `nightlyFirestoreBackup` → admin-only `systemStatus/backup`. Taxes in the menu
+  (`TaxesSettings.tsx`, shape unchanged). `shopAlerts.dailyOrderDigest` / `new_order_admin.enabled` in notifications.
+  `{{items_table}}` placement via mirrored `placeItemsTable`. `adminSecrets/*.migratedFromPublic` gates "rotate key" warnings.
+- **Deploy** Firestore rules + indexes + Functions with this frontend. A second admin email was not added (owner must name it).

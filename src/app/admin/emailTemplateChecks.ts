@@ -6,7 +6,7 @@
 
 export type TemplateId =
   | "order_confirmation" | "order_pending_payment" | "shipping_confirmation" | "abandoned_cart" | "order_cancelled"
-  | "order_refunded" | "customer_welcome" | "delivery_update" | "contact_reply" | "gift_card";
+  | "order_refunded" | "customer_welcome" | "delivery_update" | "contact_reply" | "gift_card" | "review_request";
 
 export type TemplateFields = { subject: string; body: string; buttonText: string; signoff: string; enabled?: boolean };
 
@@ -20,6 +20,7 @@ export const PLACEHOLDERS: Record<TemplateId, string[]> = {
   customer_welcome: ["customer_name", "email"],
   delivery_update: ["customer_name", "order_id", "status", "tracking_carrier", "tracking_number", "tracking_url"],
   contact_reply: ["customer_name", "email"],
+  review_request: ["customer_name", "order_id", "book_titles", "items_table"],
   gift_card: ["recipient_name", "sender_name", "amount", "code", "message", "expires", "shop_url"],
 };
 
@@ -29,7 +30,7 @@ export const REQUIRED_PLACEHOLDERS: Partial<Record<TemplateId, Record<string, st
 };
 
 const SAMPLE: Record<string, string> = {
-  customer_name: "Julianne Smith", order_id: "LM-98241", tracking_carrier: "Canada Post", tracking_number: "123456789012",
+  book_titles: "Visions of Toronto", customer_name: "Julianne Smith", order_id: "LM-98241", tracking_carrier: "Canada Post", tracking_number: "123456789012",
   total_price: "CA$45.00", payment_method: "Interac e-Transfer", email: "julianne.smith@gmail.com", status: "out for delivery",
   tracking_url: "#", cart_url: "#", order_url: "#", shipping_method: "Canada Post Expedited Parcel",
   delivery_estimate: "2-4 business days after dispatch", recipient_name: "Sam", sender_name: "Julianne", amount: "CA$50.00",
