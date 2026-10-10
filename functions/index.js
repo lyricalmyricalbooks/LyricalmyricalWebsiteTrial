@@ -360,7 +360,9 @@ async function sendEmail({ to, subject, html, secret, queue = "", outboxId = "",
   const recipientList = cleanRecipients(to);
   subject = cleanSubject(subject);
   const sourceHtml = html;
-  const logBase = { to: Array.isArray(to) ? to.join(", ") : String(to || ""), subject, ...(queue ? { kind: String(queue) } : {}), ...(outboxId ? { outboxId } : {}) };
+  // Order emails name their order, so Order detail › Activity can list its delivery attempts.
+  const aboutOrder = typeof about?.orderId === "string" && about.orderId ? { orderId: about.orderId } : {};
+  const logBase = { to: Array.isArray(to) ? to.join(", ") : String(to || ""), subject, ...(queue ? { kind: String(queue) } : {}), ...(outboxId ? { outboxId } : {}), ...aboutOrder };
   if (!recipientList) {
     // Permanent: no retry can fix an address, and a bad one may be an attempt to inject headers.
     const message = `${String(logBase.to).replace(/[\r\n]+/g, " ").slice(0, 120) || "(no address)"} is not a valid email address, so nothing was sent.`;
@@ -371,7 +373,7 @@ async function sendEmail({ to, subject, html, secret, queue = "", outboxId = "",
   // One id for this email across every try: the queue entry's id, and Resend's idempotency key,
   // so a reply lost after Resend accepted the message can't turn into a second copy.
   const queueId = outboxId || (queue ? crypto.randomBytes(12).toString("hex") : "");
-  const okExtra = { ...(queue ? { kind: String(queue) } : {}), ...(outboxId ? { outboxId } : {}), ...(attempt > 1 ? { attempt } : {}) };
+  const okExtra = { ...(queue ? { kind: String(queue) } : {}), ...(outboxId ? { outboxId } : {}), ...(attempt > 1 ? { attempt } : {}), ...aboutOrder };
   let apiKey = secret;
   let keySource = secret ? "secret" : "none";
   let fromName = "Lyricalmyrical Books";
@@ -459,12 +461,12 @@ async function sendEmail({ to, subject, html, secret, queue = "", outboxId = "",
     if (queue && !isPermanentEmailError(error)) {
       const queued = await enqueueEmail({ id: queueId, to: recipientList, subject, html: sourceHtml, kind: queue, error, claimId, about });
       if (queued) {
-        await logEmailAttempt({ to: recipients, subject, status: "queued", error: `${error} Saved to try again automatically.`, from: fromEmail, keySource, kind: String(queue), outboxId: queued.id, retryAt: queued.nextAttemptAt, ...extra });
+        await logEmailAttempt({ to: recipients, subject, status: "queued", error: `${error} Saved to try again automatically.`, from: fromEmail, keySource, kind: String(queue), outboxId: queued.id, retryAt: queued.nextAttemptAt, ...aboutOrder, ...extra });
         thrown.queued = queued.id;
         throw thrown;
       }
     }
-    await logEmailAttempt({ to: recipients, subject, status: "failed", error, from: fromEmail, keySource, ...(queue ? { kind: String(queue) } : {}), ...extra });
+    await logEmailAttempt({ to: recipients, subject, status: "failed", error, from: fromEmail, keySource, ...(queue ? { kind: String(queue) } : {}), ...aboutOrder, ...extra });
     throw thrown;
   };
 
@@ -575,7 +577,7 @@ async function sendQueuedEmail(id, { force = false } = {}) {
   }
   const attempt = (Number(entry.attempts) || 1) + 1;
   try {
-    await sendEmail({ to: entry.to, subject: entry.subject, html: entry.html, secret: resendSecretValue(), queue: entry.kind || "retry", outboxId: id, attempt });
+    await sendEmail({ to: entry.to, subject: entry.subject, html: entry.html, secret: resendSecretValue(), queue: entry.kind || "retry", outboxId: id, attempt, about: { orderId: entry.orderId || "" } });
   } catch (err) {
     const message = String(err?.message || err).slice(0, 1000);
     const at = new Date().toISOString();
@@ -4110,6 +4112,11 @@ exports.onOrderUpdated = onDocumentUpdated(
         }
       }
 
+    }
+    // Admin "Resend order confirmation" (Order detail › More order actions) stamps
+    // confirmationEmailRequestedAt; each stamp sends the customer's confirmation once more.
+    const resendConfirmation = !becamePaid && !!after.confirmationEmailRequestedAt && after.confirmationEmailRequestedAt !== before.confirmationEmailRequestedAt;
+    if ((becamePaid || resendConfirmation) && after.paymentStatus === "paid") {
       if (notificationSettings.order_confirmation?.enabled !== false) {
       const order = after;
 
@@ -4194,7 +4201,7 @@ exports.onOrderUpdated = onDocumentUpdated(
       `;
 
       try {
-        await sendOrderEmailOnce(orderId, "orderConfirmed", {
+        await sendOrderEmailOnce(orderId, becamePaid ? "orderConfirmed" : `orderConfirmedResend_${after.confirmationEmailRequestedAt}`, {
           to: order.customer.email,
           subject: compiled.subject,
           html: compiled.html,
@@ -4205,7 +4212,7 @@ exports.onOrderUpdated = onDocumentUpdated(
       }
       // The shop's one email per paid order (Settings › Notifications › new-order alert).
       // It goes out even when the customer's address is rejected.
-      if (notificationSettings.new_order_admin?.enabled !== false) try {
+      if (becamePaid && notificationSettings.new_order_admin?.enabled !== false) try {
         await sendOrderEmailOnce(orderId, "shopNewOrder", {
           to: ADMIN_TO,
           subject: `${order.sandboxPayment ? "[TEST] " : ""}[NEW ${preorderLines.length ? "PRE-ORDER" : "ORDER"}] ${order.orderId || orderId} · paid · ${chargedTotalFmt(order)} · ${order.customer.name}`,
