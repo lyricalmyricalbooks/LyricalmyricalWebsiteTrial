@@ -16,7 +16,7 @@ import {
 
 // ─── helpers ────────────────────────────────────────────────────────────────
 
-const fmt = (n: number | null | undefined) => (n != null && n !== ("" as any) ? `$${Number(n).toFixed(2)}` : "—");
+const fmt = (n: number | null | undefined) => (n != null && n !== ("" as any) ? `CA$${Number(n).toFixed(2)}` : "—");
 
 const TYPE_OPTIONS = [
   { id: "percentage", label: "Percentage", desc: "e.g. 20% off" },
@@ -333,7 +333,8 @@ export function Discounts() {
   // The published shop categories (Studio › Menus › Shop categories), the names checkout matches.
   useEffect(() => { adminApi.getPublicSettings().then((st: any) => setShopCategories(Array.isArray(st?.design?.categories) ? st.design.categories : [])).catch(() => setShopCategories([])); }, []);
   // Performance is best-effort: a failure here must not block managing codes.
-  useEffect(() => { adminApi.getOrders(500).then(setOrders).catch(() => {}); }, []);
+  // Every order (paged), so older redemptions count too.
+  useEffect(() => { adminApi.getAllOrders().then(setOrders).catch(() => {}); }, []);
   const perf = useMemo(() => discountPerformance(orders), [orders]);
 
   async function load() {
@@ -423,7 +424,7 @@ export function Discounts() {
       <div className="rp-kpi-grid">
         <MetricCard label="Active discounts" value={activeCodes} footer={`${discounts.length} total`} />
         <MetricCard label="Redemptions" value={totalRedemptions.toLocaleString()} footer="Counted by the payment webhook" tone="gold" />
-        <MetricCard label="Revenue with a discount" value={fmt(totalCodeRevenue)} footer="Paid orders, last 500" />
+        <MetricCard label="Revenue with a discount" value={fmt(totalCodeRevenue)} footer="Paid orders, less refunds (CAD)" />
         <MetricCard label="Discounts given" value={fmt(totalGiven)} footer="Total taken off those orders" />
       </div>
 

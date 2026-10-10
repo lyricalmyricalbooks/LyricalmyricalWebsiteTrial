@@ -38,3 +38,10 @@ describe("duplicate clears the expiry", () => {
     expect(duplicateDiscount({ id: "y", method: "automatic", title: "T", expiryDate: "2025-01-01" }, []).expiryDate).toBe("");
   });
 });
+
+describe("revenue after refunds", () => {
+  it("takes partial refunds off, like the Overview", () => {
+    const m = discountPerformance([{ paymentStatus: "paid", total: 50, discount: 5, refundedAmountMinor: 1000, expectedAmountMinor: 5000, appliedDiscount: { code: "X" } }]);
+    expect(m.get("X")?.revenue).toBe(40);
+  });
+});
