@@ -5481,6 +5481,19 @@ exports.sendTestEmail = onBrowserRequest(
     if (!adminUser) return;
 
     const body = req.body || {};
+    // Admin › Messages › Reply: answer a contact message (functions/messageReply.js).
+    if (body.action === "replyToMessage") {
+      try {
+        const out = await require("./messageReply").handleMessageReply(body, {
+          db, sendEmail, secret: RESEND_API_KEY.value(), adminEmail: adminUser.email || "",
+        });
+        res.status(out.status).json(out.json);
+      } catch (err) {
+        console.error("message reply failed:", err);
+        res.status(500).json({ error: "The reply could not be sent. Check that the latest Cloud Functions are deployed." });
+      }
+      return;
+    }
     // Settings › Notifications › Waiting to send: the retry queue (never its HTML, which can
     // hold gift-card codes and download links), Retry now and Stop retrying.
     if (body.action === "emailQueue" || body.action === "retryEmail" || body.action === "cancelEmail") {
