@@ -1,4 +1,5 @@
 import { queueOf } from "./fulfillment";
+import { isSoldOut, trackedStockRows, type StockRow } from "./stockRules";
 // Pure publisher-insight calculations for the admin Overview.
 // Only recorded data is used: paid, non-test orders, the book catalog, reviews
 // and newsletter signups. Nothing here is estimated or simulated.
@@ -145,19 +146,26 @@ export interface TitleStock {
 
 /** Per-title sell-through: 30-day velocity, days of stock cover, and days since last sale. */
 export function titleStock(paid: Order[], books: Book[], now = Date.now()): TitleStock[] {
+  // Only copies with a shelf count (stockRules): tracked print books and editions — never digital editions,
+  // untracked (print-on-demand) books, gift cards, box sets, drafts or archived books.
+  const rowsByBook = new Map<string, StockRow[]>();
+  for (const r of trackedStockRows(books)) rowsByBook.set(r.bookId, [...(rowsByBook.get(r.bookId) || []), r]);
   const sold30 = new Map<string, number>();
   const lastSale = new Map<string, number>();
   paid.forEach(o => {
     const t = ts(o.createdAt);
     (o.items || []).forEach((i: any) => {
+      const rows = rowsByBook.get(i.id);
+      if (!rows) return;
+      // A sale of a digital (or untracked) edition doesn't empty the shelf.
+      if (i.digital === true || i.isDigital === true) return;
+      if (i.variantId && rows.every(r => r.variantId !== String(i.variantId))) return;
       if (now - t <= 30 * DAY) sold30.set(i.id, (sold30.get(i.id) || 0) + (Number(i.quantity) || 0));
       if (t > (lastSale.get(i.id) || 0)) lastSale.set(i.id, t);
     });
   });
-  // Stock with "Track inventory" switched off (print-on-demand) is never sold out on the
-  // storefront, so it has no shelf count to watch here either.
-  return books.filter(b => b.status !== "draft" && !isDigitalBook(b) && (b as any).trackInventory !== false).map(b => {
-    const stock = Number(b.stockLevel) || 0;
+  return books.filter(b => rowsByBook.has(b.id)).map(b => {
+    const stock = (rowsByBook.get(b.id) || []).reduce((s, r) => s + r.stock, 0);
     const s30 = sold30.get(b.id) || 0;
     const last = lastSale.get(b.id);
     return {
@@ -176,12 +184,18 @@ export const reprintWatch = (rows: TitleStock[]) =>
 export const dormantStock = (rows: TitleStock[]) =>
   rows.filter(r => r.stock > 0 && (r.lastSaleDays === null || r.lastSaleDays >= DORMANT_DAYS)).sort((a, b) => b.stock - a.stock);
 
-/** Retail value of print stock on hand, from each title's retail price. */
+/**
+ * Retail value of tracked print stock on hand, edition by edition (each at its own price).
+ * `soldOut` counts books/editions shoppers can't buy now (0 left, backorders off).
+ */
 export function stockValue(books: Book[]) {
-  const print = books.filter(b => b.status !== "draft" && !isDigitalBook(b) && (b as any).trackInventory !== false);
-  const units = print.reduce((s, b) => s + (Number(b.stockLevel) || 0), 0);
-  const value = print.reduce((s, b) => s + (Number(b.stockLevel) || 0) * (Number(b.retailPrice ?? b.price) || 0), 0);
-  return { units, value, soldOut: print.filter(b => (Number(b.stockLevel) || 0) <= 0).length, titles: print.length };
+  const rows = trackedStockRows(books);
+  return {
+    units: rows.reduce((s, r) => s + r.stock, 0),
+    value: rows.reduce((s, r) => s + r.stock * r.price, 0),
+    soldOut: rows.filter(isSoldOut).length,
+    titles: new Set(rows.map(r => r.bookId)).size,
+  };
 }
 
 /** Paid orders still waiting to ship, oldest first, with age in days. */
