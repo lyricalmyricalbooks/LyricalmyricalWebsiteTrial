@@ -19,3 +19,27 @@ describe("reviewInsights", () => {
     expect(filterReviews(rs, { status: "all", rating: "all", q: "night", titles }).map((r) => r.id)).toEqual(["1", "3"]);
   });
 });
+
+describe("verified purchases", () => {
+  it("matches a reviewer to a paid order for that book (box-set parts too), ignoring test orders", async () => {
+    const { purchaseIndex, isVerifiedPurchase } = await import("./reviewInsights");
+    const index = purchaseIndex([
+      { paymentStatus: "paid", customer: { email: "Ann@X.ca " }, items: [{ id: "b1" }, { id: "set", components: [{ id: "b2" }] }] },
+      { paymentStatus: "unpaid", customer: { email: "bo@x.ca" }, items: [{ id: "b1" }] },
+      { paymentStatus: "paid", isTest: true, customer: { email: "cy@x.ca" }, items: [{ id: "b1" }] },
+    ]);
+    expect(isVerifiedPurchase({ email: "ann@x.ca", bookId: "b1" }, index)).toBe(true);
+    expect(isVerifiedPurchase({ email: "ann@x.ca", bookId: "b2" }, index)).toBe(true);
+    expect(isVerifiedPurchase({ email: "ann@x.ca", bookId: "b3" }, index)).toBe(false);
+    expect(isVerifiedPurchase({ email: "bo@x.ca", bookId: "b1" }, index)).toBe(false);
+    expect(isVerifiedPurchase({ email: "cy@x.ca", bookId: "b1" }, index)).toBe(false);
+    expect(isVerifiedPurchase({ bookId: "b1" }, index)).toBe(false);
+  });
+});
+
+describe("featured reviews first", () => {
+  it("puts pinned reviews on top and keeps the rest in order", async () => {
+    const { featuredFirst } = await import("../features/site/ReviewsSection");
+    expect(featuredFirst([{ id: "a" }, { id: "b", featured: true }, { id: "c" }] as any[]).map((r: any) => r.id)).toEqual(["b", "a", "c"]);
+  });
+});

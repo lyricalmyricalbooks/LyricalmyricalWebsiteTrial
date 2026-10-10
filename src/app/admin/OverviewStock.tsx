@@ -3,6 +3,7 @@ import { EmptyState, ErrorState, LoadingState, MetricCard, SecondaryButton, Sect
 import { DORMANT_DAYS, REORDER_COVER_DAYS, type Book, type TitleStock } from "./overviewInsights";
 import { stockDemand } from "./overviewTraffic";
 import { adminApi } from "./api";
+import { isSoldOut, stockRowLabel, trackedStockRows } from "./stockRules";
 import { ROW, SPLIT, StatRow, money } from "./OverviewParts";
 
 export const LOW_STOCK = 5;
@@ -23,8 +24,9 @@ export function OverviewStock({ books, shelf, reprint, dormant, setActiveTab }: 
   useEffect(load, []);
 
   const lowStock = useMemo(
-    () => books.filter(b => b.status !== "draft" && (b.stockLevel || 0) <= LOW_STOCK)
-      .sort((a, b) => (a.stockLevel || 0) - (b.stockLevel || 0)).slice(0, 6),
+    // Tracked print books/editions only (stockRules): never digital, untracked, gift cards, box sets or archived.
+    () => trackedStockRows(books).filter(r => r.stock <= LOW_STOCK)
+      .sort((a, b) => a.stock - b.stock).slice(0, 6),
     [books],
   );
   const demand = useMemo(() => (alerts.rows ? stockDemand(alerts.rows, books) : null), [alerts.rows, books]);
@@ -34,7 +36,7 @@ export function OverviewStock({ books, shelf, reprint, dormant, setActiveTab }: 
     <>
       <div className="rp-kpi-grid">
         <MetricCard label="Shelf value" value={money(shelf.value)} footer={`${shelf.units.toLocaleString()} print copies at retail`} />
-        <MetricCard label="Print titles" value={shelf.titles} footer={`${shelf.soldOut} sold out`} tone={shelf.soldOut > 0 ? "danger" : undefined} />
+        <MetricCard label="Print titles" value={shelf.titles} footer={`${shelf.soldOut} sold out (books or editions)`} tone={shelf.soldOut > 0 ? "danger" : undefined} />
         <MetricCard label="Reprint soon" value={reprint.length} footer={`under ${REORDER_COVER_DAYS} days of stock`} tone={reprint.length > 0 ? "warn" : undefined} />
         <MetricCard label="Readers waiting" value={waitingTotal === null ? (alerts.error ? "—" : "…") : waitingTotal}
           footer={alerts.error ? "Sign-ups unavailable" : "asked to be told when a book is back"} tone={waitingTotal ? "warn" : undefined} />
@@ -92,10 +94,10 @@ export function OverviewStock({ books, shelf, reprint, dormant, setActiveTab }: 
           actions={<SecondaryButton size="sm" onClick={() => setActiveTab?.("catalog")}>Manage books</SecondaryButton>}>
           {lowStock.length === 0 ? <EmptyState icon="✓" title="Stock looks healthy" description="No published titles are at or below the low-stock threshold." /> : (
             <ul className="rp-list" aria-label="Low stock titles">
-              {lowStock.map(b => (
-                <li key={b.id} style={ROW}>
-                  <span style={{ minWidth: 0, overflowWrap: "anywhere", fontWeight: 600 }}>{b.title}</span>
-                  <StatusBadge tone={(b.stockLevel || 0) <= 0 ? "danger" : "warning"}>{(b.stockLevel || 0) <= 0 ? "Sold out" : `${b.stockLevel} left`}</StatusBadge>
+              {lowStock.map(r => (
+                <li key={`${r.bookId}-${r.variantId || ""}`} style={ROW}>
+                  <span style={{ minWidth: 0, overflowWrap: "anywhere", fontWeight: 600 }}>{stockRowLabel(r)}</span>
+                  <StatusBadge tone={isSoldOut(r) ? "danger" : "warning"}>{isSoldOut(r) ? "Sold out" : r.stock <= 0 ? "0 left · backorders on" : `${r.stock} left`}</StatusBadge>
                 </li>
               ))}
             </ul>

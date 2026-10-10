@@ -1,8 +1,10 @@
+import { duplicateBookData } from "./catalogList";
 import { changedBookFields } from "./bookStockMerge";
 import { BOOK_FIELDS_DOC, cleanBookFields, type BookFieldDef } from "../features/site/bookFields";
 import { alternatesFor, type AltBase, type AlternateTemplate } from "../features/site/templateAlternates";
 import { newOrderAccessKey, rememberOrderAccess, savedOrderAccess, orderAccessHeaders } from "../lib/orderAccessClient";
 import { addressKey, addressIssues, packingKey, dispatchProblem, disputeOpen, queueOf, fulfillmentMethod, trackingFields } from "./fulfillment";
+import { deleteRefusal } from "./orderListHelpers";
 import { restampPreorderItems } from "../features/site/preorder";
 import { themeWrite } from "./themeWrite";
 import { draftFieldUpdate, readDraftField } from "./themeStore";
@@ -98,43 +100,16 @@ export const adminApi = {
     return onAuthStateChanged(auth, callback);
   },
 
-  // Stats
-  getStats: async () => {
-    try {
-      // Using getCountFromServer is O(1) in terms of read costs and much faster
-      const booksColl = collection(db, "books");
-      const authorsColl = collection(db, "authors");
-      const profilesColl = collection(db, "shipping-profiles");
-      const ordersColl = collection(db, "orders");
-
-      const [booksCount, authorsCount, profilesCount, ordersSnapshot] = await Promise.all([
-        getCountFromServer(booksColl),
-        getCountFromServer(authorsColl),
-        getCountFromServer(profilesColl),
-        getDocs(ordersColl)
-      ]);
-      
-      // For more granular stats like drafts, we still need a query count
-      const draftQuery = query(booksColl, where("status", "==", "draft"));
-      const publishedQuery = query(booksColl, where("status", "==", "published"));
-      
-      const [draftSnap, publishedSnap] = await Promise.all([
-        getCountFromServer(draftQuery),
-        getCountFromServer(publishedQuery)
-      ]);
-      
-      return {
-        totalBooks: booksCount.data().count,
-        draftCount: draftSnap.data().count,
-        publishedCount: publishedSnap.data().count,
-        shippingProfiles: profilesCount.data().count,
-        authors: authorsCount.data().count,
-        totalOrders: ordersSnapshot.docs.filter(order => order.data().isTest !== true).length
-      };
-    } catch (err) {
-      console.error("Stats Error:", err);
-      return { totalBooks: 0, draftCount: 0, publishedCount: 0, shippingProfiles: 0, authors: 0, totalOrders: 0 };
-    }
+  // Nav badges: cheap server-side counts (single-field filters, no composite index). Each count fails
+  // on its own as null so one refused read never hides the others.
+  getAdminBadgeCounts: async () => {
+    const count = (q: any) => getCountFromServer(q).then((s: any) => s.data().count as number).catch(() => null);
+    const [pendingReviews, unreadMessages, openPrivacyRequests] = await Promise.all([
+      count(query(collection(db, "reviews"), where("status", "==", "pending"))),
+      count(query(collection(db, "contactMessages"), where("status", "in", ["new", "emailed"]))),
+      count(query(collection(db, "privacyRequests"), where("status", "==", "open"))),
+    ]);
+    return { pendingReviews, unreadMessages, openPrivacyRequests };
   },
 
   // Books
@@ -278,17 +253,11 @@ export const adminApi = {
     const snap = await getDoc(docRef);
     if (!snap.exists()) throw new Error("Original book not found");
     const data = snap.data();
-    const newDoc = await addDoc(collection(db, "books"), {
-      ...data,
-      title: `${data.title} (Copy)`,
-      // A copied slug would collide with the original and push its public URL to /books/<id>.
-      slug: "",
-      status: "draft",
-      createdAt: new Date().toISOString(),
-      updatedAt: new Date().toISOString(),
-    });
+    // No ISBN/SKU/slug/stock/featured flag/digital file: the copy must not pose as, or sell, the original.
+    const copy = duplicateBookData(data);
+    const newDoc = await addDoc(collection(db, "books"), copy);
     await adminApi.recordAuditLog("catalog", `Duplicated book: ${data.title}`);
-    return newDoc;
+    return { ...copy, id: newDoc.id };
   },
 
   addPhotos: async (bookId: string, photos: any[]) => {
@@ -560,6 +529,8 @@ export const adminApi = {
       try {
         await adminApi.writePrivateKeys(secrets);
         await setDoc(docRef, publicSettings, { mergeFields: Object.keys(publicSettings) });
+        if (secrets.stripe) await adminApi.markKeysMigrated("stripe").catch(() => {});
+        if (secrets.resend) await adminApi.markKeysMigrated("resend").catch(() => {});
         Object.assign(merged, publicSettings);
       } catch (err) {
         console.warn("Could not move secret keys out of public settings:", err);
@@ -568,7 +539,7 @@ export const adminApi = {
       }
     }
     const flags = await adminApi.getPrivateKeyFlags();
-    merged.payments = { ...merged.payments, stripe: { ...(merged.payments?.stripe || {}), secretKeyStored: flags.stripeLive, testSecretKeyStored: flags.stripeTest } };
+    merged.payments = { ...merged.payments, stripe: { ...(merged.payments?.stripe || {}), secretKeyStored: flags.stripeLive, testSecretKeyStored: flags.stripeTest, ...(flags.stripeMigrated ? { keysWerePublic: true } : {}) } };
     merged.communications = { ...merged.communications, resendApiKeyStored: flags.resend };
     // Older designs never chose a themeStyle: render them in Riso Noir (content untouched).
     if (merged.design) merged.design = withRisoNoirDefault(merged.design);
@@ -846,7 +817,7 @@ export const adminApi = {
     });
   },
 
-  fulfillmentAction: async (id: string, action: "review" | "pack" | "hold" | "release" | "release_preorder" | "dispatch" | "local_transition" | "edit_tracking" | "delivery_status" | "resend_shipping_email", payload: any = {}) => {
+  fulfillmentAction: async (id: string, action: "review" | "pack" | "hold" | "release" | "release_preorder" | "dispatch" | "local_transition" | "edit_tracking" | "delivery_status" | "resend_shipping_email" | "resend_confirmation_email", payload: any = {}) => {
     await runTransaction(db, async tx => {
       const ref = doc(db, "orders", id);
       const privateRef = doc(db, "order-operations", id);
@@ -902,6 +873,10 @@ export const adminApi = {
         if (!String(o.trackingNumber || "").trim()) throw new Error("Add tracking before resending the shipping email.");
         tx.update(ref, { shippingEmailRequestedAt: now, updatedAt: now });
         message = `Shipping email resent to ${o.customer?.email || "the customer"}.`;
+      } else if (action === "resend_confirmation_email") {
+        // The server's onOrderUpdated sends the customer's Order confirmed email once per stamp.
+        tx.update(ref, { confirmationEmailRequestedAt: now, updatedAt: now });
+        message = `Order confirmation resent to ${o.customer?.email || "the customer"}.`;
       } else if (action === "delivery_status") {
         if (fulfillmentMethod(o) !== "shipping" || queueOf(o) !== "In transit") throw new Error("Only shipped parcels in transit can be updated.");
         const next = String(payload.status || "");
@@ -962,15 +937,19 @@ export const adminApi = {
     return result;
   },
 
-  // Owner-initiated removal of orders (any state). Firestore rules allow admin
-  // deletes. This only removes records: it does not refund, restock or touch Stripe.
+  // Owner-initiated removal of unpaid, cancelled and test orders only (deleteRefusal,
+  // mirrored by the orders delete rule). This only removes records: it does not refund, restock or touch Stripe.
   deleteOrders: async (orderIds: string[]) => {
     let deleted = 0;
     const failed: string[] = [];
+    // Paid, refunded and shipped orders are never deleted (deleteRefusal; also firestore.rules).
+    const refused: Array<{ id: string; reason: string }> = [];
     for (const id of orderIds) {
       try {
         const snap = await getDoc(doc(db, "orders", id));
         const label = snap.exists() ? (snap.data().orderId || id) : id;
+        const reason = snap.exists() ? deleteRefusal(snap.data()) : "";
+        if (reason) { refused.push({ id, reason }); continue; }
         await deleteDoc(doc(db, "orders", id));
         try { await deleteDoc(doc(db, "order-operations", id)); } catch { /* none to remove */ }
         deleted += 1;
@@ -979,7 +958,7 @@ export const adminApi = {
         failed.push(id);
       }
     }
-    return { deleted, failed };
+    return { deleted, failed, refused };
   },
 
   registerStripePaymentDomain: async (origin: string) => {
@@ -1208,7 +1187,22 @@ export const adminApi = {
     return body;
   },
 
-  refundOrder: async (orderId: string, options?: { reason?: string; restock?: boolean }) => {
+  /** Admin-only delivery log rows for one order (sent / failed / queued, with the reason), newest first. */
+  getOrderEmailLog: async (orderId: string) => {
+    const snap = await getDocs(query(collection(db, "emailLog"), where("orderId", "==", orderId), limit(50)));
+    return snap.docs.map(d => ({ id: d.id, ...(d.data() as any) })).sort((a: any, b: any) => String(b.at || "").localeCompare(String(a.at || "")));
+  },
+
+  // Parcel presets (box sizes) for the label dialog. Not secret, so a settings doc is fine.
+  getParcelPresets: async (): Promise<any[] | null> => {
+    const snap = await getDoc(doc(db, "settings", "parcelPresets"));
+    return snap.exists() && Array.isArray((snap.data() as any).presets) ? (snap.data() as any).presets : null;
+  },
+  saveParcelPresets: async (presets: any[]) => {
+    await setDoc(doc(db, "settings", "parcelPresets"), { presets, updatedAt: new Date().toISOString() });
+  },
+
+  refundOrder: async (orderId: string, options?: { reason?: string; restock?: boolean; amountMinor?: number | null; restockLines?: { index: number; quantity: number }[] }) => {
     const idToken = await auth.currentUser?.getIdToken();
     if (!idToken) throw new Error("You must be signed in as admin to refund an order.");
 
@@ -1222,6 +1216,8 @@ export const adminApi = {
         orderId,
         reason: options?.reason || "Admin refund",
         restock: options?.restock !== false,
+        ...(options?.amountMinor != null ? { amountMinor: options.amountMinor } : {}),
+        ...(options?.restockLines ? { restockLines: options.restockLines } : {}),
       }),
     });
     const result = await response.json();
@@ -1315,7 +1311,16 @@ export const adminApi = {
   getPrivateKeyFlags: async () => {
     const read = async (id: string) => { try { const s = await getDoc(doc(db, "adminSecrets", id)); return s.exists() ? s.data() as any : {}; } catch { return {}; } };
     const [stripe, resend] = await Promise.all([read("stripe"), read("resend")]);
-    return { stripeLive: !!stripe.secretKey, stripeTest: !!stripe.testSecretKey, resend: !!resend.apiKey };
+    return {
+      stripeLive: !!stripe.secretKey, stripeTest: !!stripe.testSecretKey, resend: !!resend.apiKey,
+      // Set when a key was found in the public settings and moved here: only then is "rotate it" advice shown.
+      stripeMigrated: stripe.migratedFromPublic === true, resendMigrated: resend.migratedFromPublic === true,
+    };
+  },
+
+  /** Records that a secret was found in public settings and moved to adminSecrets (Settings › Payments / Notifications warn to rotate it). */
+  markKeysMigrated: async (kind: "stripe" | "resend") => {
+    await setDoc(doc(db, "adminSecrets", kind), { migratedFromPublic: true, migratedAt: serverTimestamp() }, { merge: true });
   },
 
   /** Save settings/notifications with the Resend key moved to adminSecrets. */
@@ -1492,7 +1497,7 @@ export const adminApi = {
     const snap = await getDoc(doc(db, "giftCards", id));
     return snap.exists() ? ({ id: snap.id, ...snap.data() } as any) : null;
   },
-  giftCardAdmin: async (op: "issue" | "setEnabled" | "adjust" | "resend", payload: Record<string, any> = {}) => {
+  giftCardAdmin: async (op: "issue" | "setEnabled" | "adjust" | "resend" | "setExpiry", payload: Record<string, any> = {}) => {
     const idToken = await auth.currentUser?.getIdToken();
     if (!idToken) throw new Error("You must be signed in as admin.");
     const response = await functionFetch("createStripeCheckoutSession", {
@@ -1537,14 +1542,39 @@ export const adminApi = {
 
   // Audience signals for the Overview (admin-only reads per firestore.rules).
   getAudienceSnapshot: async () => {
-    const [reviewsSnap, subsSnap] = await Promise.all([
+    const [reviewsSnap, subsSnap, pending] = await Promise.all([
       getDocs(query(collection(db, "reviews"), orderBy("createdAt", "desc"), limit(200))),
       getDocs(query(collection(db, "newsletter"), orderBy("subscribedAt", "desc"), limit(5000))),
+      // Counted on the server: the newest 200 reviews can miss older pending ones.
+      getCountFromServer(query(collection(db, "reviews"), where("status", "==", "pending"))).then(s => s.data().count).catch(() => null),
     ]);
     return {
       reviews: reviewsSnap.docs.map(d => ({ id: d.id, ...d.data() })),
       subscribers: subsSnap.docs.map(d => ({ id: d.id, ...d.data() })),
+      pendingReviews: pending as number | null,
     };
+  },
+
+  // Newsletter sign-ups (ids are the lowercased email) and marketing opt-outs (ids are sha256 of the
+  // email; written only by Functions, admin-readable): who may be sent marketing email.
+  getMarketingConsent: async () => {
+    const [subs, optouts] = await Promise.all([
+      getDocs(query(collection(db, "newsletter"), limit(10000))),
+      getDocs(query(collection(db, "marketing-optout"), limit(10000))).catch(() => null),
+    ]);
+    return {
+      subscribed: new Set(subs.docs.map(d => String(d.data().email || d.id).trim().toLowerCase())),
+      optedOutHashes: optouts ? new Set<string>(optouts.docs.map(d => d.id)) : null,
+    };
+  },
+
+  // Private per-customer notes and tags (admin-only `customerNotes/{sha256(lowercased email)}`).
+  listCustomerNotes: async () => {
+    const snap = await getDocs(query(collection(db, "customerNotes"), limit(10000)));
+    return snap.docs.map(d => ({ id: d.id, ...d.data() })) as Array<{ id: string; email: string; note: string; tags: string[]; updatedAt: string }>;
+  },
+  saveCustomerNote: async (id: string, data: { email: string; note: string; tags: string[] }) => {
+    await setDoc(doc(db, "customerNotes", id), { ...data, updatedAt: new Date().toISOString() });
   },
 
   // "Notify me when back in stock" sign-ups (admin-only per firestore.rules): demand the Overview shows beside reprints.

@@ -27,6 +27,7 @@ export function splitWebsiteSecrets(settings: Record<string, any>): { publicSett
     delete stripe.secretKeyStored;
     delete stripe.testSecretKeyStored;
     delete stripe.publicSecretLeak;
+    delete stripe.keysWerePublic;
   }
   const comms = publicSettings.communications;
   if (comms) {

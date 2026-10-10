@@ -6,6 +6,9 @@ import { adminApi } from "./api";
 import toast from "react-hot-toast";
 import { WORK_QUEUES, queueOf, packingKey, daysInTransit, isOverdueInTransit } from "./fulfillment";
 import { printOrders } from "./orderPrint";
+import { mergeOrder } from "./ordersDesk";
+import { buildCatalogSearchIndex, orderMatches, type CatalogSearchIndex } from "./orderSearch";
+import { batchDispatchFields, listDate, orderDate, orderMoney, orderTime, splitDeletable } from "./orderListHelpers";
 import { orderApi } from "../lib/commerce";
 import {
   Checkbox,
@@ -29,10 +32,6 @@ import {
   type Column,
 } from "./riso/components";
 
-// ⚡ Bolt: Cache lowercased search strings using a WeakMap to prevent
-// O(N) string memory allocations and redundant .toLowerCase() calls on every keystroke.
-// Measured impact: significantly reduces main thread blocking during active typing in search.
-const orderSearchCache = new WeakMap<any, string>();
 
 // The list remembers where you were (queue, search, page, sort) and its last
 // loaded orders, so "Back to orders" returns instantly to the same spot.
@@ -53,6 +52,23 @@ export async function refreshOrdersCache() {
   const data = await adminApi.getFulfillmentOrders();
   listMemory.orders = data;
   return data;
+}
+
+// One order just reloaded on its own page: keep the remembered list in step without a full reload.
+export function patchOrdersCache(order: any) {
+  listMemory.orders = mergeOrder(listMemory.orders, order);
+  return listMemory.orders;
+}
+
+// Catalog ISBNs/SKUs/edition names for order search, read once per session the first time someone searches.
+let catalogIndex: Promise<CatalogSearchIndex | null> | null = null;
+export function loadOrderSearchCatalog(): Promise<CatalogSearchIndex | null> {
+  if (!catalogIndex) {
+    catalogIndex = adminApi.getAllBooks()
+      .then((books: any[]) => buildCatalogSearchIndex(books))
+      .catch(() => { catalogIndex = null; return null; });
+  }
+  return catalogIndex;
 }
 
 // Open the first work queue that has orders in it (Overview "Ship orders").
@@ -116,7 +132,16 @@ export function Orders({
   const setActiveTab = (tab: string) => {
     setActiveTabState(tab);
     setSort(tab === "All orders" ? "newest" : "oldest");
+    // Batch actions must only ever touch orders in the queue on screen.
+    setSelected(new Set());
   };
+  const [catalog, setCatalog] = useState<CatalogSearchIndex | null>(null);
+  useEffect(() => {
+    if (!searchQuery.trim() || catalog) return;
+    let alive = true;
+    loadOrderSearchCatalog().then((c) => { if (alive && c) setCatalog(c); });
+    return () => { alive = false; };
+  }, [searchQuery, catalog]);
   useEffect(() => {
     Object.assign(listMemory, { activeTab, searchQuery, page, sort });
   }, [activeTab, searchQuery, page, sort]);
@@ -197,14 +222,17 @@ export function Orders({
   };
 
   const handleDeleteOrders = async () => {
-    const ids = Array.from(selected);
+    const ids = deleteSplit.allowed.map((o) => o.id);
     setConfirmDeleteOrders(false);
-    const { deleted, failed } = await adminApi.deleteOrders(ids);
+    if (!ids.length) return;
+    const { deleted, failed, refused } = await adminApi.deleteOrders(ids);
     if (deleted)
       toast.success(`Deleted ${deleted} order${deleted === 1 ? "" : "s"}`);
     if (failed.length)
       toast.error(`Could not delete ${failed.length} order${failed.length === 1 ? "" : "s"}`);
-    setSelected(new Set(failed));
+    if (refused.length)
+      toast.error(`Kept ${refused.length} order${refused.length === 1 ? "" : "s"}: ${refused[0].reason}`);
+    setSelected(new Set([...failed, ...refused.map((r) => r.id)]));
     loadOrders();
   };
 
@@ -220,12 +248,9 @@ export function Orders({
         if (kind === "pack") {
           await adminApi.fulfillmentAction(id, "pack", { packingKey: packingKey(o) });
         } else if (kind === "ship") {
-          if (!o?.labelUrl || !o?.trackingNumber) throw new Error("No Shippo label — open the order to enter tracking");
-          await adminApi.fulfillmentAction(id, "dispatch", {
-            trackingCarrier: o.trackingCarrier || "Canada Post",
-            trackingNumber: o.trackingNumber,
-            trackingUrl: o.trackingUrl || "",
-          });
+          const fields = batchDispatchFields(o);
+          if ("problem" in fields) throw new Error(`Skipped — ${fields.problem}`);
+          await adminApi.fulfillmentAction(id, "dispatch", fields);
         } else {
           await adminApi.fulfillmentAction(id, "delivery_status", { status: "delivered" });
         }
@@ -265,7 +290,6 @@ export function Orders({
   // O(N) redundant string allocations and array iteration on every render.
   // Measured impact: Significantly reduces main thread blocking during active typing in search.
   const filteredOrders = useMemo(() => {
-    const q = searchQuery.toLowerCase();
     return orders
       .filter((o) => {
         const matchesTab =
@@ -279,40 +303,20 @@ export function Orders({
         if (!matchesTab || !matchesOrderType) return false;
         if (
           range !== "all" &&
-          Date.now() - new Date(o.createdAt).getTime() >
+          Date.now() - orderTime(o) >
             Number(range) * 86400000
         )
           return false;
 
-        if (q) {
-          let haystack = orderSearchCache.get(o);
-          if (!haystack) {
-            haystack = (
-              (o.orderId || "") +
-              " " +
-              (o.customer?.name || "") +
-              " " +
-              (o.customer?.email || "") +
-              " " +
-              (o.trackingNumber || "")
-            ).toLowerCase();
-            orderSearchCache.set(o, haystack);
-          }
-          if (!haystack.includes(q)) {
-            return false;
-          }
-        }
-
-        return true;
+        return orderMatches(o, searchQuery, catalog);
       })
       .sort((a, b) => {
         if (sort === "total-desc") return (b.total || 0) - (a.total || 0);
         if (sort === "total-asc") return (a.total || 0) - (b.total || 0);
-        const d =
-          new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime();
+        const d = orderTime(a) - orderTime(b);
         return sort === "oldest" ? d : -d;
       });
-  }, [orders, activeTab, searchQuery, orderType, range, sort]);
+  }, [orders, activeTab, searchQuery, orderType, range, sort, catalog]);
 
   const tabCounts = useMemo(() => {
     const c: Record<string, number> = {};
@@ -355,7 +359,28 @@ export function Orders({
 
   const allSelected =
     pageRows.length > 0 && pageRows.every((o) => selected.has(o.id));
+  const wholeQueueSelected =
+    filteredOrders.length > 0 && filteredOrders.every((o) => selected.has(o.id));
   const selectedArr = Array.from(selected);
+  const deleteSplit = useMemo(
+    () => splitDeletable(selectedArr.map((id) => ordersMap.get(id) || { id })),
+    [selected, ordersMap],
+  );
+  const showDate = (o: any) => (
+    <>
+      {listDate(orderDate(o))}
+      {!o.paidAt && o.createdAt && <span className="rp-hint"> · placed</span>}
+    </>
+  );
+  const showMoney = (o: any) => {
+    const m = orderMoney(o);
+    return (
+      <>
+        {m.text}
+        {m.paid && <span className="rp-hint"> · paid {m.paid}</span>}
+      </>
+    );
+  };
   const allTestSelection =
     selectedArr.length > 0 &&
     selectedArr.every((id) => ordersMap.get(id)?.isTest === true);
@@ -401,13 +426,8 @@ export function Orders({
     },
     {
       key: "date",
-      header: "Date",
-      render: (o) =>
-        new Date(o.createdAt).toLocaleDateString(undefined, {
-          month: "short",
-          day: "numeric",
-          year: "numeric",
-        }),
+      header: "Paid (or placed)",
+      render: showDate,
     },
     {
       key: "customer",
@@ -433,7 +453,7 @@ export function Orders({
       key: "total",
       header: "Total",
       numeric: true,
-      render: (o) => `CA$${Number(o.total || 0).toFixed(2)}`,
+      render: showMoney,
     },
     {
       key: "payment",
@@ -600,6 +620,14 @@ export function Orders({
           <div className="fw-selection">
             <strong>{selected.size} selected</strong>
             <div className="fw-toolbar-actions">
+              {allSelected && !wholeQueueSelected && (
+                <SecondaryButton
+                  size="sm"
+                  onClick={() => setSelected(new Set(filteredOrders.map((o) => o.id)))}
+                >
+                  {`Select all ${filteredOrders.length} in this queue`}
+                </SecondaryButton>
+              )}
               {" "}
               {allTestSelection && (
                 <DestructiveButton
@@ -695,7 +723,7 @@ export function Orders({
                     </button>
                     <p>{o.customer?.name || "Guest customer"}</p>
                     <span className="rp-hint">
-                      {new Date(o.createdAt).toLocaleDateString()} ·{" "}
+                      {showDate(o)} ·{" "}
                       {(o.items || []).reduce(
                         (n: number, i: any) => n + Number(i.quantity || 0),
                         0,
@@ -709,7 +737,7 @@ export function Orders({
                       {isOverdueInTransit(o) && (
                         <StatusBadge tone="warning">{`Overdue · ${daysInTransit(o)} days`}</StatusBadge>
                       )}
-                      <span className="rp-mono">{`CA$${Number(o.total || 0).toFixed(2)}`}</span>
+                      <span className="rp-mono">{showMoney(o)}</span>
                     </div>
                   </div>
                 </article>
@@ -809,14 +837,43 @@ export function Orders({
       >
         <p>{confirmBatch ? BATCH[confirmBatch].text(selected.size) : ""}</p>
       </Dialog>
-      <ConfirmDialog
+      <Dialog
         open={confirmDeleteOrders}
+        onClose={() => setConfirmDeleteOrders(false)}
         title="Delete orders?"
-        confirmLabel="Delete orders"
-        message={`Permanently delete ${selected.size} selected order${selected.size === 1 ? "" : "s"}? This only removes the record: it does not refund the customer, restock books or cancel any shipping label. This cannot be undone.`}
-        onConfirm={handleDeleteOrders}
-        onCancel={() => setConfirmDeleteOrders(false)}
-      />
+        footer={
+          <>
+            <SecondaryButton data-autofocus onClick={() => setConfirmDeleteOrders(false)}>
+              Cancel
+            </SecondaryButton>
+            <DestructiveButton disabled={!deleteSplit.allowed.length} onClick={handleDeleteOrders}>
+              {`Delete ${deleteSplit.allowed.length} order${deleteSplit.allowed.length === 1 ? "" : "s"}`}
+            </DestructiveButton>
+          </>
+        }
+      >
+        <div className="rp-stack" style={{ gap: 8 }}>
+          <p style={{ margin: 0 }}>
+            {deleteSplit.allowed.length
+              ? `Permanently delete ${deleteSplit.allowed.length} unpaid, cancelled or test order${deleteSplit.allowed.length === 1 ? "" : "s"}? This only removes the record: it does not refund anyone, restock books or cancel a shipping label. This cannot be undone.`
+              : "None of the selected orders can be deleted."}
+          </p>
+          {deleteSplit.refused.length > 0 && (
+            <>
+              <p style={{ margin: 0 }}>
+                {`${deleteSplit.refused.length} will be kept — paid, refunded and shipped orders stay for your records (refund or cancel them instead):`}
+              </p>
+              <ul style={{ margin: 0, maxHeight: 160, overflowY: "auto" }}>
+                {deleteSplit.refused.slice(0, 20).map(({ order, reason }) => (
+                  <li key={order.id}>
+                    <span className="rp-mono">{order.orderId || order.id}</span>: {reason}
+                  </li>
+                ))}
+              </ul>
+            </>
+          )}
+        </div>
+      </Dialog>
       <ConfirmDialog
         open={confirmDeleteTests}
         title="Delete test orders?"

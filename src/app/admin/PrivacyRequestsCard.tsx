@@ -58,6 +58,23 @@ export function PrivacyRequestsCard() {
     } finally { setBusy(""); }
   };
 
+  const closeRequest = async (r: any) => {
+    const ok = await ask({
+      title: "Close this request without acting?",
+      message: `${r.email}'s request will move to handled requests. Nothing is exported or deleted. Only do this if you've answered them another way (for example, the address wasn't theirs).`,
+      confirmLabel: "Close request",
+    });
+    if (!ok) return;
+    setBusy(`close:${r.id}`);
+    try {
+      await adminApi.closePrivacyRequest(r.id);
+      toast.success("Request closed.");
+      await load();
+    } catch (err: any) {
+      toast.error(err?.message || "Couldn't close the request. Nothing was changed.");
+    } finally { setBusy(""); }
+  };
+
   const open = (requests || []).filter((r) => r.status === "open");
   const done = (requests || []).filter((r) => r.status !== "open").slice(0, 10);
   const row = (r: any) => (
@@ -71,7 +88,7 @@ export function PrivacyRequestsCard() {
         <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
           <SecondaryButton size="sm" disabled={!!busy} onClick={() => exportData(r.email, r.id)}>Download their data</SecondaryButton>
           {r.type === "delete" && <DestructiveButton size="sm" disabled={!!busy} onClick={() => eraseData(r.email, r.id)}>Delete their data</DestructiveButton>}
-          <SecondaryButton size="sm" disabled={!!busy} onClick={async () => { await adminApi.closePrivacyRequest(r.id); load(); }}>Close without action</SecondaryButton>
+          <SecondaryButton size="sm" disabled={!!busy} onClick={() => closeRequest(r)}>Close without action</SecondaryButton>
         </div>
       )}
     </li>

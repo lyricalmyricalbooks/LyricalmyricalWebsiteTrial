@@ -19,7 +19,7 @@ const crypto = require("crypto");
 const { browserRequestHandler } = require("./appCheck");
 const { Resend } = require("resend");
 const { explainEmailError } = require("./emailErrors");
-const { risoButton, risoLayout } = require("./emailTheme");
+const { risoButton, risoLayout, placeItemsTable } = require("./emailTheme");
 const Stripe = require("stripe");
 const { calculateShipping, applyStockDelta } = require("./orderMath");
 const { quoteShipping, pickQuote, parseWeightGrams } = require("./shippingEngine");
@@ -29,22 +29,27 @@ const { checkoutRate } = require("./checkoutRate");
 const { canadaPostLabelRates, isCanadaPostRate } = require("./labelRates");
 const { discountedPhysicalSubtotal, resolveLocalSelection, isPhysicalItem, bogoPercent } = require("./localFulfillment");
 const { catalogUnitPrice } = require("./catalogPrice");
+const { expandDiscountCategories } = require("./discountCategories");
 const { discountableItems, discountAmountFor, pickAutomaticDiscount } = require("./discountMath");
 const { addOnSelection, bundleComponents, bundleAvailable, isGiftCardProduct, giftCardDetails } = require("./promotions");
+const { expiryChange } = require("./giftCards");
 const { MAX_CARDS_PER_ORDER, GIFT_CARD_MESSAGES, GiftCardError, newGiftCardCode, normalizeGiftCardCode, giftCardId, last4, giftCardProblem, availableMinor, allocateGiftCards, chargedRedemptions, reserveGiftCards, releaseGiftCards, readGiftCards, debitShortfall, writeGiftCardChange, cardsForOrder, withHistory } = require("./giftCards");
 const { readBooks, writeStock } = require("./inventory");
 const { resolveCountry } = require("./shippingGeo");
 const { REQUIRED_WEBHOOK_EVENTS, modesToTry, intentAsSession, paidIntentOrderId, webhookEndpointReport, signingSecrets, reversalState, ordersDueReversalCheck, failedRefundId } = require("./stripeRecovery");
 const { orderMoneyFmt, chargedTotalFmt, refundAmountText, withoutTrackingLines, withoutCarrierLines, refundEmailFacts, withoutBankRefundSentences } = require("./emailMoney");
 const { optOutId, unsubscribeToken, tokenMatches, footerAddress, normEmail: normMarketingEmail } = require("./marketingOptOut");
+const { runReviewRequests, REVIEW_REQUEST_TEMPLATE } = require("./reviewRequests");
 const { checkoutCurrencyOf, paidAmountCheck, toMinor, discountDateState, purchaseProblem, paypalCreateRequestId, lateFailureMayMarkFailed, refundProviderOf, paypalReversalCaptureId, discountUsedUp, checkoutRefusal, manualPaidRefusal, stripeIntentKey, cancelRefusal, mismatchResolved, stripePaymentTaken, previousAttemptPaid, paypalRefundedTotalMinor } = require("./paymentGuards");
 const { canViewOrder, publicOrderView } = require("./orderAccess");
 const { returnTransition, publicReturn, returnRestockItems } = require("./returns");
+const { refundPlan, refundedSoFar, restockLinesFor, withoutRestocked, partialRefundKey } = require("./partialRefund");
 const { orderRequestProblem, orderRequestRecord, privacyRequestRecord } = require("./customerRequests");
 const { hitLimit, LIMITS, clientIpOf } = require("./rateLimit");
 const { reserveStock, releaseStock, releaseStockForOrder, StockHoldError, holdOwner } = require("./stockHolds");
 const { preorderActive, preorderLine, preorderEmailLines } = require("./preorder");
 const { claimEmailSend, reminderFirstName, nextDailyCount } = require("./emailThrottle");
+const { shopOrigin, checkoutClosed, dailyDigestEnabled, backupStatusRecord } = require("./shopSettings");
 const { MAX_ATTEMPTS, LEASE_MS, LOG_RETENTION_DAYS, GAVE_UP_RETENTION_DAYS, cleanRecipients, cleanSubject, cleanFromName, nextRetryAt, isPermanentEmailError, canSendNow, publicOutboxEntry, staleOrderEmailReason, daysAgoIso, withRequiredPlaceholders, blankUnknownPlaceholders } = require("./emailOutbox");
 
 admin.initializeApp();
@@ -359,7 +364,9 @@ async function sendEmail({ to, subject, html, secret, queue = "", outboxId = "",
   const recipientList = cleanRecipients(to);
   subject = cleanSubject(subject);
   const sourceHtml = html;
-  const logBase = { to: Array.isArray(to) ? to.join(", ") : String(to || ""), subject, ...(queue ? { kind: String(queue) } : {}), ...(outboxId ? { outboxId } : {}) };
+  // Order emails name their order, so Order detail › Activity can list its delivery attempts.
+  const aboutOrder = typeof about?.orderId === "string" && about.orderId ? { orderId: about.orderId } : {};
+  const logBase = { to: Array.isArray(to) ? to.join(", ") : String(to || ""), subject, ...(queue ? { kind: String(queue) } : {}), ...(outboxId ? { outboxId } : {}), ...aboutOrder };
   if (!recipientList) {
     // Permanent: no retry can fix an address, and a bad one may be an attempt to inject headers.
     const message = `${String(logBase.to).replace(/[\r\n]+/g, " ").slice(0, 120) || "(no address)"} is not a valid email address, so nothing was sent.`;
@@ -370,7 +377,7 @@ async function sendEmail({ to, subject, html, secret, queue = "", outboxId = "",
   // One id for this email across every try: the queue entry's id, and Resend's idempotency key,
   // so a reply lost after Resend accepted the message can't turn into a second copy.
   const queueId = outboxId || (queue ? crypto.randomBytes(12).toString("hex") : "");
-  const okExtra = { ...(queue ? { kind: String(queue) } : {}), ...(outboxId ? { outboxId } : {}), ...(attempt > 1 ? { attempt } : {}) };
+  const okExtra = { ...(queue ? { kind: String(queue) } : {}), ...(outboxId ? { outboxId } : {}), ...(attempt > 1 ? { attempt } : {}), ...aboutOrder };
   let apiKey = secret;
   let keySource = secret ? "secret" : "none";
   let fromName = "Lyricalmyrical Books";
@@ -458,12 +465,12 @@ async function sendEmail({ to, subject, html, secret, queue = "", outboxId = "",
     if (queue && !isPermanentEmailError(error)) {
       const queued = await enqueueEmail({ id: queueId, to: recipientList, subject, html: sourceHtml, kind: queue, error, claimId, about });
       if (queued) {
-        await logEmailAttempt({ to: recipients, subject, status: "queued", error: `${error} Saved to try again automatically.`, from: fromEmail, keySource, kind: String(queue), outboxId: queued.id, retryAt: queued.nextAttemptAt, ...extra });
+        await logEmailAttempt({ to: recipients, subject, status: "queued", error: `${error} Saved to try again automatically.`, from: fromEmail, keySource, kind: String(queue), outboxId: queued.id, retryAt: queued.nextAttemptAt, ...aboutOrder, ...extra });
         thrown.queued = queued.id;
         throw thrown;
       }
     }
-    await logEmailAttempt({ to: recipients, subject, status: "failed", error, from: fromEmail, keySource, ...(queue ? { kind: String(queue) } : {}), ...extra });
+    await logEmailAttempt({ to: recipients, subject, status: "failed", error, from: fromEmail, keySource, ...(queue ? { kind: String(queue) } : {}), ...aboutOrder, ...extra });
     throw thrown;
   };
 
@@ -574,7 +581,7 @@ async function sendQueuedEmail(id, { force = false } = {}) {
   }
   const attempt = (Number(entry.attempts) || 1) + 1;
   try {
-    await sendEmail({ to: entry.to, subject: entry.subject, html: entry.html, secret: resendSecretValue(), queue: entry.kind || "retry", outboxId: id, attempt });
+    await sendEmail({ to: entry.to, subject: entry.subject, html: entry.html, secret: resendSecretValue(), queue: entry.kind || "retry", outboxId: id, attempt, about: { orderId: entry.orderId || "" } });
   } catch (err) {
     const message = String(err?.message || err).slice(0, 1000);
     const at = new Date().toISOString();
@@ -669,6 +676,13 @@ function getStateCode(stateName) {
     return clean.toUpperCase();
   }
   return US_STATES[clean] || CA_PROVINCES[clean] || stateName.toUpperCase();
+}
+
+// Shippo "address_from": Settings › General › Location (street, city, province, postal code,
+// country, phone), each blank field falling back to the original Toronto address.
+function originAddress(settings) {
+  const origin = shopOrigin(settings);
+  return { ...origin, state: getStateCode(origin.state), country: getCountryCode(origin.country) || "CA" };
 }
 
 // fetch() with a hard timeout so a slow/hung third party can never stall a
@@ -906,22 +920,12 @@ async function resolveShipping(items, order, profiles, freeShipping, settings, d
       const liveQuote = shippoToken ? await (async () => {
       const settingsDoc = await db.collection("settings").doc("website").get();
       const settings = settingsDoc.data() || {};
-      const origin = settings.location || {};
       const totalWeightLb = physicalItems.reduce((sum, item) => {
         const grams = Number(item.weightGrams);
         return sum + ((Number.isFinite(grams) && grams > 0 ? grams / 453.592 : 1.5) * (item.quantity || 1));
       }, 0);
       const shipment = await callShippo("shipments/", "POST", {
-        address_from: {
-          name: settings.info?.name || "Lyricalmyrical Books",
-          street1: origin.street || "456 Montrose Ave",
-          city: origin.city || "Toronto",
-          state: getStateCode(origin.state || "ON"),
-          zip: origin.zip || "M6G3H1",
-          country: getCountryCode(origin.country || "CA"),
-          phone: "6474096863",
-          email: "lyricalmyricalbooks@gmail.com",
-        },
+        address_from: originAddress(settings),
         address_to: {
           name: order.customer?.name || "Customer",
           street1: address.street,
@@ -1125,6 +1129,8 @@ async function priceOrder(order, { orderId = "", settings: knownSettings = null 
   if (!items.length) throw new PricingError("Order has no items.");
 
   const settings = knownSettings || (await db.collection("settings").doc("website").get()).data() || {};
+  // Settings › General › Store status › Maintenance: every checkout path is priced here, so this stops them all.
+  if (checkoutClosed(settings)) throw new PricingError("The shop is paused for maintenance, so checkout is closed for now. Please try again soon.", "store_closed");
   const testMode = settings.payments?.testMode === true;
   const email = order.customer?.email;
   const discountable = discountableItems(items);
@@ -1162,7 +1168,7 @@ async function priceOrder(order, { orderId = "", settings: knownSettings = null 
   if (order.appliedDiscount?.code) {
     // Same "Discount code error:" prefix on every path, so checkout can drop the code and explain.
     try {
-      const verified = await fetchValidDiscount(order.appliedDiscount.code);
+      const verified = expandDiscountCategories(await fetchValidDiscount(order.appliedDiscount.code), settings.design?.categories);
       verifiedDiscount = verified;
       validateDiscountCustomer(verified, email);
       await assertDiscountNotUsedByCustomer(verified, email);
@@ -1175,7 +1181,9 @@ async function priceOrder(order, { orderId = "", settings: knownSettings = null 
     }
   } else {
     const offers = [];
-    for (const offer of await loadAutomaticDiscounts()) {
+    for (const rawOffer of await loadAutomaticDiscounts()) {
+      // Category offers cover the storefront's category membership (aliases, sub-categories).
+      const offer = expandDiscountCategories(rawOffer, settings.design?.categories);
       try {
         validateDiscountCustomer(offer, email);
         await assertDiscountNotUsedByCustomer(offer, email);
@@ -1710,7 +1718,7 @@ exports.createStripeCheckoutSession = onBrowserRequest(
         }
         return res.status(200).json({ orderId, trackingKey, shipping: trusted.shipping, tax: trusted.tax, total: trusted.total, fulfillment: trusted.fulfillment });
       } catch (err) {
-        return res.status(400).json({ error: err.message, ...(err.code === "hold_limit" ? { code: err.code } : {}) });
+        return res.status(400).json({ error: err.message, ...(["hold_limit", "store_closed"].includes(err.code) ? { code: err.code } : {}) });
       }
     }
 
@@ -1750,7 +1758,7 @@ exports.createStripeCheckoutSession = onBrowserRequest(
         if (!paidNow) return res.status(409).json({ error: "Your gift card balance changed. Review your order and try again.", code: "gift_card_rejected" });
         return res.status(200).json({ paid: true });
       } catch (err) {
-        return res.status(400).json({ error: err.message, ...(err.code && /^(gift_card|discount_|hold_limit)/.test(err.code) ? { code: err.code.startsWith("gift_card") ? "gift_card_rejected" : err.code } : {}) });
+        return res.status(400).json({ error: err.message, ...(err.code && /^(gift_card|discount_|hold_limit|store_closed)/.test(err.code) ? { code: err.code.startsWith("gift_card") ? "gift_card_rejected" : err.code } : {}) });
       }
     }
 
@@ -2204,6 +2212,17 @@ async function handleGiftCardAdmin(req, res) {
       });
       return res.status(200).json({ ok: true, balanceMinor });
     }
+    if (body.op === "setExpiry") {
+      let expiresOn = "";
+      await db.runTransaction(async tx => {
+        const snap = await tx.get(ref);
+        if (!snap.exists) throw new Error("Gift card not found.");
+        const update = expiryChange(snap.data(), body.expiresOn, { actor, reason: body.reason });
+        expiresOn = update.expiresOn;
+        tx.update(ref, update);
+      });
+      return res.status(200).json({ ok: true, expiresOn });
+    }
     if (body.op === "resend") {
       const snap = await ref.get();
       if (!snap.exists) return res.status(404).json({ error: "Gift card not found." });
@@ -2531,7 +2550,8 @@ async function applyOrderRefund(orderId, { provider, refundId = null, amountMino
     if (order.paymentStatus !== "paid") { alreadyRecorded = true; return; }
 
     const opsSnap = order.returnProgress ? await transaction.get(db.collection("order-operations").doc(orderId)) : null;
-    const itemList = returnRestockItems(order, opsSnap?.data()?.returnCase);
+    // Copies an earlier partial refund already put back are not restocked a second time.
+    const itemList = withoutRestocked(returnRestockItems(order, opsSnap?.data()?.returnCase), order);
     const sandboxPaid = order.sandboxPayment === true;
     const wantsRestock = restock !== undefined ? restock !== false : order.refundRequest?.restock !== false;
     const shouldRestock = !sandboxPaid && wantsRestock && itemList.length > 0 && order.inventoryRestockedAt == null;
@@ -2606,6 +2626,53 @@ async function applyOrderRefund(orderId, { provider, refundId = null, amountMino
       refundedRevenue: admin.firestore.FieldValue.increment(reversal.revenue || 0),
     }, { merge: true });
   }
+  return { alreadyRecorded };
+}
+
+// A partial refund the admin made (Order detail › Refund with a smaller amount, or a return where
+// only some books came back). The order stays paid with `partiallyRefunded` and a running
+// `refundedAmountMinor` — the same state a Stripe Dashboard partial refund leaves — and only the
+// lines the owner ticked (or the inspected resellable copies of a return) go back to stock.
+// Recorded once per provider refund id; discount use, gift cards and revenue are left alone.
+async function applyPartialRefund(orderId, { provider, refundId = null, amountMinor, already = 0, currency = null, status = "succeeded", restockLines = [], fromReturn = false, reason = "", actor = "system", claimedAt = null }) {
+  const orderRef = db.collection("orders").doc(orderId);
+  let alreadyRecorded = false;
+  await db.runTransaction(async transaction => {
+    alreadyRecorded = false;
+    const snap = await transaction.get(orderRef);
+    if (!snap.exists) { alreadyRecorded = true; return; }
+    const order = snap.data();
+    const records = Array.isArray(order.partialRefunds) ? order.partialRefunds : [];
+    if (order.paymentStatus !== "paid" || (refundId && records.some(r => r && r.id === refundId))) { alreadyRecorded = true; return; }
+    const now = new Date().toISOString();
+    // Sandbox payments never touch real stock.
+    const lines = order.sandboxPayment === true ? [] : restockLines;
+    const books = lines.length ? await readBooks(transaction, db, lines) : new Map();
+    if (lines.length) writeStock(transaction, db, lines, books, 1, now);
+    const label = provider === "stripe" ? "Stripe" : provider === "paypal" ? "PayPal" : "Manual";
+    const cur = String(currency || order.expectedCurrency || "CAD").toUpperCase();
+    // Stripe/PayPal may already have reported this refund (webhook first): never count it twice.
+    const total = Math.max(refundedSoFar(order), already + amountMinor);
+    const finishReturn = fromReturn && order.returnProgress?.state === "inspected";
+    transaction.update(orderRef, {
+      partiallyRefunded: true,
+      refundedAmountMinor: total,
+      partialRefunds: [...records, { id: refundId, provider, amountMinor, currency: cur, status, reason: String(reason || "").slice(0, 500), actor, createdAt: now,
+        restocked: lines.map(line => ({ index: line.index, quantity: line.quantity })) }],
+      ...(lines.length ? { partialRestockedItems: [...(Array.isArray(order.partialRestockedItems) ? order.partialRestockedItems : []),
+        ...lines.map(line => ({ index: line.index, id: line.id, variantId: line.variantId || null, quantity: line.quantity, at: now }))] } : {}),
+      ...(provider === "paypal" && refundId ? { paypalRefundIds: [...(Array.isArray(order.paypalRefundIds) ? order.paypalRefundIds : []), refundId] } : {}),
+      ...(!claimedAt || order.refundRequest?.at === claimedAt ? { refundRequest: null } : {}),
+      ...(finishReturn ? { returnProgress: { ...order.returnProgress, state: "completed", updatedAt: now }, customerRequest: { ...order.customerRequest, status: "handled" } } : {}),
+      updatedAt: now,
+      activity: [...(order.activity || []), {
+        type: "event",
+        message: `${label} partial refund ${status === "pending" ? "started" : "made"}: ${(amountMinor / 100).toFixed(2)} ${cur} (${(total / 100).toFixed(2)} ${cur} refunded so far)${lines.length ? `; ${lines.reduce((n, l) => n + l.quantity, 0)} cop${lines.reduce((n, l) => n + l.quantity, 0) === 1 ? "y" : "ies"} back in stock` : ""}${reason ? ` — ${String(reason).slice(0, 200)}` : ""}. The order stays paid.`,
+        createdAt: now,
+        actor,
+      }],
+    });
+  });
   return { alreadyRecorded };
 }
 
@@ -3444,7 +3511,7 @@ exports.refundOrder = onBrowserRequest(
     const adminUser = await requireAdmin(req, res);
     if (!adminUser) return;
 
-    const { orderId, reason, restock = true } = req.body || {};
+    const { orderId, reason, restock = true, amountMinor = null, restockLines = null } = req.body || {};
     if (!orderId || typeof orderId !== "string" || orderId.includes("/")) {
       res.status(400).json({ error: "Missing orderId" });
       return;
@@ -3467,6 +3534,7 @@ exports.refundOrder = onBrowserRequest(
     try {
       // Claim the refund first and save the admin's restock choice, so a Stripe/PayPal
       // refund webhook that lands before we finish follows the same choice.
+      let plan = null, partialLines = [], fromReturn = false;
       const order = await db.runTransaction(async transaction => {
         const snap = await transaction.get(orderRef);
         if (!snap.exists) { const e = new Error("Order not found"); e.status = 404; throw e; }
@@ -3480,8 +3548,19 @@ exports.refundOrder = onBrowserRequest(
         if (current.customerRequest?.type === "return" && current.customerRequest.status === "open" && ["approved", "received"].includes(current.returnProgress?.state)) {
           const error = new Error("Receive and inspect the returned books before refunding this return."); error.status = 409; throw error;
         }
+        // Never more than was charged; an amount reaching what is left is today's full refund.
+        plan = refundPlan(current, amountMinor);
+        partialLines = []; fromReturn = false;
+        if (plan.kind === "partial") {
+          fromReturn = current.returnProgress?.state === "inspected";
+          if (fromReturn && restock !== false) {
+            // A partial return: the inspected resellable copies go back, as for a full return refund.
+            const ops = (await transaction.get(db.collection("order-operations").doc(orderId))).data() || {};
+            partialLines = restockLinesFor(current, (ops.returnCase?.inspection || []).map(row => ({ index: row.index, quantity: row.restockQuantity ?? (row.condition === "resellable" ? row.quantity : 0) })));
+          } else if (!fromReturn) partialLines = restockLinesFor(current, restockLines);
+        }
         // A gift card this order bought that has since been spent can't be taken back by a refund.
-        const issued = Array.isArray(current.giftCardsIssued) ? current.giftCardsIssued : [];
+        const issued = plan.kind === "full" && Array.isArray(current.giftCardsIssued) ? current.giftCardsIssued : [];
         if (issued.length) {
           const cards = await Promise.all(issued.map(card => transaction.get(db.collection("giftCards").doc(card.id))));
           const spentMinor = cards.reduce((sum, cardSnap) => {
@@ -3493,7 +3572,9 @@ exports.refundOrder = onBrowserRequest(
             error.status = 409; throw error;
           }
         }
-        transaction.update(orderRef, { refundRequest: { restock: restock !== false, reason: reasonText, actor, at: claimedAt } });
+        transaction.update(orderRef, { refundRequest: plan.kind === "partial"
+          ? { restock: false, partial: true, amountMinor: plan.amountMinor, reason: reasonText, actor, at: claimedAt }
+          : { restock: restock !== false, reason: reasonText, actor, at: claimedAt } });
         return current;
       });
       claimed = true;
@@ -3511,9 +3592,10 @@ exports.refundOrder = onBrowserRequest(
         providerCalled = true;
         const refund = await stripe.refunds.create({
           payment_intent: order.stripePaymentIntentId,
+          ...(plan.kind === "partial" ? { amount: plan.amountMinor } : {}),
           reason: "requested_by_customer",
           metadata: { order_id: orderId, admin_email: adminUser.email || "", reason: reasonText },
-        }, { ...requestOptions, idempotencyKey: `order-refund-${orderId}-full` });
+        }, { ...requestOptions, idempotencyKey: plan.kind === "partial" ? partialRefundKey(orderId, plan.already, plan.amountMinor) : `order-refund-${orderId}-full` });
         if (!["succeeded", "pending"].includes(refund.status)) {
           throw new Error(`Stripe refund was not accepted (status: ${refund.status}).`);
         }
@@ -3525,8 +3607,9 @@ exports.refundOrder = onBrowserRequest(
         providerCalled = true;
         const refund = await paypalRequest(config, `/v2/payments/captures/${encodeURIComponent(order.paypalCaptureId)}/refund`, {
           method: "POST",
-          headers: { "PayPal-Request-Id": `refund-${orderId}-full` },
-          body: JSON.stringify({ note_to_payer: reasonText.slice(0, 255) }),
+          headers: { "PayPal-Request-Id": plan.kind === "partial" ? `refund-${orderId}-partial-${plan.already}-${plan.amountMinor}` : `refund-${orderId}-full` },
+          body: JSON.stringify({ note_to_payer: reasonText.slice(0, 255),
+            ...(plan.kind === "partial" ? { amount: { value: (plan.amountMinor / 100).toFixed(2), currency_code: String(order.paypalCurrency || plan.currency).toUpperCase() } } : {}) }),
         });
         const status = String(refund.status || "").toUpperCase();
         if (!["COMPLETED", "PENDING"].includes(status)) throw new Error(`PayPal refund was not accepted (status: ${refund.status}).`);
@@ -3538,10 +3621,21 @@ exports.refundOrder = onBrowserRequest(
         };
       } else {
         // e-Transfer, cash, pickup: the money goes back outside the shop; this records it.
-        outcome = { refundId: null, amountMinor: null, currency: null, status: "succeeded" };
+        outcome = { refundId: null, amountMinor: plan.kind === "partial" ? plan.amountMinor : null, currency: plan.kind === "partial" ? plan.currency : null, status: "succeeded" };
       }
 
       providerAccepted = true;
+      if (plan.kind === "partial") {
+        const result = await applyPartialRefund(orderId, {
+          provider, refundId: outcome.refundId, amountMinor: outcome.amountMinor ?? plan.amountMinor, already: plan.already,
+          currency: outcome.currency || plan.currency, status: outcome.status, restockLines: partialLines, fromReturn, reason: reasonText, actor, claimedAt,
+        });
+        res.status(200).json({ refundId: outcome.refundId, amount: (outcome.amountMinor ?? plan.amountMinor) / 100, currency: String(outcome.currency || plan.currency).toUpperCase(),
+          status: outcome.status, provider, partial: true, alreadyRecorded: result.alreadyRecorded });
+        return;
+      }
+      // After earlier partial refunds the provider refunds what is left; record the running total.
+      if (plan.already > 0 && outcome.amountMinor != null) outcome.amountMinor += plan.already;
       const result = await applyOrderRefund(orderId, {
         provider, ...outcome, restock: restock !== false, reason: reasonText, actor,
       });
@@ -3666,6 +3760,8 @@ exports.downloadDigitalAsset = onRequest(
 // 4. Notification Settings and Helper Functions
 // ──────────────────────────────────────────────────────────────
 const DEFAULT_NOTIFICATIONS = {
+  // Settings › Notifications: off by default (`enabled: false`); `delayDays` after shipping (functions/reviewRequests.js).
+  review_request: REVIEW_REQUEST_TEMPLATE,
   brand: {
     logoUrl: "",
     brandColor: "#e8402a",
@@ -3892,12 +3988,14 @@ function compileEmailTemplate(templateId, settings, vars, additionalSection) {
     const text = String(value ?? "");
     // The order table is HTML: it belongs in the body only.
     subject = subject.replace(regex, () => (key === "items_table" ? "" : text.replace(/[\r\n]+/g, " ")));
-    body = body.replace(regex, () => (key === "items_table" ? text : escapeHtml(text)));
+    // items_table is placed after line breaks are added (placeItemsTable), so it is left in the body here.
+    if (key !== "items_table") body = body.replace(regex, () => escapeHtml(text));
     if (key !== "items_table") signoff = signoff.replace(regex, () => escapeHtml(text));
   }
 
   subject = blankUnknownPlaceholders(subject).replace(/\s{2,}/g, " ").trim();
-  body = blankUnknownPlaceholders(body);
+  // Keep {{items_table}} for placeItemsTable; every other unknown placeholder reads as blank.
+  body = blankUnknownPlaceholders(body.replace(/\{\{\s*items_table\s*\}\}/g, "\u0000ITEMS\u0000")).replace(/\u0000ITEMS\u0000/g, "{{items_table}}");
   buttonText = blankUnknownPlaceholders(buttonText);
   signoff = blankUnknownPlaceholders(signoff);
 
@@ -3905,12 +4003,9 @@ function compileEmailTemplate(templateId, settings, vars, additionalSection) {
   const buttonUrl = /^https?:\/\//i.test(String(vars.button_url || "")) ? escapeHtml(String(vars.button_url)) : "";
   const ctaButtonHtml = buttonText && buttonUrl ? risoButton(buttonUrl, buttonText, brandColor, brand.emailTheme) : "";
 
-  let itemsTableHtml = "";
-  if (vars.items_table) {
-    itemsTableHtml = vars.items_table;
-  }
-
-  const finalBody = body.replace(/\n/g, "<br/>");
+  const placed = placeItemsTable(body.replace(/\n/g, "<br/>"), vars.items_table || "");
+  const finalBody = placed.body;
+  const itemsTableHtml = placed.after;
   const signoffHtml = signoff.replace(/\n/g, "<br/>");
 
   const html = risoLayout(`
@@ -4049,10 +4144,15 @@ exports.onOrderUpdated = onDocumentUpdated(
         }
       }
 
+    }
+    // Admin "Resend order confirmation" (Order detail › More order actions) stamps
+    // confirmationEmailRequestedAt; each stamp sends the customer's confirmation once more.
+    const resendConfirmation = !becamePaid && !!after.confirmationEmailRequestedAt && after.confirmationEmailRequestedAt !== before.confirmationEmailRequestedAt;
+    if ((becamePaid || resendConfirmation) && after.paymentStatus === "paid") {
       // The customer's "Order confirmed" and the shop's new-order alert have separate switches:
-      // pausing one must never silence the other.
+      // pausing one must never silence the other. A resend never repeats the shop's alert.
       const customerPaidOn = notificationSettings.order_confirmation?.enabled !== false;
-      const shopPaidOn = notificationSettings.shopAlerts?.newOrder !== false;
+      const shopPaidOn = becamePaid && notificationSettings.shopAlerts?.newOrder !== false;
       if (customerPaidOn || shopPaidOn) {
       const order = after;
 
@@ -4137,7 +4237,7 @@ exports.onOrderUpdated = onDocumentUpdated(
       `;
 
       if (customerPaidOn) try {
-        await sendOrderEmailOnce(orderId, "orderConfirmed", {
+        await sendOrderEmailOnce(orderId, becamePaid ? "orderConfirmed" : `orderConfirmedResend_${after.confirmationEmailRequestedAt}`, {
           to: order.customer.email,
           subject: compiled.subject,
           html: compiled.html,
@@ -4412,6 +4512,9 @@ exports.onOrderUpdated = onDocumentUpdated(
 exports.dailyOrderDigest = onSchedule(
   { schedule: "every day 08:00", timeZone: "America/Toronto", secrets: [RESEND_API_KEY] },
   async () => {
+    // Settings › Notifications › Shop alerts › Daily "orders needing you" email.
+    const notificationDoc = await db.collection("settings").doc("notifications").get().catch(() => null);
+    if (!dailyDigestEnabled(notificationDoc?.data?.() || {})) return;
     const [paidSnap, opsSnap] = await Promise.all([
       db.collection("orders").where("paymentStatus", "==", "paid").get(),
       db.collection("order-operations").get(),
@@ -4690,18 +4793,8 @@ exports.getShippoRates = onBrowserRequest(
 
       const settingsDoc = await db.collection("settings").doc("website").get();
       const settings = settingsDoc.data() || {};
-      const origin = settings.location || {};
 
-      const addressFrom = {
-        name: settings.info?.name || "Lyricalmyrical Books",
-        street1: origin.street || "456 Montrose Ave",
-        city: origin.city || "Toronto",
-        state: getStateCode(origin.state || "ON"),
-        zip: origin.zip || "M6G3H1",
-        country: getCountryCode(origin.country || "CA"),
-        phone: "6474096863",
-        email: "lyricalmyricalbooks@gmail.com"
-      };
+      const addressFrom = originAddress(settings);
 
       const addressTo = {
         name: address.name || "Customer",
@@ -5026,7 +5119,6 @@ exports.createShippingLabel = onBrowserRequest(
       // 1. Resolve Settings (API keys and Origin address)
       const settingsDoc = await db.collection("settings").doc("website").get();
       const settings = settingsDoc.data() || {};
-      const origin = settings.location || {};
 
       const shippoToken = await getShippoToken();
 
@@ -5071,16 +5163,7 @@ exports.createShippingLabel = onBrowserRequest(
         return;
       }
 
-      const addressFrom = {
-        name: settings.info?.name || "Lyricalmyrical Books",
-        street1: origin.street || "456 Montrose Ave",
-        city: origin.city || "Toronto",
-        state: getStateCode(origin.state || "ON"),
-        zip: origin.zip || "M6G3H1",
-        country: getCountryCode(origin.country || "CA"),
-        phone: "6474096863",
-        email: "lyricalmyricalbooks@gmail.com"
-      };
+      const addressFrom = originAddress(settings);
 
       // 2. Resolve Destination Address
       const dest = order.customer.address;
@@ -5584,6 +5667,19 @@ exports.sendTestEmail = onBrowserRequest(
     if (!adminUser) return;
 
     const body = req.body || {};
+    // Admin › Messages › Reply: answer a contact message (functions/messageReply.js).
+    if (body.action === "replyToMessage") {
+      try {
+        const out = await require("./messageReply").handleMessageReply(body, {
+          db, sendEmail, secret: RESEND_API_KEY.value(), adminEmail: adminUser.email || "",
+        });
+        res.status(out.status).json(out.json);
+      } catch (err) {
+        console.error("message reply failed:", err);
+        res.status(500).json({ error: "The reply could not be sent. Check that the latest Cloud Functions are deployed." });
+      }
+      return;
+    }
     // Settings › Notifications › Waiting to send: the retry queue (never its HTML, which can
     // hold gift-card codes and download links), Retry now and Stop retrying.
     if (body.action === "emailQueue" || body.action === "retryEmail" || body.action === "cancelEmail") {
@@ -6248,6 +6344,20 @@ exports.unpaidPaymentSweep = onSchedule(
       if (outbox.tried || outbox.prunedLog || outbox.prunedOutbox) console.log("unpaidPaymentSweep: email queue", outbox);
     } catch (err) { console.error("unpaidPaymentSweep: email retry queue failed:", err.message); }
 
+    // "How was your book?" emails N days after shipping, when switched on (own try/catch).
+    try {
+      const notificationSettings = await loadNotificationSettings();
+      if (notificationSettings.review_request?.enabled === true) {
+        const unsubscribeKey = await marketingUnsubscribeKey();
+        const result = await runReviewRequests({
+          db, notificationSettings, compileEmailTemplate, siteLink, escapeHtml, optOutId,
+          unsubscribeUrl: email => siteLink(`/track?unsubscribe=1&e=${encodeURIComponent(normMarketingEmail(email))}&t=${unsubscribeToken(email, unsubscribeKey)}`),
+          sendEmail: message => sendEmail({ ...message, secret: RESEND_API_KEY.value() }),
+        });
+        if (result.sent) console.log("unpaidPaymentSweep: review requests", result);
+      }
+    } catch (err) { console.error("unpaidPaymentSweep: review requests failed:", err.message); }
+
     if (!found.length) return;
     // Stamp only after the alert really went out: a failed send leaves the orders
     // unstamped so the next sweep (15 minutes later) tries the alert again.
@@ -6279,11 +6389,20 @@ exports.nightlyFirestoreBackup = onSchedule(
     const projectId = process.env.GCLOUD_PROJECT || admin.app().options.projectId;
     const client = new admin.firestore.v1.FirestoreAdminClient();
     const day = new Date().toISOString().slice(0, 10);
-    const [operation] = await client.exportDocuments({
-      name: client.databasePath(projectId, "(default)"),
-      outputUriPrefix: `gs://${admin.app().options.storageBucket || `${projectId}.firebasestorage.app`}/backups/${day}`,
-      collectionIds: [],
-    });
-    console.log(`Firestore backup started: ${operation.name}`);
+    // Settings › General › Backups & export reads this admin-only record.
+    const statusRef = db.collection("systemStatus").doc("backup");
+    const previous = (await statusRef.get().catch(() => null))?.data?.() || null;
+    try {
+      const [operation] = await client.exportDocuments({
+        name: client.databasePath(projectId, "(default)"),
+        outputUriPrefix: `gs://${admin.app().options.storageBucket || `${projectId}.firebasestorage.app`}/backups/${day}`,
+        collectionIds: [],
+      });
+      console.log(`Firestore backup started: ${operation.name}`);
+      await statusRef.set(backupStatusRecord({ ok: true, day, at: new Date().toISOString(), operation: operation.name })).catch(err => console.error("Could not record backup status:", err.message));
+    } catch (err) {
+      await statusRef.set(backupStatusRecord({ ok: false, day, at: new Date().toISOString(), error: err.message, previous })).catch(e => console.error("Could not record backup status:", e.message));
+      throw err;
+    }
   }
 );

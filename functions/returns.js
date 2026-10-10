@@ -32,11 +32,14 @@ function returnTransition(order, current, action, input, now, actor) {
     const inspection = lines.map(item => {
       const rows = input.inspection.filter(row => row?.index === item.index);
       const row = rows[0];
-      if (rows.length !== 1 || !["resellable", "damaged", "mixed"].includes(row?.condition) || row.quantity !== Number(item.quantity)) fail("Confirm receipt of the full ordered quantity and select each line’s condition. Partial returns require a separate provider refund.");
-      const restockQuantity = row.condition === "resellable" ? row.quantity : row.condition === "damaged" ? 0 : row.restockQuantity;
+      // Fewer copies than ordered may come back (a partial return); never more.
+      if (rows.length !== 1 || !Number.isInteger(row?.quantity) || row.quantity < 0 || row.quantity > Number(item.quantity)) fail("Enter how many copies of each book came back, between zero and the quantity ordered.");
+      if (row.quantity > 0 && !["resellable", "damaged", "mixed"].includes(row.condition)) fail("Select the condition of each book that came back.");
+      const restockQuantity = row.quantity === 0 || row.condition === "damaged" ? 0 : row.condition === "resellable" ? row.quantity : row.restockQuantity;
       if (!Number.isInteger(restockQuantity) || restockQuantity < 0 || restockQuantity > row.quantity) fail("Enter how many inspected copies can be resold, between zero and the received quantity.");
-      return { index: item.index, id: item.id, variantId: item.variantId || null, quantity: row.quantity, condition: row.condition, restockQuantity };
+      return { index: item.index, id: item.id, variantId: item.variantId || null, ordered: Number(item.quantity), quantity: row.quantity, condition: row.quantity ? row.condition : "not_returned", restockQuantity };
     });
+    if (!inspection.some(row => row.quantity > 0)) fail("Enter at least one copy that came back.");
     return { ...next, inspectedAt: now, inspection };
   }
   fail("The return changed or this step is out of order. Refresh the order.");

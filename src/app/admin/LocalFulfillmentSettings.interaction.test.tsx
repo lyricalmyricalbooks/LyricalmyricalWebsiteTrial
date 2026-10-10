@@ -2,8 +2,8 @@
 import React, { act, useState } from 'react';
 import { createRoot } from 'react-dom/client';
 import { beforeEach, expect, it, vi } from 'vitest';
-const { getSettings } = vi.hoisted(() => ({ getSettings: vi.fn() }));
-vi.mock('./api', () => ({ adminApi: { getSettings, updateLocalFulfillment: vi.fn() } }));
+const { getSettings, updateLocalFulfillment } = vi.hoisted(() => ({ getSettings: vi.fn(), updateLocalFulfillment: vi.fn() }));
+vi.mock('./api', () => ({ adminApi: { getSettings, updateLocalFulfillment } }));
 import { LocalFulfillmentSettings, useLocalFulfillmentDraft } from './LocalFulfillmentSettings';
 (globalThis as any).IS_REACT_ACT_ENVIRONMENT = true;
 let container: HTMLDivElement;
@@ -69,5 +69,23 @@ it('one switch turns on free Toronto pickup and saves it without an address', as
   const saved = (adminApi.updateLocalFulfillment as any).mock.calls.at(-1)[0];
   expect(saved.enabled).toBe(true);
   expect(saved.pickupLocations[0]).toMatchObject({ enabled: true, price: 0, postalPrefixes: ['M'], address: { street: '', city: 'Toronto', state: 'ON' } });
+  await act(async () => root.unmount());
+});
+
+it('the quick pickup switch saves only itself, not other unsaved edits', async () => {
+  getSettings.mockResolvedValue({ localFulfillment: { enabled: false, pickupLocations: [], deliveryZones: [] } });
+  updateLocalFulfillment.mockReset().mockResolvedValue(undefined);
+  const root = createRoot(container);
+  await act(async () => root.render(<LocalFulfillmentSettings />));
+  const button = (label: string) => Array.from(container.querySelectorAll('button')).find(b => b.textContent === label)!;
+  await act(async () => button('Add delivery zone').click());
+  const quick = container.querySelector<HTMLButtonElement>('[role="switch"]')!;
+  await act(async () => quick.click());
+  expect(updateLocalFulfillment).toHaveBeenCalledTimes(1);
+  const savedConfig = updateLocalFulfillment.mock.calls[0][0];
+  expect(savedConfig.deliveryZones).toEqual([]);
+  expect(savedConfig.pickupLocations[0].enabled).toBe(true);
+  // The unsaved delivery zone is still on screen, waiting for Save.
+  expect(container.textContent).toContain('Minimum physical merchandise subtotal');
   await act(async () => root.unmount());
 });

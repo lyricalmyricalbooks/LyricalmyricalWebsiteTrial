@@ -67,6 +67,11 @@ service cloud.firestore {
     match /adminSecrets/{docId} {
       allow read, write: if isAdmin();
     }
+    // Nightly backup outcome (functions nightlyFirestoreBackup); Settings › General › Backups & export.
+    match /systemStatus/{docId} {
+      allow read: if isAdmin();
+      allow write: if false;
+    }
     match /emailLog/{entryId} {
       allow read: if isAdmin();
       allow write: if false;
@@ -120,7 +125,21 @@ service cloud.firestore {
         // The guest submits only a method/option ID. Functions build the
         // priced fulfillment snapshot from current server configuration.
         && (!('orderNote' in request.resource.data) || (request.resource.data.orderNote is string && request.resource.data.orderNote.size() <= 500)));
-      allow update, delete: if isAdmin();
+      allow update: if isAdmin();
+      // Paid, refunded or shipped orders (or ones with money waiting on them) are kept
+      // for the shop's records; only unpaid/cancelled/test orders may be deleted
+      // (mirrors deleteRefusal in src/app/admin/orderListHelpers.ts).
+      allow delete: if isAdmin() && (resource.data.get('isTest', false) == true || (
+        !(resource.data.get('paymentStatus', '') in ['paid', 'refunded', 'refund_pending', 'partially_refunded'])
+        && resource.data.get('paidAt', null) == null
+        && resource.data.get('partiallyRefunded', false) != true
+        && !(resource.data.get('refundedAmountMinor', 0) > 0)
+        && !(resource.data.get('fulfillmentStatus', '') in ['shipped', 'out_for_delivery', 'delivered', 'collected'])
+        && resource.data.get('shippedAt', null) == null
+        && resource.data.get('reconciliationPending', null) == null
+        && resource.data.get('paymentMismatch', null) == null
+        && resource.data.get('giftCardConflict', null) == null
+        && resource.data.get('duplicatePayments', []).size() == 0));
     }
     // Server-only counters for the public-endpoint rate limits (functions/rateLimit.js).
     match /rate-limits/{id} {
@@ -148,6 +167,21 @@ service cloud.firestore {
       allow read, write: if false;
     }
     // Customer privacy requests (copy / delete my data). Created by Functions only.
+    match /marketing-optout/{id} {
+      // Written only by Functions (unsubscribe link / privacy erase); the admin reads it to see consent.
+      allow read: if isAdmin();
+      allow write: if false;
+    }
+    match /customerNotes/{noteId} {
+      // Private notes + tags per customer (id = sha256 of the lowercased email). Admin only.
+      allow read, delete: if isAdmin();
+      allow create, update: if isAdmin()
+        && request.resource.data.keys().hasOnly(["email", "note", "tags", "updatedAt"])
+        && request.resource.data.email is string && request.resource.data.email.size() <= 254
+        && request.resource.data.note is string && request.resource.data.note.size() <= 5000
+        && request.resource.data.tags is list && request.resource.data.tags.size() <= 20
+        && request.resource.data.updatedAt is string;
+    }
     match /privacyRequests/{requestId} {
       allow read, update, delete: if isAdmin();
       allow create: if false;
@@ -274,6 +308,21 @@ service cloud.firestore {
         && (!('source' in request.resource.data) || (request.resource.data.source is string && request.resource.data.source.size() <= 60));
       allow read, update, delete: if isAdmin();
     }
+    match /inventoryLog/{entryId} {
+      // Inventory › stock adjustment history: admin-only, append-only (written with the stock change).
+      allow read: if isAdmin();
+      allow create: if isAdmin()
+        && request.resource.data.keys().hasOnly(["bookId", "variantId", "title", "edition", "from", "to", "delta", "reason", "note", "at", "by"])
+        && request.resource.data.bookId is string && request.resource.data.bookId.size() <= 160
+        && request.resource.data.from is int && request.resource.data.to is int && request.resource.data.delta is int
+        && request.resource.data.reason is string && request.resource.data.reason.size() <= 40
+        && shortText(request.resource.data.get("note", ""), 500);
+      allow update, delete: if false;
+    }
+    match /inventoryCosts/{bookId} {
+      // Cost prices per book (CAD). Books are public, so costs live here, admin-only.
+      allow read, write: if isAdmin();
+    }
     match /contactMessages/{messageId} {
       // Storefront contact form: anyone can send; only admin (and Functions) can read/change.
       allow create: if request.resource.data.keys().hasOnly(["name", "email", "phone", "subject", "message", "page", "status", "createdAt"])
@@ -289,7 +338,7 @@ service cloud.firestore {
       allow read, delete: if isAdmin();
       allow update: if isAdmin()
         && request.resource.data.diff(resource.data).affectedKeys().hasOnly(["status"])
-        && request.resource.data.status in ["new", "emailed", "read", "archived"];
+        && request.resource.data.status in ["new", "emailed", "read", "archived", "replied"];
     }
     match /stockAlerts/{alertId} {
       // Shoppers can sign up for a back-in-stock email; only admin (and Functions) can read/change.

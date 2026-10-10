@@ -1,0 +1,98 @@
+import { useMemo, useState } from "react";
+import toast from "react-hot-toast";
+import { COUNTRIES } from "../features/site/shippingZones";
+import { regionsFor } from "../features/site/postalRegion";
+import { uncoveredTaxRegions } from "../features/site/taxRate";
+import {
+  DataTable, DestructiveButton, EmptyState, PrimaryButton, SaveBar, SecondaryButton, SectionCard, SelectField, StatusBadge, TextField, useConfirm, type Column,
+} from "./riso/components";
+import { cleanTaxRate, taxRateProblem, type TaxRate } from "./taxRatesEdit";
+import { useSettingsDirty } from "./settingsDirty";
+
+// Settings › Taxes. Edits settings.taxes.rates in place (same shape the server matches on);
+// nothing is live until Save.
+export function TaxesSettings({ settings, setSettings, originalSettings, hasChanges, saveSection, savingSection }: any) {
+  const [ask, confirmNode] = useConfirm();
+  const [country, setCountry] = useState("Canada");
+  const [region, setRegion] = useState("");
+  const [rate, setRate] = useState("");
+  const [tried, setTried] = useState(false);
+  const rates: TaxRate[] = settings.taxes?.rates || [];
+  const savedRates: TaxRate[] = originalSettings?.taxes?.rates || [];
+  const dirty = hasChanges("taxes");
+  useSettingsDirty("taxes", dirty);
+
+  const regionChoices = regionsFor(country);
+  const problem = taxRateProblem({ country, region, rate }, rates);
+  const gaps = useMemo(() => (rates.length ? uncoveredTaxRegions(rates) : []), [rates]);
+  const setRates = (next: TaxRate[]) => setSettings({ ...settings, taxes: { ...(settings.taxes || {}), rates: next } });
+  const savedKey = (r: TaxRate) => `${r.country}|${r.region}|${r.rate}`.toLowerCase();
+  const saved = new Set(savedRates.map(savedKey));
+
+  const add = () => {
+    setTried(true);
+    if (problem) return;
+    setRates([...rates, cleanTaxRate({ country, region, rate })]);
+    setRegion(""); setRate(""); setTried(false);
+  };
+  const remove = async (index: number) => {
+    const r = rates[index];
+    if (!(await ask({ title: "Remove this tax rate?", message: `${r.country}${r.region ? ` · ${r.region}` : " (whole country)"} at ${r.rate}% will stop applying once you save.`, confirmLabel: "Remove rate" }))) return;
+    setRates(rates.filter((_, i) => i !== index));
+  };
+
+  const columns: Column<TaxRate & { index: number }>[] = [
+    { key: "place", header: "Where", lead: true, render: (r) => <>{r.country}{r.region ? ` · ${r.region}` : <span className="rp-hint"> · whole country</span>}</> },
+    { key: "rate", header: "Rate", numeric: true, render: (r) => <span className="rp-mono">{r.rate}%</span> },
+    { key: "status", header: "Status", render: (r) => saved.has(savedKey(r)) ? <StatusBadge tone="success">Saved</StatusBadge> : <StatusBadge tone="warning">Not saved yet</StatusBadge> },
+    { key: "actions", header: "Actions", render: (r) => <DestructiveButton size="sm" onClick={() => remove(r.index)} aria-label={`Remove tax rate for ${r.country} ${r.region}`}>Remove</DestructiveButton> },
+  ];
+
+  return (
+    <div className="rp-stack">
+      <SectionCard title="Tax rates" description="Charged at checkout on books (gift cards are never taxed). A province/state rate wins over a country-wide one. Use 0% for places you don't collect in.">
+        {rates.length === 0
+          ? <EmptyState icon="%" title="No tax rates yet" description="Without a rate, checkout charges no tax. Add one below." />
+          : <DataTable caption="Tax rates" rows={rates.map((r, index) => ({ ...r, index }))} rowKey={(r) => `${r.index}`} columns={columns} />}
+      </SectionCard>
+
+      {gaps.length > 0 && (
+        <SectionCard title="Places with no tax rate" description="Shoppers here would be charged no tax. Add a rate for each, or one country-wide rate.">
+          <ul className="rp-list" style={{ margin: 0 }}>
+            {gaps.map((g) => (
+              <li key={g.country} style={{ padding: "8px 0" }}>
+                <strong>{g.country}:</strong> <span className="rp-hint">{g.regions.join(", ")}</span>{" "}
+                <SecondaryButton size="sm" onClick={() => { setCountry(g.country); setRegion(regionsFor(g.country)?.find(([, n]) => n === g.regions[0])?.[1] || ""); }}>Add {g.regions[0]}</SecondaryButton>
+              </li>
+            ))}
+          </ul>
+        </SectionCard>
+      )}
+
+      <SectionCard title="Add a tax rate">
+        <div style={{ display: "grid", gap: 12, gridTemplateColumns: "repeat(auto-fit, minmax(180px, 1fr))", alignItems: "end" }}>
+          <SelectField label="Country" value={country} onChange={(e) => { setCountry(e.target.value); setRegion(""); }}>
+            {COUNTRIES.map((c) => <option key={c.code} value={c.name}>{c.name}</option>)}
+          </SelectField>
+          {regionChoices ? (
+            <SelectField label="Province / state" value={region} onChange={(e) => setRegion(e.target.value)}>
+              <option value="">Whole country</option>
+              {regionChoices.map(([code, name]) => <option key={code} value={name}>{name}</option>)}
+            </SelectField>
+          ) : (
+            <TextField label="Region (optional)" value={region} placeholder="Blank = whole country" onChange={(e) => setRegion(e.target.value)} />
+          )}
+          <TextField label="Rate (%)" inputMode="decimal" value={rate} placeholder="13" error={tried && problem ? problem : undefined}
+            onChange={(e) => setRate(e.target.value)} onKeyDown={(e) => { if (e.key === "Enter") add(); }} />
+          <PrimaryButton onClick={add}>Add rate</PrimaryButton>
+        </div>
+        <p className="rp-hint" style={{ margin: "12px 0 0" }}>Added rates apply once you choose Save. Check your rates with your accountant — this is not tax advice.</p>
+      </SectionCard>
+
+      <SaveBar dirty={dirty} saving={savingSection === "taxes"} message="You have unsaved tax rates."
+        onSave={async () => { if (await saveSection("taxes", { taxes: settings.taxes })) toast.success("Tax rates saved"); }}
+        onDiscard={() => setSettings({ ...settings, taxes: JSON.parse(JSON.stringify(originalSettings?.taxes ?? { rates: [] })) })} />
+      {confirmNode}
+    </div>
+  );
+}

@@ -86,6 +86,33 @@ export function dispatchProblem(o: any): string {
  if (o.operations?.packed !== packingKey(o)) return "Complete the packing checklist first.";
  return "";
 }
+/**
+ * "What's blocking this" for an order in Needs attention for a reason other than its address
+ * (dispute, hold, test order, return, no items…). "" when the address step already explains it.
+ */
+export function blockingProblem(o: any): string {
+ if (queueOf(o) !== "Needs attention") return "";
+ if (!o.items?.length) return "This order has no items. Resolve the order data before fulfillment.";
+ const problem = dispatchProblem(o);
+ if (!problem || /address|packing checklist/i.test(problem)) return "";
+ if (/already been dispatched|Local pickup/.test(problem)) return "";
+ return problem;
+}
+/** A cash / e-Transfer (manual) order still waiting for its money: the admin may mark it paid. */
+export function canMarkManualPaid(o: any): boolean {
+ if (!o || ["paid", "refunded", "refund_pending"].includes(o.paymentStatus) || o.status === "cancelled" || o.status === "refunded") return false;
+ if (o.stripePaymentIntentId || o.stripeCheckoutSessionId || o.paypalOrderId || o.paypalCaptureId) return false;
+ const method = String(o.paymentMethod || "").toLowerCase();
+ if (!method || /stripe|card|paypal|apple|google|free/.test(method)) return false;
+ return Number(o.total) > 0;
+}
+/** Address fields the server refuses to change on this paid order, and why (see api.correctOrderAddress). */
+export function lockedAddressFields(o: any): { fields: string[]; reason: string } {
+ if (fulfillmentMethod(o) === "local_delivery") return { fields: ["state", "zip", "country"], reason: "For a paid local delivery, province, postal code and country can't change. Cancel and refund this order, then place a new one for the new area." };
+ return { fields: ["state", "country"], reason: "Shipping and tax were charged for the original country and province, so those can't change. Fix the street, city or postal code, or refund the order and have the customer order again." };
+}
+/** sessionStorage key for the packing checklist ticks (changes when the items change). */
+export const packingTicksKey = (o: any) => `packing-ticks:${o?.id || o?.orderId || ""}:${packingKey(o || {})}`;
 // Carrier, tracking number and optional tracking link typed by the publisher
 // (for parcels sent without a Shippo label). The link replaces the built-in
 // carrier page in emails, the customer account and order tracking.

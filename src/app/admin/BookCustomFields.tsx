@@ -9,7 +9,7 @@ import { SectionCard, SelectField, TextArea, TextField } from "./riso/components
 
 type Status = { tone: "ok" | "err"; text: string } | null;
 
-export function BookCustomFields({ form, set }: { form: any; set: (name: string, value: any) => void }) {
+export function BookCustomFields({ form, set, onDefinitionsDirty }: { form: any; set: (name: string, value: any) => void; onDefinitionsDirty?: (dirty: boolean) => void }) {
   const [fields, setFields] = useState<BookFieldDef[] | null>(null);
   const [draft, setDraft] = useState<BookFieldDef[]>([]);
   const [newLabel, setNewLabel] = useState("");
@@ -32,6 +32,9 @@ export function BookCustomFields({ form, set }: { form: any; set: (name: string,
     set("custom", next);
   };
   const changed = JSON.stringify(draft) !== JSON.stringify(fields || []);
+  // The editor's unsaved-changes guard also covers unsaved field definitions.
+  useEffect(() => { onDefinitionsDirty?.(changed); }, [changed]);
+  useEffect(() => () => onDefinitionsDirty?.(false), []);
   const saveFields = async () => {
     setSaving(true); setStatus(null);
     try {

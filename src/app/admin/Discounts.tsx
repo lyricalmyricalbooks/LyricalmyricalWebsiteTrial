@@ -2,10 +2,14 @@ import { useState, useEffect, useMemo } from "react";
 import { Plus, Trash2 } from "lucide-react";
 import { adminApi } from "./api";
 import toast from "react-hot-toast";
-import { CATEGORIES } from "../features/site/constants";
+import { discountCategoryChoices } from "../features/site/discountCategories";
 import { discountState as state, today } from "./discountState";
 import { discountPerformance, duplicateDiscount, perfKey } from "./discountPerformance";
 import { validateDiscountDraft } from "./discountValidation";
+import { describeDiscount, tierSummary } from "./discountDescribe";
+import { copyText } from "./clipboard";
+import { discountShareLink } from "../features/site/sharedDiscount";
+import { MAX_BATCH, batchCodes, cleanPrefix, codesCsv, randomCode } from "./discountCodes";
 import {
   ActionMenu, Checkbox, ConfirmDialog, DataTable, Dialog, EmptyState, ErrorState, FilterBar, IconButton, LoadingState,
   MetricCard, PrimaryButton, SearchField, SecondaryButton, SectionCard, SelectField, StatusBadge, TextArea, TextField,
@@ -14,7 +18,7 @@ import {
 
 // ─── helpers ────────────────────────────────────────────────────────────────
 
-const fmt = (n: number | null | undefined) => (n != null && n !== ("" as any) ? `$${Number(n).toFixed(2)}` : "—");
+const fmt = (n: number | null | undefined) => (n != null && n !== ("" as any) ? `CA$${Number(n).toFixed(2)}` : "—");
 
 const TYPE_OPTIONS = [
   { id: "percentage", label: "Percentage", desc: "e.g. 20% off" },
@@ -50,7 +54,7 @@ function valueLabel(d: any, books: any[] = []) {
     case "fixed": return `${fmt(d.value)} off`;
     case "freeship": return "Free shipping";
     case "bogo": return `Buy ${d.buyQuantity || 1} get ${d.getQuantity || 1} (${d.getDiscountValue ?? 100}% off)`;
-    case "tiered": return `Tiered (${d.tiers?.length || 0} tiers)`;
+    case "tiered": return tierSummary(d.tiers) || "Tiered discount";
     default: return String(d.type);
   }
 }
@@ -63,12 +67,15 @@ function targetLabel(d: any) {
 
 // ─── Create / edit dialog ─────────────────────────────────────────────────────
 
-function DiscountDialog({ initial, otherCodes = [], books, onClose, onSave }: { initial?: any; otherCodes?: string[]; books: any[] | null; onClose: () => void; onSave: (data: any) => Promise<void> }) {
+function DiscountDialog({ initial, otherCodes = [], books, shopCategories, onClose, onSave, onSaveBatch }: { initial?: any; otherCodes?: string[]; books: any[] | null; shopCategories: any[] | null; onClose: () => void; onSave: (data: any) => Promise<void>; onSaveBatch: (data: any, codes: string[]) => Promise<void> }) {
   const isEdit = !!initial?.id;
   const [form, setForm] = useState<any>(initial ? { ...EMPTY, ...initial, method: initial.method === "automatic" ? "automatic" : "code" } : EMPTY);
   const [saving, setSaving] = useState(false);
   const [errors, setErrors] = useState<Record<string, string>>({});
   const [giftSearch, setGiftSearch] = useState("");
+  const [bookSearch, setBookSearch] = useState("");
+  // "Create several single-use codes": N codes PREFIX-XXXXXX with the same rules, one use each.
+  const [batch, setBatch] = useState({ on: false, count: "10", prefix: "" });
   const set = (k: string, v: any) => setForm((f: any) => ({ ...f, [k]: v }));
   const automatic = form.method === "automatic";
   const giftBook = (books || []).find(b => b.id === form.giftBookId);
@@ -79,7 +86,10 @@ function DiscountDialog({ initial, otherCodes = [], books, onClose, onSave }: { 
   }));
 
   const validate = () => {
-    const e = validateDiscountDraft(form, undefined, otherCodes, giftBook);
+    const batching = batch.on && !isEdit && !automatic;
+    const e = validateDiscountDraft(batching ? { ...form, code: randomCode(batch.prefix), usageLimit: "" } : form, undefined, otherCodes, giftBook, isEdit ? String(initial?.expiryDate || "") : "");
+    const n = Number(batch.count);
+    if (batching && !(Number.isInteger(n) && n >= 1 && n <= MAX_BATCH)) e.batch = `Choose between 1 and ${MAX_BATCH} codes.`;
     setErrors(e);
     return Object.keys(e).length === 0;
   };
@@ -88,7 +98,10 @@ function DiscountDialog({ initial, otherCodes = [], books, onClose, onSave }: { 
     if (!validate()) { toast.error("Fix the highlighted fields first"); return; }
     setSaving(true);
     try {
-      await onSave({
+      const save = batch.on && !isEdit && !automatic
+        ? (data: any) => onSaveBatch({ ...data, usageLimit: 1 }, batchCodes(batch.prefix, Number(batch.count), otherCodes))
+        : onSave;
+      await save({
         ...form,
         method: automatic ? "automatic" : "code",
         // Automatic offers have no code, so they can never be typed in at checkout.
@@ -127,9 +140,12 @@ function DiscountDialog({ initial, otherCodes = [], books, onClose, onSave }: { 
       description="Discounts are re-checked by the server at checkout — this form only defines the rules."
       footer={<>
         <SecondaryButton onClick={onClose}>Cancel</SecondaryButton>
-        <PrimaryButton onClick={handleSave} disabled={saving}>{saving ? "Saving…" : isEdit ? "Save changes" : automatic ? "Create offer" : "Create code"}</PrimaryButton>
+        <PrimaryButton onClick={handleSave} disabled={saving}>{saving ? "Saving…" : isEdit ? "Save changes" : automatic ? "Create offer" : batch.on ? `Create ${Number(batch.count) || 0} codes` : "Create code"}</PrimaryButton>
       </>}>
       <div className="rp-stack" style={{ gap: 20 }}>
+        <p className="rp-card" role="status" aria-live="polite" style={{ margin: 0, padding: "10px 12px", boxShadow: "none" }}>
+          <strong>Shoppers get:</strong> {describeDiscount(form, books || [])}
+        </p>
         <fieldset style={{ border: 0, padding: 0, margin: 0 }}>
           <legend className="rp-label" style={{ marginBottom: 8 }}>Method</legend>
           <div role="radiogroup" aria-label="Method" style={{ display: "flex", flexWrap: "wrap", gap: 8 }}>
@@ -147,10 +163,22 @@ function DiscountDialog({ initial, otherCodes = [], books, onClose, onSave }: { 
         {automatic ? (
           <TextField label="Title shown to shoppers" value={form.title || ""} maxLength={60} onChange={e => set("title", e.target.value)} placeholder="e.g. Spring sale"
             error={errors.title} hint="Shown in the bag and at checkout next to the saving." />
+        ) : batch.on && !isEdit ? (
+          <div className="rp-card" style={{ padding: 16, boxShadow: "none" }}>
+            <div style={{ display: "grid", gap: 12, gridTemplateColumns: "repeat(auto-fit, minmax(180px, 1fr))" }}>
+              <TextField label="How many codes" type="number" min={1} max={MAX_BATCH} step={1} value={batch.count} onChange={e => setBatch(b => ({ ...b, count: e.target.value }))} error={errors.batch} hint={`Up to ${MAX_BATCH}. Each works once.`} />
+              <TextField label="Code prefix (optional)" value={batch.prefix} maxLength={20} onChange={e => setBatch(b => ({ ...b, prefix: e.target.value.toUpperCase() }))} placeholder="e.g. FAIR" hint={`Codes look like ${cleanPrefix(batch.prefix) ? `${cleanPrefix(batch.prefix)}-XXXXXX` : "XXXXXXXX"}.`} style={{ fontFamily: "var(--rp-font-mono)" }} />
+            </div>
+            <p className="rp-hint" style={{ margin: "8px 0 0" }}>A spreadsheet (CSV) of the new codes downloads when they are created.</p>
+          </div>
         ) : (
-          <TextField label="Code" value={form.code} onChange={e => set("code", e.target.value.toUpperCase())} placeholder="e.g. SUMMER25"
-            error={errors.code} data-autofocus style={{ fontFamily: "var(--rp-font-mono)", textTransform: "uppercase" }} />
+          <div style={{ display: "flex", gap: 8, alignItems: "flex-end", flexWrap: "wrap" }}>
+            <div className="rp-grow"><TextField label="Code" value={form.code} onChange={e => set("code", e.target.value.toUpperCase())} placeholder="e.g. SUMMER25"
+              error={errors.code} data-autofocus style={{ fontFamily: "var(--rp-font-mono)", textTransform: "uppercase" }} /></div>
+            <SecondaryButton onClick={() => set("code", randomCode())}>Generate</SecondaryButton>
+          </div>
         )}
+        {!automatic && !isEdit && <Toggle label="Create several single-use codes" checked={batch.on} onChange={v => setBatch(b => ({ ...b, on: v }))} />}
         <TextField label="Internal description" value={form.description || ""} onChange={e => set("description", e.target.value)}
           placeholder="e.g. Summer sale 2026" hint="Only administrators see this." />
 
@@ -246,25 +274,42 @@ function DiscountDialog({ initial, otherCodes = [], books, onClose, onSave }: { 
           {errors.applies && <p role="alert" className="rp-error-text" style={{ marginTop: 8 }}>{errors.applies}</p>}
           {form.appliesTo === "categories" && (
             <div style={{ display: "grid", gap: 4, gridTemplateColumns: "repeat(auto-fit, minmax(180px, 1fr))", marginTop: 12 }}>
-              {CATEGORIES.map(cat => <Checkbox key={cat} label={cat} checked={(form.selectedCategories || []).includes(cat)} onChange={() => toggleIn("selectedCategories", cat)} />)}
+              {shopCategories === null ? <p className="rp-hint">Loading shop categories…</p>
+                : discountCategoryChoices(shopCategories, form.selectedCategories || []).map(cat => (
+                  <Checkbox key={cat.name} checked={(form.selectedCategories || []).includes(cat.name)} onChange={() => toggleIn("selectedCategories", cat.name)}
+                    label={cat.parent ? `${cat.parent} › ${cat.name}` : cat.missing ? `${cat.name} (no longer a shop category)` : cat.renamedTo ? `${cat.name} (old name of ${cat.renamedTo})` : cat.name} />
+                ))}
+              {shopCategories !== null && <p className="rp-hint" style={{ gridColumn: "1 / -1", margin: "4px 0 0" }}>Categories come from Studio › Menus › Shop categories. A parent category also covers its sub-categories’ books, just like the shop’s category pages.</p>}
             </div>
           )}
-          {form.appliesTo === "products" && (
-            <div style={{ maxHeight: 220, overflowY: "auto", marginTop: 12, border: "1px solid var(--rp-border)", padding: "4px 12px" }}>
-              {books === null ? <p className="rp-hint">Loading catalog…</p>
-                : books.length === 0 ? <p className="rp-hint">No books in the catalog yet.</p>
-                : books.map(b => <Checkbox key={b.id} label={b.title} checked={(form.selectedProducts || []).includes(b.id)} onChange={() => toggleIn("selectedProducts", b.id)} />)}
-            </div>
-          )}
+          {form.appliesTo === "products" && (() => {
+            const chosen: string[] = form.selectedProducts || [];
+            const q = bookSearch.trim().toLowerCase();
+            const shown = (books || []).filter(b => !q || `${b.title || ""} ${b.isbn || ""}`.toLowerCase().includes(q));
+            return (
+              <div style={{ marginTop: 12 }}>
+                <div style={{ display: "flex", flexWrap: "wrap", gap: 12, alignItems: "flex-end" }}>
+                  <div className="rp-grow"><SearchField label="Find books" placeholder="Search by title or ISBN…" value={bookSearch} onChange={e => setBookSearch(e.target.value)} /></div>
+                  <span className="rp-hint" role="status">{chosen.length} selected</span>
+                </div>
+                <div style={{ maxHeight: 220, overflowY: "auto", marginTop: 8, border: "1px solid var(--rp-border)", padding: "4px 12px" }}>
+                  {books === null ? <p className="rp-hint">Loading catalog…</p>
+                    : books.length === 0 ? <p className="rp-hint">No books in the catalog yet.</p>
+                    : shown.length === 0 ? <p className="rp-hint">No books match “{bookSearch}”.</p>
+                    : shown.map(b => <Checkbox key={b.id} label={b.title} checked={chosen.includes(b.id)} onChange={() => toggleIn("selectedProducts", b.id)} />)}
+                </div>
+              </div>
+            );
+          })()}
         </fieldset>
 
         <div style={{ display: "grid", gap: 12, gridTemplateColumns: "repeat(auto-fit, minmax(190px, 1fr))" }}>
           <TextField label="Start date (optional)" type="date" value={form.startDate || ""} onChange={e => set("startDate", e.target.value)} hint={automatic ? "The offer stays off until this day — schedule a sale ahead of time." : "Code stays off until this day — schedule a sale ahead of time."} />
-          <TextField label="Expiry date (optional)" type="date" min={today()} value={form.expiryDate || ""} onChange={e => set("expiryDate", e.target.value)} hint={automatic ? "Last day the offer applies." : "Last day the code works."} error={errors.expiryDate} />
+          <TextField label="Expiry date (optional)" type="date" min={isEdit && initial?.expiryDate ? undefined : today()} value={form.expiryDate || ""} onChange={e => set("expiryDate", e.target.value)} hint={automatic ? "Last day the offer applies." : "Last day the code works."} error={errors.expiryDate} />
           <TextField label="Minimum order (CA$)" type="number" min={0} value={form.minOrderAmount} onChange={e => set("minOrderAmount", e.target.value)} placeholder="No minimum" error={errors.minOrderAmount} />
           <TextField label="Minimum quantity" type="number" min={0} step={1} value={form.minQuantity} onChange={e => set("minQuantity", e.target.value)} placeholder="No minimum" error={errors.minQuantity} />
           {form.type !== "freeship" && form.type !== "gift" && <TextField label="Maximum discount (CA$)" type="number" min={0} value={form.maxDiscountAmount ?? ""} onChange={e => set("maxDiscountAmount", e.target.value)} placeholder="No cap" hint="Most this code can take off one order, e.g. 20% off up to $15." error={errors.maxDiscountAmount} />}
-          <TextField label="Total usage limit" type="number" min={1} step={1} value={form.usageLimit} onChange={e => set("usageLimit", e.target.value)} placeholder="Unlimited" error={errors.usageLimit} />
+          {!(batch.on && !isEdit && !automatic) && <TextField label="Total usage limit" type="number" min={1} step={1} value={form.usageLimit} onChange={e => set("usageLimit", e.target.value)} placeholder="Unlimited" error={errors.usageLimit} />}
         </div>
 
         <div style={{ display: "grid", gap: 4 }}>
@@ -302,12 +347,16 @@ export function Discounts() {
   const [deleting, setDeleting] = useState<any | null>(null);
   const [orders, setOrders] = useState<any[]>([]);
   const [books, setBooks] = useState<any[] | null>(null);
+  const [shopCategories, setShopCategories] = useState<any[] | null>(null);
 
   useEffect(() => { load(); }, []);
   // The whole catalog (drafts too) for the book pickers and free-gift names. Best-effort.
   useEffect(() => { adminApi.getAllBooks().then(setBooks).catch(() => setBooks([])); }, []);
+  // The published shop categories (Studio › Menus › Shop categories), the names checkout matches.
+  useEffect(() => { adminApi.getPublicSettings().then((st: any) => setShopCategories(Array.isArray(st?.design?.categories) ? st.design.categories : [])).catch(() => setShopCategories([])); }, []);
   // Performance is best-effort: a failure here must not block managing codes.
-  useEffect(() => { adminApi.getOrders(500).then(setOrders).catch(() => {}); }, []);
+  // Every order (paged), so older redemptions count too.
+  useEffect(() => { adminApi.getAllOrders().then(setOrders).catch(() => {}); }, []);
   const perf = useMemo(() => discountPerformance(orders), [orders]);
 
   async function load() {
@@ -323,6 +372,26 @@ export function Discounts() {
     } catch (err: any) {
       toast.error(err.message || "Save failed");
     }
+  };
+
+  // Single-use batch: one createDiscount per code; reports what worked and downloads those codes.
+  const handleSaveBatch = async (data: any, codes: string[]) => {
+    const results = await Promise.allSettled(codes.map(code => adminApi.saveDiscount({ ...data, code })));
+    const created = codes.filter((_, i) => results[i].status === "fulfilled");
+    const failed = codes.length - created.length;
+    if (created.length) {
+      try {
+        const url = URL.createObjectURL(new Blob([codesCsv(created, describeDiscount(data, books || []))], { type: "text/csv;charset=utf-8" }));
+        const a = document.createElement("a");
+        a.href = url; a.download = `discount-codes-${today()}.csv`; a.click();
+        setTimeout(() => URL.revokeObjectURL(url), 1000);
+      } catch { /* the codes are still in the list */ }
+    }
+    if (!failed) toast.success(`${created.length} single-use codes created`);
+    else if (created.length) toast.error(`${created.length} codes created; ${failed} failed. Create the rest again.`);
+    else toast.error("No codes could be created. Please try again.");
+    if (created.length) { setDialogOpen(false); setEditing(null); }
+    load();
   };
 
   const handleDelete = async (d: any) => {
@@ -356,6 +425,7 @@ export function Discounts() {
         {isAutomatic(d)
           ? <span style={{ display: "inline-flex", gap: 6, alignItems: "center", flexWrap: "wrap" }}><strong>{d.title || "Automatic offer"}</strong><StatusBadge tone="info">Automatic</StatusBadge></span>
           : <span className="rp-mono" style={{ fontSize: "var(--rp-text-base)", fontWeight: 600 }}>{d.code}</span>}
+        <div className="rp-hint" style={{ overflowWrap: "anywhere" }}>{describeDiscount(d, books || [])}</div>
         {d.description && <div className="rp-hint" style={{ overflowWrap: "anywhere" }}>{d.description}</div>}
       </div>
     ) },
@@ -382,7 +452,10 @@ export function Discounts() {
         { label: "Edit", onSelect: () => { setEditing(d); setDialogOpen(true); } },
         { label: d.isActive ? "Pause" : "Activate", onSelect: () => handleToggle(d) },
         { label: "Duplicate", onSelect: () => { setEditing(duplicateDiscount(d, discounts.filter(x => !isAutomatic(x)).map(x => x.code))); setDialogOpen(true); } },
-        ...(isAutomatic(d) ? [] : [{ label: "Copy code", onSelect: () => { navigator.clipboard.writeText(d.code); toast.success("Code copied"); } }]),
+        ...(isAutomatic(d) ? [] : [
+          { label: "Copy code", onSelect: () => { void copyText(d.code); } },
+          { label: "Copy share link", onSelect: () => { void copyText(discountShareLink(d.code, window.location.origin, import.meta.env.BASE_URL), "Share link"); } },
+        ]),
         { label: "Delete", tone: "danger", onSelect: () => setDeleting(d) },
       ]} />
     ) },
@@ -396,7 +469,7 @@ export function Discounts() {
       <div className="rp-kpi-grid">
         <MetricCard label="Active discounts" value={activeCodes} footer={`${discounts.length} total`} />
         <MetricCard label="Redemptions" value={totalRedemptions.toLocaleString()} footer="Counted by the payment webhook" tone="gold" />
-        <MetricCard label="Revenue with a discount" value={fmt(totalCodeRevenue)} footer="Paid orders, last 500" />
+        <MetricCard label="Revenue with a discount" value={fmt(totalCodeRevenue)} footer="Paid orders, less refunds (CAD)" />
         <MetricCard label="Discounts given" value={fmt(totalGiven)} footer="Total taken off those orders" />
       </div>
 
@@ -428,7 +501,7 @@ export function Discounts() {
         </>
       )}
 
-      {dialogOpen && <DiscountDialog initial={editing} books={books} otherCodes={discounts.filter(d => d.id !== editing?.id && !isAutomatic(d)).map(d => d.code)} onClose={() => { setDialogOpen(false); setEditing(null); }} onSave={handleSave} />}
+      {dialogOpen && <DiscountDialog initial={editing} books={books} shopCategories={shopCategories} otherCodes={discounts.filter(d => d.id !== editing?.id && !isAutomatic(d)).map(d => d.code)} onClose={() => { setDialogOpen(false); setEditing(null); }} onSave={handleSave} onSaveBatch={handleSaveBatch} />}
 
       <ConfirmDialog open={!!deleting} title={isAutomatic(deleting) ? "Delete this automatic offer?" : "Delete this discount code?"} confirmLabel={isAutomatic(deleting) ? "Delete offer" : "Delete code"}
         message={deleting ? `“${discountName(deleting)}” will stop working immediately. Pause it instead if you may reuse it.` : ""}

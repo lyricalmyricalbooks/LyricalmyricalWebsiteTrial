@@ -1,6 +1,8 @@
 import { useEffect, useId, useMemo, useRef, useState } from "react";
 import { Search } from "lucide-react";
 import { adminApi } from "../api";
+import { getOrdersCached } from "../ordersCache";
+import { matchCustomers, matchOrders } from "../globalSearch";
 import {
   Dialog, EmptyState, ErrorState, LoadingState, SearchField, SecondaryButton, StatusBadge, Tabs,
   type BadgeTone,
@@ -8,30 +10,52 @@ import {
 
 /* ── Global search ───────────────────────────────────────────────────── */
 
+let catalogCache: Promise<any[]> | null = null;
+
 export type SearchTarget = { key: string; label: string; kind: string; run: () => void };
 
 /**
  * Combobox over admin destinations plus the book catalog (fetched once, on
  * first focus). Arrow keys move, Enter runs, Escape closes.
  */
-export function GlobalSearch({ destinations, onOpenBook }: {
+export function GlobalSearch({ destinations, onOpenBook, onOpenOrder, onOpenCustomer, shortcut = true }: {
   destinations: Array<{ id: string; label: string; run: () => void }>;
   onOpenBook: (book: any) => void;
+  onOpenOrder?: (id: string) => void;
+  onOpenCustomer?: (email: string) => void;
+  /** Ctrl/Cmd+K focuses the box (off while a full-screen editor with its own shortcut is open). */
+  shortcut?: boolean;
 }) {
   const [q, setQ] = useState("");
   const [open, setOpen] = useState(false);
   const [active, setActive] = useState(0);
   const [books, setBooks] = useState<any[] | null>(null);
+  const [orders, setOrders] = useState<any[] | null>(null);
   const boxRef = useRef<HTMLDivElement>(null);
   const listId = useId();
 
-  const ensureBooks = async () => {
-    if (books) return;
-    try {
-      const res: any = await adminApi.getBooks(200);
-      setBooks(Array.isArray(res) ? res : res?.books || res?.items || []);
-    } catch { setBooks([]); }
+  // The whole catalog (cached for the session) and every order (shared orders cache), loaded on first focus.
+  const ensureData = async () => {
+    if (!books) {
+      try {
+        if (!catalogCache) catalogCache = adminApi.getAllBooks().catch((e: unknown) => { catalogCache = null; throw e; });
+        setBooks(await catalogCache);
+      } catch { setBooks([]); }
+    }
+    if (onOpenOrder || onOpenCustomer) getOrdersCached().then(setOrders).catch(() => setOrders([]));
   };
+
+  useEffect(() => {
+    if (!shortcut) return;
+    const onKey = (e: KeyboardEvent) => {
+      if ((e.ctrlKey || e.metaKey) && !e.altKey && e.key.toLowerCase() === "k") {
+        e.preventDefault();
+        boxRef.current?.querySelector("input")?.focus();
+      }
+    };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [shortcut]);
 
   const results = useMemo<SearchTarget[]>(() => {
     const term = q.trim().toLowerCase();
@@ -43,8 +67,15 @@ export function GlobalSearch({ destinations, onOpenBook }: {
       .filter((b) => [b.title, b.author, b.isbn, b.sku].some((v) => String(v || "").toLowerCase().includes(term)))
       .slice(0, 6)
       .map((b) => ({ key: `book-${b.id}`, label: b.title || "Untitled book", kind: "Book", run: () => onOpenBook(b) }));
-    return [...nav, ...bk];
-  }, [q, books, destinations, onOpenBook]);
+    const ord = onOpenOrder ? matchOrders(orders || [], term).map((o) => ({
+      key: `order-${o.id}`, label: `${o.orderId || o.id}${o.customer?.name ? ` · ${o.customer.name}` : ""}`, kind: "Order", run: () => onOpenOrder(o.id),
+    })) : [];
+    const cust = onOpenCustomer ? matchCustomers(orders || [], term).map((c) => ({
+      key: `customer-${c.email}`, label: c.name ? `${c.name} · ${c.email}` : c.email, kind: "Customer",
+      run: () => onOpenCustomer(c.email),
+    })) : [];
+    return [...nav, ...bk, ...ord, ...cust];
+  }, [q, books, orders, destinations, onOpenBook, onOpenOrder, onOpenCustomer]);
 
   useEffect(() => setActive(0), [q]);
   useEffect(() => {
@@ -64,10 +95,10 @@ export function GlobalSearch({ destinations, onOpenBook }: {
         else if (e.key === "ArrowUp") { e.preventDefault(); setActive((i) => Math.max(i - 1, 0)); }
         else if (e.key === "Enter") { e.preventDefault(); choose(results[active]); }
       }}>
-      <SearchField label="Search books and admin screens" placeholder="Search books, screens…" value={q}
-        role="combobox" aria-expanded={showList} aria-controls={listId} aria-autocomplete="list"
+      <SearchField label="Search books, orders, customers and admin screens" placeholder="Search books, orders, customers… (Ctrl+K)" value={q}
+        role="combobox" aria-expanded={showList} aria-controls={listId} aria-autocomplete="list" aria-keyshortcuts="Control+K Meta+K"
         aria-activedescendant={showList && results[active] ? `${listId}-${active}` : undefined}
-        onFocus={() => { setOpen(true); ensureBooks(); }}
+        onFocus={() => { setOpen(true); ensureData(); }}
         onChange={(e) => { setQ(e.target.value); setOpen(true); }} />
       {showList && (
         <ul id={listId} role="listbox" className="rp-search-results" aria-label="Search results">
