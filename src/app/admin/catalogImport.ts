@@ -9,10 +9,13 @@
 //   matches more than one book, or a book another row already changed, is refused.
 // - Price and stock of books sold in editions are edited in the book editor, not here.
 
+import { parseWeightGrams } from "../features/site/shippingEngine";
+
 export type ImportField =
   | "id" | "title" | "subtitle" | "description" | "format" | "isbn" | "sku" | "status" | "isFeatured"
   | "retailPrice" | "salePrice" | "stockLevel" | "categories" | "publisher" | "publishDate"
-  | "pageCount" | "edition" | "language" | "imageUrl";
+  | "pageCount" | "edition" | "language" | "imageUrl"
+  | "weight" | "saleStartsAt" | "saleEndsAt" | "tags" | "shippingProfileId" | "extraImages";
 
 /** Spreadsheet headings each field accepts (compared lower-case, spaces and punctuation ignored). */
 export const IMPORT_COLUMNS: { field: ImportField; label: string; aliases: string[] }[] = [
@@ -35,6 +38,12 @@ export const IMPORT_COLUMNS: { field: ImportField; label: string; aliases: strin
   { field: "edition", label: "Edition", aliases: ["edition"] },
   { field: "language", label: "Language", aliases: ["language"] },
   { field: "imageUrl", label: "Image URL", aliases: ["image url", "image", "cover", "cover url", "photo", "photo url"] },
+  { field: "weight", label: "Weight", aliases: ["weight", "shipping weight"] },
+  { field: "saleStartsAt", label: "Sale starts", aliases: ["sale starts", "sale start", "sale start date", "sale from"] },
+  { field: "saleEndsAt", label: "Sale ends", aliases: ["sale ends", "sale end", "sale end date", "sale until"] },
+  { field: "tags", label: "Tags", aliases: ["tags", "tag", "keywords"] },
+  { field: "shippingProfileId", label: "Shipping profile", aliases: ["shipping profile", "shipping profile id"] },
+  { field: "extraImages", label: "Extra image URLs", aliases: ["extra image urls", "extra images", "more images", "additional images"] },
 ];
 
 export const MAX_IMPORT_ROWS = 2000;
@@ -115,7 +124,8 @@ const unguard = (value: string) => value.trim().replace(/^'([=+\-@])/, "$1");
 
 export const normalizeIsbn = (value: unknown) => String(value ?? "").toUpperCase().replace(/[^0-9X]/g, "");
 
-function validIsbn(value: string): boolean {
+/** ISBN-10 or ISBN-13 with a correct check digit (hyphens and spaces ignored). */
+export function validIsbn(value: string): boolean {
   const d = normalizeIsbn(value);
   if (/^\d{13}$/.test(d)) {
     const sum = [...d.slice(0, 12)].reduce((t, c, i) => t + Number(c) * (i % 2 ? 3 : 1), 0);
@@ -176,7 +186,7 @@ export interface ImportPlan {
 }
 
 const LABEL: Record<string, string> = Object.fromEntries(IMPORT_COLUMNS.map(c => [c.field, c.label]));
-LABEL.photos = "Image URL";
+LABEL.photos = "Images";
 LABEL.isOnSale = "On sale";
 
 const show = (value: unknown): string => {
@@ -190,7 +200,21 @@ const show = (value: unknown): string => {
  * `books` = the whole catalog. `shopCategories` = Studio's shop category names (a warning
  * names any category the storefront menu doesn't have yet; the book still gets it).
  */
-export function planImport(text: string, books: any[], shopCategories: string[] = []): ImportPlan {
+export interface ImportOptions {
+  /**
+   * "leave" (default): a Stock number that differs from the live count is reported but not written; an
+   * export file is a snapshot and sales since then would be undone. "set": the file's number is written.
+   */
+  stockMode?: "leave" | "set";
+  /** Shipping profile IDs that exist (a warning names any other). */
+  shippingProfiles?: string[];
+}
+
+const isHttps = (value: string) => { try { return new URL(value).protocol === "https:"; } catch { return false; } };
+const randomId = () => Math.random().toString(36).slice(2, 11);
+
+export function planImport(text: string, books: any[], shopCategories: string[] = [], opts: ImportOptions = {}): ImportPlan {
+  const stockMode = opts.stockMode || "leave";
   const empty = (problems: string[]): ImportPlan => ({ rows: [], ignoredColumns: [], problems, counts: { create: 0, update: 0, unchanged: 0, error: 0 } });
   const table = parseCsv(text);
   if (table.length < 2) return empty(["The file has no book rows. The first line must be the column headings (Title, ISBN, Price…), with one book per line under it."]);
@@ -254,6 +278,22 @@ export function planImport(text: string, books: any[], shopCategories: string[] 
     const next: Record<string, any> = {};
     const text = (f: ImportField, field: string = f) => { if (given(f)) next[field] = value[f]!; };
     text("title"); text("subtitle"); text("description"); text("format"); text("sku"); text("publisher"); text("edition"); text("language");
+    if (given("weight")) {
+      if (parseWeightGrams(value.weight) === null) errors.push(`Weight “${value.weight}” must be a number with g, kg, oz or lb, e.g. 450 g.`);
+      else next.weight = value.weight!;
+    }
+    for (const f of ["saleStartsAt", "saleEndsAt"] as const) {
+      if (!given(f)) continue;
+      const s = value[f]!;
+      if (!/^\d{4}-\d{2}-\d{2}$/.test(s) || Number.isNaN(Date.parse(`${s}T12:00:00Z`))) errors.push(`${LABEL[f]} “${s}” must be written YYYY-MM-DD, e.g. 2026-11-12.`);
+      else next[f] = s;
+    }
+    if (given("tags")) next.tags = splitList(value.tags!);
+    if (given("shippingProfileId")) {
+      next.shippingProfileId = value.shippingProfileId!;
+      if (opts.shippingProfiles?.length && !opts.shippingProfiles.includes(value.shippingProfileId!))
+        warnings.push(`Shipping profile “${value.shippingProfileId}” doesn't exist. Use a profile ID from Settings › Shipping.`);
+    }
     if (given("isbn")) {
       next.isbn = value.isbn!;
       if (!validIsbn(value.isbn!)) warnings.push(`“${value.isbn}” isn't a valid ISBN-10 or ISBN-13 (check the digits). It is saved as typed, but Google won't use it as a barcode.`);
@@ -304,10 +344,33 @@ export function planImport(text: string, books: any[], shopCategories: string[] 
       else if (book && firstPhoto(book) && firstPhoto(book) !== url) warnings.push("This book already has photos, so the Image URL was not used. Change photos in the book editor.");
       else if (!book || !firstPhoto(book)) next.photos = [{ url, altText: "" }];
     }
+    if (given("extraImages")) {
+      const urls = [...new Set(value.extraImages!.split("|").map(u => u.trim()).filter(Boolean))];
+      const bad = urls.filter(u => !isHttps(u));
+      if (bad.length) errors.push(`Extra image URLs must be full https:// web addresses separated by “|” (check ${bad.slice(0, 2).join(", ")}).`);
+      else {
+        const current: any[] = Array.isArray(book?.photos) ? book.photos : [];
+        const cover = next.photos?.[0] || current[0] || null;
+        const extras = urls.filter(u => u !== cover?.url).map(u => current.find(p => p?.url === u) || { id: randomId(), url: u, altText: "" });
+        const list = cover ? [cover, ...extras] : extras;
+        if (show(list) !== show(current)) next.photos = list;
+      }
+    }
     if (book && hasEditions(book)) {
       const fields = ["retailPrice", "salePrice", "stockLevel"].filter(f => f in next && show(next[f]) !== show(book[f] ?? ""));
       if (fields.length) warnings.push(`${fields.map(f => LABEL[f]).join(" and ")} ${fields.length === 1 ? "wasn't" : "weren't"} changed: this book is sold in editions, so prices and stock are set per edition in the book editor.`);
       for (const f of ["retailPrice", "salePrice", "isOnSale", "stockLevel"]) delete next[f];
+    }
+    if (book && "stockLevel" in next) {
+      const live = book.stockLevel === undefined || book.stockLevel === null || book.stockLevel === "" ? null : Number(book.stockLevel);
+      if (live !== next.stockLevel) {
+        const shown = live === null ? "blank" : String(live);
+        if (stockMode === "set") warnings.push(`Stock ${shown} → ${next.stockLevel} (live is ${shown}, file says ${next.stockLevel}).`);
+        else {
+          warnings.push(`Stock not changed: live is ${shown}, file says ${next.stockLevel}. Choose “Set stock to the file's numbers” to use it.`);
+          delete next.stockLevel;
+        }
+      }
     }
 
     const title = String(next.title ?? book?.title ?? value.title ?? "Untitled");
