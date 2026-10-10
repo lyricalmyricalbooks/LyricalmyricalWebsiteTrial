@@ -100,43 +100,16 @@ export const adminApi = {
     return onAuthStateChanged(auth, callback);
   },
 
-  // Stats
-  getStats: async () => {
-    try {
-      // Using getCountFromServer is O(1) in terms of read costs and much faster
-      const booksColl = collection(db, "books");
-      const authorsColl = collection(db, "authors");
-      const profilesColl = collection(db, "shipping-profiles");
-      const ordersColl = collection(db, "orders");
-
-      const [booksCount, authorsCount, profilesCount, ordersSnapshot] = await Promise.all([
-        getCountFromServer(booksColl),
-        getCountFromServer(authorsColl),
-        getCountFromServer(profilesColl),
-        getDocs(ordersColl)
-      ]);
-      
-      // For more granular stats like drafts, we still need a query count
-      const draftQuery = query(booksColl, where("status", "==", "draft"));
-      const publishedQuery = query(booksColl, where("status", "==", "published"));
-      
-      const [draftSnap, publishedSnap] = await Promise.all([
-        getCountFromServer(draftQuery),
-        getCountFromServer(publishedQuery)
-      ]);
-      
-      return {
-        totalBooks: booksCount.data().count,
-        draftCount: draftSnap.data().count,
-        publishedCount: publishedSnap.data().count,
-        shippingProfiles: profilesCount.data().count,
-        authors: authorsCount.data().count,
-        totalOrders: ordersSnapshot.docs.filter(order => order.data().isTest !== true).length
-      };
-    } catch (err) {
-      console.error("Stats Error:", err);
-      return { totalBooks: 0, draftCount: 0, publishedCount: 0, shippingProfiles: 0, authors: 0, totalOrders: 0 };
-    }
+  // Nav badges: cheap server-side counts (single-field filters, no composite index). Each count fails
+  // on its own as null so one refused read never hides the others.
+  getAdminBadgeCounts: async () => {
+    const count = (q: any) => getCountFromServer(q).then((s: any) => s.data().count as number).catch(() => null);
+    const [pendingReviews, unreadMessages, openPrivacyRequests] = await Promise.all([
+      count(query(collection(db, "reviews"), where("status", "==", "pending"))),
+      count(query(collection(db, "contactMessages"), where("status", "in", ["new", "emailed"]))),
+      count(query(collection(db, "privacyRequests"), where("status", "==", "open"))),
+    ]);
+    return { pendingReviews, unreadMessages, openPrivacyRequests };
   },
 
   // Books
@@ -1537,14 +1510,39 @@ export const adminApi = {
 
   // Audience signals for the Overview (admin-only reads per firestore.rules).
   getAudienceSnapshot: async () => {
-    const [reviewsSnap, subsSnap] = await Promise.all([
+    const [reviewsSnap, subsSnap, pending] = await Promise.all([
       getDocs(query(collection(db, "reviews"), orderBy("createdAt", "desc"), limit(200))),
       getDocs(query(collection(db, "newsletter"), orderBy("subscribedAt", "desc"), limit(5000))),
+      // Counted on the server: the newest 200 reviews can miss older pending ones.
+      getCountFromServer(query(collection(db, "reviews"), where("status", "==", "pending"))).then(s => s.data().count).catch(() => null),
     ]);
     return {
       reviews: reviewsSnap.docs.map(d => ({ id: d.id, ...d.data() })),
       subscribers: subsSnap.docs.map(d => ({ id: d.id, ...d.data() })),
+      pendingReviews: pending as number | null,
     };
+  },
+
+  // Newsletter sign-ups (ids are the lowercased email) and marketing opt-outs (ids are sha256 of the
+  // email; written only by Functions, admin-readable): who may be sent marketing email.
+  getMarketingConsent: async () => {
+    const [subs, optouts] = await Promise.all([
+      getDocs(query(collection(db, "newsletter"), limit(10000))),
+      getDocs(query(collection(db, "marketing-optout"), limit(10000))).catch(() => null),
+    ]);
+    return {
+      subscribed: new Set(subs.docs.map(d => String(d.data().email || d.id).trim().toLowerCase())),
+      optedOutHashes: optouts ? new Set<string>(optouts.docs.map(d => d.id)) : null,
+    };
+  },
+
+  // Private per-customer notes and tags (admin-only `customerNotes/{sha256(lowercased email)}`).
+  listCustomerNotes: async () => {
+    const snap = await getDocs(query(collection(db, "customerNotes"), limit(10000)));
+    return snap.docs.map(d => ({ id: d.id, ...d.data() })) as Array<{ id: string; email: string; note: string; tags: string[]; updatedAt: string }>;
+  },
+  saveCustomerNote: async (id: string, data: { email: string; note: string; tags: string[] }) => {
+    await setDoc(doc(db, "customerNotes", id), { ...data, updatedAt: new Date().toISOString() });
   },
 
   // "Notify me when back in stock" sign-ups (admin-only per firestore.rules): demand the Overview shows beside reprints.

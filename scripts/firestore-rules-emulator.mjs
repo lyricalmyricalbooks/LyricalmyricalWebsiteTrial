@@ -83,6 +83,18 @@ await check("bloated customer refused", assertFails(setDoc(doc(anon, "orders/AB-
 await check("server-only throttle closed", assertFails(getDoc(doc(anon, "contact-email-throttle/x"))));
 await check("server-only hold owners closed", assertFails(getDoc(doc(anon, "stock-hold-owners/x"))));
 
+// admin-only customer notes and marketing opt-outs
+await check("anon can't read customer notes", assertFails(getDoc(doc(anon, "customerNotes/x"))));
+await check("anon can't write customer notes", assertFails(setDoc(doc(anon, "customerNotes/x"), { email: "a@b.co", note: "", tags: [], updatedAt: "now" })));
+await check("anon can't read opt-outs", assertFails(getDoc(doc(anon, "marketing-optout/x"))));
+{
+  const admin = env.authenticatedContext("admin", { email: "lyricalmyricalbooks@gmail.com", email_verified: true }).firestore();
+  await check("admin writes a customer note", assertSucceeds(setDoc(doc(admin, "customerNotes/x"), { email: "a@b.co", note: "Likes poetry", tags: ["wholesale"], updatedAt: "now" })));
+  await check("admin note extra key refused", assertFails(setDoc(doc(admin, "customerNotes/y"), { email: "a@b.co", note: "", tags: [], updatedAt: "now", junk: 1 })));
+  await check("admin reads opt-outs", assertSucceeds(getDoc(doc(admin, "marketing-optout/x"))));
+  await check("admin can't write opt-outs", assertFails(setDoc(doc(admin, "marketing-optout/x"), { at: "now" })));
+}
+
 await env.cleanup();
 console.log(failures ? `${failures} FAILED` : "ALL OK");
 process.exit(failures ? 1 : 0);

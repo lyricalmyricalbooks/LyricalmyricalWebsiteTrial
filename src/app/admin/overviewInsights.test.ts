@@ -60,8 +60,8 @@ describe("overview insights", () => {
 
   it("flags reprint candidates and dormant stock", () => {
     const books = [
-      { id: "hot", title: "Hot", stockLevel: 5, format: "Paperback" },
-      { id: "cold", title: "Cold", stockLevel: 40, format: "Paperback" },
+      { id: "hot", title: "Hot", trackInventory: true, stockLevel: 5, format: "Paperback" },
+      { id: "cold", title: "Cold", trackInventory: true, stockLevel: 40, format: "Paperback" },
       { id: "ebook", title: "Ebook", stockLevel: 0, format: "E-book (PDF)" },
       { id: "draft", title: "Draft", stockLevel: 9, status: "draft" },
     ];
@@ -73,7 +73,7 @@ describe("overview insights", () => {
   });
 
   it("values print stock", () => {
-    const s = stockValue([{ stockLevel: 3, retailPrice: 10, format: "Paperback" }, { stockLevel: 0, retailPrice: 8 }, { stockLevel: 99, retailPrice: 5, format: "Audiobook" }]);
+    const s = stockValue([{ id: "x", trackInventory: true, stockLevel: 3, retailPrice: 10, format: "Paperback" }, { id: "y", trackInventory: true, stockLevel: 0, retailPrice: 8 }, { stockLevel: 99, retailPrice: 5, format: "Audiobook" }]);
     expect(s).toMatchObject({ units: 3, value: 30, soldOut: 1, titles: 2 });
   });
 

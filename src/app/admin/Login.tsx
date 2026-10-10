@@ -16,7 +16,6 @@ export function Login({ onLogin }: LoginProps) {
     setError("");
     try {
       const { token } = await adminApi.login();
-      localStorage.setItem("adminToken", token);
       onLogin(token);
     } catch (err: any) {
       setError(err.message || "Login failed");
