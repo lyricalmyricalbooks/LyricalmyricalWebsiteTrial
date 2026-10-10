@@ -29,6 +29,11 @@ function Stars({ value, onChange, size = 16, design }: { value: number; onChange
   );
 }
 
+/** Pinned ("featured") reviews first, otherwise newest first as loaded. */
+export function featuredFirst<T extends { featured?: boolean }>(list: T[]): T[] {
+  return [...list].sort((a, b) => Number(b.featured === true) - Number(a.featured === true));
+}
+
 export function ReviewsSummary({ count, average }: { count: number; average: number }) {
   const { settings } = useSiteData();
   const c = (k: string, v?: Record<string, string | number>) => getCopy(settings?.design, k, v);
@@ -66,7 +71,7 @@ export default function ReviewsSection({ bookId, hideHeader = false }: { bookId:
     setLoading(true);
     try {
       const list = await reviewsApi.listApproved(bookId);
-      setReviews(list);
+      setReviews(featuredFirst(list));
     } catch {
       setReviews([]);
     } finally {
@@ -132,8 +137,18 @@ export default function ReviewsSection({ bookId, hideHeader = false }: { bookId:
           <ul {...regionProps("reviewsList")} className="space-y-8 mb-16">
             {reviews.map(r => (
               <li key={r.id} className="border-t border-white/[0.06] pt-8 first:border-t-0 first:pt-0">
+                {r.featured === true && (
+                  <p {...regionProps("reviewsFeatured")} className="text-[9px] tracking-widest uppercase mb-2" style={{ color: "var(--accent)" }}>{c("reviewsFeatured")}</p>
+                )}
                 <div className="flex items-center justify-between mb-3">
-                  <Stars value={r.rating} size={13} design={settings?.design} />
+                  <span className="flex items-center gap-3">
+                    <Stars value={r.rating} size={13} design={settings?.design} />
+                    {r.verified === true && (
+                      <span {...regionProps("reviewsVerified")} className="inline-flex items-center gap-1 text-[9px] tracking-widest uppercase text-white/50">
+                        <CheckCircle2 size={11} aria-hidden /> {c("reviewsVerified")}
+                      </span>
+                    )}
+                  </span>
                   <span {...regionProps("reviewsDate")} className="text-[9px] tracking-widest text-white/30 uppercase">
                     {new Date(r.createdAt).toLocaleDateString()}
                   </span>

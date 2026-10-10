@@ -25,6 +25,10 @@ export type Review = {
   createdAt: string;
   /** Public reply from the store owner (admin-written). */
   reply?: { body: string; at: string };
+  /** Admin-written when approving: the reviewer's email matches a paid order for this book. */
+  verified?: boolean;
+  /** Admin-written: pinned to the top of the book's reviews. */
+  featured?: boolean;
 };
 
 /** Splits a list into groups of `size` (Firestore "in" queries take up to 30 values). */
@@ -111,8 +115,14 @@ export const reviewsApi = {
     return out;
   },
 
-  setStatus: async (id: string, status: Review["status"]) => {
-    await updateDoc(doc(liteDb, "reviews", id), { status });
+  /** `extra.verified` (approval only): stamped publicly so the book page can show "Verified purchase". */
+  setStatus: async (id: string, status: Review["status"], extra: { verified?: boolean } = {}) => {
+    await updateDoc(doc(liteDb, "reviews", id), { status, ...(typeof extra.verified === "boolean" ? { verified: extra.verified } : {}) });
+    clearApprovedCache();
+  },
+
+  setFeatured: async (id: string, featured: boolean) => {
+    await updateDoc(doc(liteDb, "reviews", id), { featured });
     clearApprovedCache();
   },
 

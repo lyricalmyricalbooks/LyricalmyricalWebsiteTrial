@@ -1,8 +1,9 @@
 import { useEffect, useMemo, useState } from "react";
 import { collection, getDocs, query, orderBy, limit, where } from "firebase/firestore";
-import { Check, MessageSquare, Star, Trash2, X } from "lucide-react";
+import { Check, MessageSquare, Pin, PinOff, Star, Trash2, X } from "lucide-react";
 import { adminApi } from "./api";
-import { filterReviews, moderationOutcome, reviewStats } from "./reviewInsights";
+import { filterReviews, isVerifiedPurchase, moderationOutcome, purchaseIndex, reviewStats } from "./reviewInsights";
+import { resolveProductRoutes } from "../features/site/productRoutes";
 import { db } from "../../lib/firebase";
 import { reviewsApi, type Review } from "../lib/reviews";
 import {
@@ -35,6 +36,8 @@ function Queue() {
   const [q, setQ] = useState("");
   const [rating, setRating] = useState("all");
   const [titles, setTitles] = useState<Record<string, string>>({});
+  const [slugs, setSlugs] = useState<Record<string, string>>({});
+  const [orders, setOrders] = useState<any[]>([]);
   const [replying, setReplying] = useState<Review | null>(null);
   const [replyText, setReplyText] = useState("");
   // The browse list is capped at the newest 200 (pending ones are always all loaded).
@@ -60,8 +63,17 @@ function Queue() {
   useEffect(() => { load(); }, []);
   // Book titles are a nicety: if they fail to load, fall back to the raw book ID.
   useEffect(() => {
-    adminApi.getAllBooks().then((bs: any[]) => setTitles(Object.fromEntries(bs.map((b) => [b.id, b.title || b.id])))).catch(() => {});
+    adminApi.getAllBooks().then((bs: any[]) => {
+      setTitles(Object.fromEntries(bs.map((b) => [b.id, b.title || b.id])));
+      // The same collision-safe public URL the storefront uses.
+      setSlugs(Object.fromEntries(resolveProductRoutes(bs).map((b: any) => [b.id, b.slug])));
+    }).catch(() => {});
+    // Paid orders, to mark reviews by people who bought the book. Best-effort.
+    adminApi.getAllOrders().then(setOrders).catch(() => {});
   }, []);
+  const purchases = useMemo(() => purchaseIndex(orders), [orders]);
+  const verified = (r: Review) => isVerifiedPurchase(r, purchases);
+  const bookUrl = (id: string) => `${import.meta.env.BASE_URL}books/${encodeURIComponent(slugs[id] || id)}`;
   const stats = useMemo(() => reviewStats(reviews), [reviews]);
 
   const counts = useMemo(() => ({
@@ -77,7 +89,10 @@ function Queue() {
     const previous = new Map(reviews.filter((r) => ids.includes(r.id)).map((r) => [r.id, r.status]));
     // Each review is its own write: some can succeed while others fail. Report both and
     // always reload, so the list never shows a state that isn't saved.
-    const results = await Promise.allSettled(ids.map((id) => reviewsApi.setStatus(id, status)));
+    // Approving stamps the public "Verified purchase" mark from the reviewer's paid orders.
+    const byId = new Map(reviews.map((r) => [r.id, r]));
+    const results = await Promise.allSettled(ids.map((id) => reviewsApi.setStatus(id, status,
+      status === "approved" && byId.get(id) ? { verified: verified(byId.get(id)!) } : {})));
     const { done, failed, message } = moderationOutcome(ids, results, status);
     setSelected(new Set(failed));
     toast(message, {
@@ -101,12 +116,23 @@ function Queue() {
     load();
   };
 
-  const saveReply = async () => {
+  const saveReply = async (approve = false) => {
     if (!replying) return;
-    const id = replying.id;
+    const review = replying;
     setReplying(null);
-    try { await reviewsApi.setReply(id, replyText); toast(replyText.trim() ? "Reply published" : "Reply removed"); }
-    catch { toast("Could not save the reply."); }
+    try {
+      await reviewsApi.setReply(review.id, replyText);
+      if (approve) await reviewsApi.setStatus(review.id, "approved", { verified: verified(review) });
+      toast(approve ? "Reply saved and review approved" : replyText.trim() ? "Reply published" : "Reply removed");
+    } catch { toast("Could not save the reply."); }
+    load();
+  };
+
+  const toggleFeatured = async (r: Review) => {
+    try {
+      await reviewsApi.setFeatured(r.id, !r.featured);
+      toast(r.featured ? "Review unpinned" : "Review pinned to the top of the book page");
+    } catch { toast("Could not change the pin."); }
     load();
   };
 
@@ -121,6 +147,25 @@ function Queue() {
         <MetricCard label="Low-rated pending" value={stats.lowPending} tone={stats.lowPending ? "warn" : undefined} footer="1–2 stars awaiting a decision" />
         <MetricCard label="Awaiting a reply" value={stats.unanswered} footer="Approved with no owner reply" />
       </div>
+      {stats.total > 0 && (
+        <SectionCard title="Rating spread" description={capped ? "Newest 200 reviews plus every pending one" : "All reviews"}>
+          <ul aria-label="Reviews by star rating" style={{ listStyle: "none", margin: 0, padding: 0, display: "grid", gap: 6 }}>
+            {[5, 4, 3, 2, 1].map((n) => {
+              const count = stats.distribution[n - 1] || 0;
+              const max = Math.max(1, ...stats.distribution);
+              return (
+                <li key={n} style={{ display: "grid", gridTemplateColumns: "56px 1fr 40px", gap: 8, alignItems: "center" }}>
+                  <span className="rp-hint">{n} star{n === 1 ? "" : "s"}</span>
+                  <span aria-hidden style={{ height: 10, border: "1px solid var(--rp-border)", background: "var(--rp-surface, transparent)" }}>
+                    <span style={{ display: "block", height: "100%", width: `${(count / max) * 100}%`, background: "var(--rp-warning)" }} />
+                  </span>
+                  <span className="rp-mono" style={{ textAlign: "right" }}>{count}</span>
+                </li>
+              );
+            })}
+          </ul>
+        </SectionCard>
+      )}
       <div className="rp-filter-bar">
         <Tabs<Filter> label="Review status" value={filter} onChange={(f) => { setFilter(f); setSelected(new Set()); }}
           tabs={(["pending", "approved", "rejected", "all"] as const).map((f) => {
@@ -164,16 +209,19 @@ function Queue() {
                         <div className="rp-row-meta" style={{ marginBottom: 8 }}>
                           <Stars rating={r.rating} />
                           <StatusBadge tone={TONE[r.status]}>{r.status}</StatusBadge>
+                          {verified(r) && <StatusBadge tone="success">✓ Verified purchase</StatusBadge>}
+                          {r.featured && <StatusBadge tone="info">📌 Pinned</StatusBadge>}
                           <time dateTime={r.createdAt}>{new Date(r.createdAt).toLocaleString()}</time>
                         </div>
                         {r.title && <h3 style={{ margin: "0 0 4px", fontSize: "var(--rp-text-base)", fontWeight: 600 }}>{r.title}</h3>}
                         <p style={{ margin: "0 0 8px", lineHeight: 1.55, overflowWrap: "anywhere" }}>{r.body}</p>
-                        <p className="rp-hint" style={{ margin: 0 }}>{r.authorName}{r.email ? ` · ${r.email}` : ""} · Book <span className="rp-mono">{titles[r.bookId] || r.bookId}</span></p>
+                        <p className="rp-hint" style={{ margin: 0 }}>{r.authorName}{r.email ? ` · ${r.email}` : ""} · Book <a href={bookUrl(r.bookId)} target="_blank" rel="noreferrer" style={{ color: "inherit", textDecoration: "underline", textUnderlineOffset: 2 }}>{titles[r.bookId] || r.bookId}</a></p>
                         {r.reply?.body && <p className="rp-hint" style={{ margin: "8px 0 0", borderLeft: "2px solid var(--rp-border-strong)", paddingLeft: 8 }}>Your reply: {r.reply.body}</p>}
                       </div>
                     </div>
                     <div style={{ display: "flex", gap: 4 }}>
                       <IconButton label={`${r.reply?.body ? "Edit reply to" : "Reply to"} review by ${r.authorName}`} onClick={() => { setReplying(r); setReplyText(r.reply?.body || ""); }}><MessageSquare size={18} aria-hidden /></IconButton>
+                      <IconButton label={`${r.featured ? "Unpin" : "Pin to top"} review by ${r.authorName}`} onClick={() => toggleFeatured(r)}>{r.featured ? <PinOff size={18} aria-hidden /> : <Pin size={18} aria-hidden />}</IconButton>
                       {r.status !== "approved" && <IconButton tone="success" label={`Approve review by ${r.authorName}`} onClick={() => moderate([r.id], "approved")}><Check size={18} aria-hidden /></IconButton>}
                       {r.status !== "rejected" && <IconButton tone="danger" label={`Reject review by ${r.authorName}`} onClick={() => moderate([r.id], "rejected")}><X size={18} aria-hidden /></IconButton>}
                       <IconButton tone="danger" label={`Delete review by ${r.authorName}`} onClick={() => setDeleting(r)}><Trash2 size={18} aria-hidden /></IconButton>
@@ -186,7 +234,12 @@ function Queue() {
       </SectionCard>
 
       <Dialog open={!!replying} onClose={() => setReplying(null)} title="Reply publicly" description="Shown under the review on the book page once the review is approved. Leave empty to remove your reply."
-        footer={<><SecondaryButton onClick={() => setReplying(null)}>Cancel</SecondaryButton><PrimaryButton onClick={saveReply}>Save reply</PrimaryButton></>}>
+        footer={<>
+          <SecondaryButton onClick={() => setReplying(null)}>Cancel</SecondaryButton>
+          {replying && replying.status !== "approved"
+            ? <><SecondaryButton onClick={() => saveReply(false)}>Save reply</SecondaryButton><PrimaryButton onClick={() => saveReply(true)}>Save &amp; approve</PrimaryButton></>
+            : <PrimaryButton onClick={() => saveReply(false)}>Save reply</PrimaryButton>}
+        </>}>
         <TextArea label="Your reply" rows={4} maxLength={1000} value={replyText} onChange={(e) => setReplyText(e.target.value)} />
       </Dialog>
 
