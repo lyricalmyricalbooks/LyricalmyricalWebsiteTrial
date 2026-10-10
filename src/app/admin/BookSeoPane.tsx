@@ -7,13 +7,23 @@ import { getCopy } from '../features/site/storeCopy';
 import { bookMetadata, seoChecks } from '../lib/bookSeo';
 import type { Book } from '../features/site/types';
 
+// Settings + whole catalog, shared by every opening of this pane for a minute (it used to reload both each time).
+let seoCache: { at: number; promise: Promise<[any, Book[]]> } | null = null;
+function loadSeoData(): Promise<[any, Book[]]> {
+  if (seoCache && Date.now() - seoCache.at < 60_000) return seoCache.promise;
+  const promise = Promise.all([adminApi.getSettings(), loadCatalog((size, cursor) => adminApi.getStorefrontBooks(size, cursor))]) as Promise<[any, Book[]]>;
+  seoCache = { at: Date.now(), promise };
+  promise.catch(() => { if (seoCache?.promise === promise) seoCache = null; });
+  return promise;
+}
+
 export function BookSeoPane({ book, onChange }: { book: Partial<Book>; onChange: (key: string, value: string | boolean) => void }) {
   const [design, setDesign] = useState<any>(null);
   const [catalog, setCatalog] = useState<Book[]>([]);
   const [loaded, setLoaded] = useState(false);
   useEffect(() => {
     let cancelled = false;
-    Promise.all([adminApi.getSettings(), loadCatalog((size, cursor) => adminApi.getStorefrontBooks(size, cursor))])
+    loadSeoData()
       .then(([settings, books]) => { if (!cancelled) { setDesign(settings?.design); setCatalog(books as Book[]); setLoaded(true); } })
       .catch(() => { /* Show pending URL guidance; never pretend the route was verified. */ });
     return () => { cancelled = true; };

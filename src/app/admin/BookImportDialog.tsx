@@ -51,7 +51,7 @@ export function BookImportDialog({ books, onClose, onDone }: { books: any[]; onC
     setReadError(""); setPlan(null); setResults(null); setFileName(file.name);
     if (file.size > MAX_FILE_BYTES) { setReadError("That file is larger than 5 MB. Split it into smaller files and import them one at a time."); return; }
     try {
-      const [text, settings, profiles] = await Promise.all([file.text(), adminApi.getPublicSettings().catch(() => null), adminApi.getShippingProfiles().catch(() => [])]);
+      const [text, settings, profiles] = await Promise.all([file.text(), adminApi.getPublicSettings().catch(() => null), Promise.resolve().then(() => adminApi.getShippingProfiles()).catch(() => [])]);
       const defined = (settings as any)?.design?.categories;
       const shopCategories = Array.isArray(defined) ? normalizeCategories(defined).map((c: any) => c?.name).filter(Boolean) : [];
       const src = { text, shopCategories, profiles: (profiles as any[]).map(p => p.id) };

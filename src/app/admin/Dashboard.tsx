@@ -545,8 +545,8 @@ export function Dashboard() {
               <BookEditor
                 book={editingBook}
                 onClose={() => setShowEditor(false)}
-                onSave={() => {
-                  setShowEditor(false);
+                onSave={(opts) => {
+                  if (!opts?.stayOpen) setShowEditor(false);
                   if (activeTab === "catalog") {
                     setCatalogRefreshKey(prev => prev + 1);
                   }
