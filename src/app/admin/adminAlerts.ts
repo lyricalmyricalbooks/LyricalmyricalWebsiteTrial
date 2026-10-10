@@ -10,7 +10,7 @@ export type AdminAlert = {
   title: string;
   detail: string;
   orderIds: string[];
-  action: "order" | "orders" | "webhook" | "notifications";
+  action: "order" | "orders" | "webhook" | "notifications" | "payments";
 };
 
 export type WebhookStatus = { lastReceivedAt?: string | null; lastFailureAt?: string | null; lastFailure?: string | null } | null;
@@ -119,6 +119,13 @@ export function buildAdminAlerts(allOrders: any[], webhook: WebhookStatus = null
   const failedEmails = current.filter(e => ["failed", "bounced", "complained"].includes(e.status) && now - Date.parse(e.at || "") <= 7 * DAY);
   if (failedEmails.length) out.push({ id: "email-failed", tone: "warning", title: `${plural(failedEmails.length, "recent email needs", "recent emails need")} attention`, detail: "Review Notifications delivery attempts and provider events. Resolve the cause before resending; sent status only proves provider acceptance.", orderIds: failedEmails.map(e => String(e.id || e.at)), action: "notifications" });
   return out;
+}
+
+// Alerts from the saved store settings (not orders): test mode left on refuses real cards.
+export function settingsAlerts(settings: any): AdminAlert[] {
+  if (settings?.payments?.testMode !== true) return [];
+  return [{ id: "test-mode", tone: "warning", title: "Test mode is on — real cards are refused",
+    detail: "Checkout only accepts Stripe/PayPal test payments and orders are marked as tests. Switch it off in Settings › Payments before selling.", orderIds: [], action: "payments" }];
 }
 
 // Changes whenever the set of problems changes, so a dismissed alert comes back

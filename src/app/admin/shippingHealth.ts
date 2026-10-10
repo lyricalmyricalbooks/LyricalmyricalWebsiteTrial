@@ -15,12 +15,15 @@ export type ShippingSummary = {
   coveredCountryCount: number;
   assignedProductCount: number;
   issues: ShippingIssue[];
+  /** Optional suggestions that never block checkout (e.g. no carrier transit time). */
+  hints: ShippingIssue[];
 };
 
 /** Admin-only configuration summary. Checkout still resolves and validates rates server-side. */
 export function summarizeShipping(profiles: any[] = [], books: any[] = []): ShippingSummary {
   const countries = new Set<string>();
   const issues: ShippingIssue[] = [];
+  const hints: ShippingIssue[] = [];
   let zoneCount = 0;
   let rateCount = 0;
 
@@ -96,7 +99,8 @@ export function summarizeShipping(profiles: any[] = [], books: any[] = []): Ship
         }
         rateIssues(rate).forEach((msg, k) => issues.push({ id: `profile:${profile.id}:zone:${zone.id}:rate:${rate?.id}:cond${k}`, label: `${rate?.name || "A rate"}: ${msg}`, detail: "This rate could never be offered or would charge nothing by mistake. Fix it in the rate's settings.", profileId: profile.id, severity: "blocking" }));
         if (rate?.type !== "pickup" && !String(rate?.deliveryDays || "").trim()) {
-          issues.push({ id: `profile:${profile.id}:zone:${zone.id}:rate:${rate?.id}:delivery`, label: `${rate?.name || "A rate"} has no delivery estimate`, detail: "Add an estimate such as 3–7 days so customers know when to expect delivery.", profileId: profile.id, severity: "warning" });
+          // Not a problem: checkout never invents an arrival promise. Only a neutral hint.
+          hints.push({ id: `profile:${profile.id}:zone:${zone.id}:rate:${rate?.id}:delivery`, label: `${rate?.name || "A rate"} shows no transit time`, detail: "Optional: if your carrier publishes a transit time for this service, you can add it to the rate. Leave it blank rather than guess.", profileId: profile.id, severity: "warning" });
         }
       });
     }
@@ -120,6 +124,7 @@ export function summarizeShipping(profiles: any[] = [], books: any[] = []): Ship
     coveredCountryCount: countries.size,
     assignedProductCount: books.filter((book) => !!book.shippingProfileId).length,
     issues,
+    hints,
   };
 }
 

@@ -390,3 +390,14 @@ describe("review fixes", () => {
     expect(compiled.subject).toBe("Order A1");
   });
 });
+
+describe("order table in templates", () => {
+  test("a body with {{items_table}} gets the table once, in place", () => {
+    const app = harness();
+    const settings = { order_confirmation: { subject: "S", body: "Top\n{{items_table}}\nBottom", buttonText: "", signoff: "Bye" } };
+    const { html } = app.exports.__compile("order_confirmation", settings, { items_table: '<table id="t"></table>', customer_name: "R" });
+    expect(html.split('id="t"').length - 1).toBe(1);
+    expect(html.indexOf("Top")).toBeLessThan(html.indexOf('id="t"'));
+    expect(html.indexOf('id="t"')).toBeLessThan(html.indexOf("Bottom"));
+  });
+});

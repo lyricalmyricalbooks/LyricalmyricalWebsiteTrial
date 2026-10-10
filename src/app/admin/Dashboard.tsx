@@ -9,8 +9,9 @@ import { Login } from "./Login";
 import { BookCatalog } from "./BookCatalog";
 import { ordersNeedingWork, refreshOrdersCache } from "./Orders";
 import { AdminAlerts } from "./AdminAlerts.tsx";
-import { buildAdminAlerts, type AdminAlert } from "./adminAlerts";
+import { buildAdminAlerts, settingsAlerts, type AdminAlert } from "./adminAlerts";
 import { getOrdersCached, setOrdersLoader } from "./ordersCache";
+import { anyDirty, useBeforeUnloadWhenDirty } from "./settingsDirty";
 import { adminApi } from "./api";
 import { scrubSavedSecrets } from "./privateKeys";
 import toast from "react-hot-toast";
@@ -207,6 +208,8 @@ export function Dashboard() {
 
   const [ucSaving, setUcSaving] = useState(false);
   const [confirm, confirmNode] = useConfirm();
+  // Settings sections register their unsaved edits (settingsDirty.ts); the tab can't close on them silently.
+  useBeforeUnloadWhenDirty();
   async function toggleUnderConstruction(on: boolean) {
     const ok = await confirm(on
       ? { title: "Close the shop for now?", message: "Shoppers will see the “under construction” wall instead of your books until you turn it off. You can keep working in the admin.", confirmLabel: "Show the wall" }
@@ -317,14 +320,25 @@ export function Dashboard() {
     "data-admin-theme": adminTheme === "light" ? "reso" : "dark",
   } as const;
 
-  const goTo = (id: string) => {
+  // Leaving a Settings page with unsaved edits asks first; leaving drops those edits.
+  const leaveSettings = async (): Promise<boolean> => {
+    if (!isSettingsPage || !anyDirty()) return true;
+    const ok = await confirm({ title: "Leave without saving?", message: "This settings page has changes that haven't been saved. Leaving discards them.", confirmLabel: "Leave without saving" });
+    if (ok && originalSettings) setSettings(JSON.parse(JSON.stringify(originalSettings)));
+    return ok;
+  };
+  const goTo = async (id: string) => {
+    // Nothing unsaved: switch at once (callers such as What's new set a Settings tab right after).
+    if (isSettingsPage && anyDirty() && !(await leaveSettings())) return;
     setActiveTab(id);
     setShowEditor(false);
     setSelectedOrder(null);
     if (id === "settings") setSettingsTab("general");
     setSidebarOpen(false);
   };
-  const goToChild = (_parent: string, child: string) => {
+  const goToChild = async (_parent: string, child: string) => {
+    if (child !== navChild && !(await leaveSettings())) return;
+    setActiveTab("settings");
     setSettingsTab(child);
     setSidebarOpen(false);
   };
@@ -342,7 +356,9 @@ export function Dashboard() {
   } else {
     trail.push({ label: copy.title });
   }
-  const shopClosed = !!(settings?.design?.showUnderConstruction || settings?.maintenanceMode);
+  // General › Store status writes maintenance.enabled; maintenanceMode is an older key kept as a fallback.
+  const maintenanceOn = !!(originalSettings?.maintenance?.enabled || settings?.maintenanceMode);
+  const shopClosed = !!(settings?.design?.showUnderConstruction || maintenanceOn);
   const initial = (user.displayName?.[0] || user.email?.[0] || "A").toUpperCase();
 
   const avatar = (
@@ -360,7 +376,7 @@ export function Dashboard() {
   ];
 
   // Pages fully built from Riso components render outside the legacy compatibility layer.
-  const migrated = activeTab === "reviews" || activeTab === "messages" || activeTab === "orders" || activeTab === "customers" || activeTab === "inventory" || activeTab === "overview" || activeTab === "analytics" || activeTab === "catalog" || activeTab === "discounts" || activeTab === "giftCards" || activeTab === "payments" || activeTab === "shipping" || (activeTab === "settings" && (settingsTab === "general" || settingsTab === "notifications" || settingsTab === "payments" || settingsTab === "shipping"));
+  const migrated = activeTab === "reviews" || activeTab === "messages" || activeTab === "orders" || activeTab === "customers" || activeTab === "inventory" || activeTab === "overview" || activeTab === "analytics" || activeTab === "catalog" || activeTab === "discounts" || activeTab === "giftCards" || activeTab === "payments" || activeTab === "shipping" || (activeTab === "settings" && (settingsTab === "general" || settingsTab === "notifications" || settingsTab === "payments" || settingsTab === "shipping" || settingsTab === "taxes" || settingsTab === "communications"));
   const content = (() => {
     switch (activeTab) {
       case "overview":
@@ -394,6 +410,8 @@ export function Dashboard() {
             setOriginalSettings={setOriginalSettings}
             settingsLoading={settingsLoading}
             saveSection={saveSection}
+            onUnderConstruction={toggleUnderConstruction}
+            onOpenOrders={() => goTo("orders")}
           />
         );
     }
@@ -456,7 +474,7 @@ export function Dashboard() {
             <div className="rp-topbar-actions">
               <span className="rp-status-pill rp-hide-md" role="status" data-tone={shopClosed ? "warning" : undefined}>
                 <span className="rp-status-dot" aria-hidden />
-                {settings?.design?.showUnderConstruction ? "Shop behind construction wall" : settings?.maintenanceMode ? "Storefront in maintenance" : "Storefront live"}
+                {settings?.design?.showUnderConstruction ? "Shop behind construction wall" : maintenanceOn ? "Checkout paused (maintenance)" : "Storefront live"}
               </span>
               <Toggle
                 label={settings?.design?.showUnderConstruction ? "Under construction: ON" : "Under construction"}
@@ -505,7 +523,7 @@ export function Dashboard() {
           description={selectedOrder && activeTab !== "orders" ? "Payment, fulfillment, and tracking for this order." : copy.description}
         />
         <AdminAlerts
-          alerts={alerts}
+          alerts={[...settingsAlerts(originalSettings), ...alerts]}
           onOpenNotifications={() => { setActiveTab("settings"); setSettingsTab("notifications"); setShowEditor(false); setSelectedOrder(null); }}
           onOpenOrder={(id) => { setActiveTab("orders"); setShowEditor(false); setSelectedOrder({ id }); }}
           onOpenOrders={() => { setActiveTab("orders"); setShowEditor(false); setSelectedOrder(null); }}

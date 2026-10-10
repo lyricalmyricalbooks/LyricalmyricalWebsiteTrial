@@ -34,3 +34,12 @@ describe("Riso email theme", () => {
     expect(out).toContain("color:#100f0d");
   });
 });
+
+describe("order table placement", () => {
+  it("puts the table where {{items_table}} sits, and only there", () => {
+    const placed = server.placeItemsTable("Hi<br/>{{items_table}}<br/>Bye", "<table>\n<tr></tr>\n</table>");
+    expect(placed.body).toBe("Hi<br/><table> <tr></tr> </table><br/>Bye");
+    expect(placed.after).toBe("");
+    expect(server.placeItemsTable("Hi", "<table></table>")).toEqual({ body: "Hi", after: "<table></table>" });
+  });
+});
