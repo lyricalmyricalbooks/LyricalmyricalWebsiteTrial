@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { deskOrders, deskCounts, nextToOpen, rowStatus } from "./ordersDesk";
+import { deskOrders, deskCounts, nextToOpen, rowStatus, stepOrder, mergeOrder } from "./ordersDesk";
 
 const reviewed = (o: any) => ({ ...o, customer: { name: "Reader", email: "r@x.com", address: { street: "1 Main", city: "Toronto", state: "ON", zip: "M1M1M1", country: "Canada" } } });
 const paid = (id: string, paidAt: string, extra: any = {}) => {
@@ -48,5 +48,29 @@ describe("orders desk", () => {
     const conflict = { id: "GC", paymentStatus: "unpaid", giftCardConflict: { reason: "balance" }, items: [{ id: "b", quantity: 1 }] };
     expect(rowStatus(conflict)).toMatchObject({ tone: "danger", text: expect.stringMatching(/Gift card/) });
     expect(deskOrders([conflict], "needs").map((o) => o.id)).toEqual(["GC"]);
+  });
+
+  it("Stripe-paid orders awaiting the webhook show why and sit in Needs me (display only)", () => {
+    const o = { id: "R", paymentStatus: "unpaid", reconciliationPending: { provider: "stripe" }, createdAt: "2026-10-05T00:00:00Z", items: [{ id: "b", quantity: 1 }] };
+    expect(rowStatus(o).text).toMatch(/Paid in Stripe — awaiting webhook/);
+    expect(deskOrders([o], "needs").map((x) => x.id)).toEqual(["R"]);
+    expect(o.paymentStatus).toBe("unpaid");
+  });
+
+  it("dispute and attention rows say why", () => {
+    expect(rowStatus({ ...paid("D", "2026-10-06T00:00:00Z"), disputeStatus: "under_review" }).text).toMatch(/Dispute open/);
+    expect(rowStatus(paid("H", "2026-10-06T00:00:00Z", { operations: { hold: "Waiting on stock" } })).text).toMatch(/On hold: Waiting on stock/);
+    const unreviewed = { ...paid("A", "2026-10-06T00:00:00Z"), operations: {} };
+    expect(rowStatus(unreviewed).text).toMatch(/Confirm the address/);
+  });
+
+  it("j/k steps through the list; merge updates one order without a reload", () => {
+    expect(stepOrder(["a", "b", "c"], "b", 1)).toBe("c");
+    expect(stepOrder(["a", "b", "c"], "c", 1)).toBe("c");
+    expect(stepOrder(["a", "b", "c"], "a", -1)).toBe("a");
+    expect(stepOrder(["a", "b"], null, 1)).toBe("a");
+    const merged = mergeOrder([{ id: "a", total: 1, operations: { x: 1 } }, { id: "b" }], { id: "a", total: 2 });
+    expect(merged![0]).toMatchObject({ total: 2, operations: { x: 1 } });
+    expect(merged!.length).toBe(2);
   });
 });

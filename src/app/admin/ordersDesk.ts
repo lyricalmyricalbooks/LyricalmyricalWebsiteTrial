@@ -1,6 +1,8 @@
 // Orders desk (split view): which orders show in each view, in what order, and
 // which one opens next. Pure; the queues themselves come from fulfillment.queueOf.
-import { queueOf, preorderShipDate } from "./fulfillment";
+import { queueOf, preorderShipDate, disputeOpen, addressIssues, addressKey, fulfillmentMethod } from "./fulfillment";
+import { orderMatches, type CatalogSearchIndex } from "./orderSearch";
+import { orderTime } from "./orderListHelpers";
 
 export type DeskView = "needs" | "preorders" | "shipped" | "all";
 
@@ -8,23 +10,25 @@ export type DeskView = "needs" | "preorders" | "shipped" | "all";
 export const NEEDS_ME_QUEUES = ["Needs attention", "Ready to pack", "Ready to ship", "Ready for pickup", "Ready for local delivery"];
 const SHIPPED_QUEUES = ["In transit", "Completed"];
 
-const time = (o: any) => Date.parse(o?.paidAt || o?.createdAt || "") || 0;
+const time = orderTime;
 
-function matches(o: any, query: string) {
-  const q = query.trim().toLowerCase();
-  if (!q) return true;
-  const c = o.customer || {};
-  return [o.orderId, o.id, c.name, c.email, o.trackingNumber, ...(o.items || []).map((i: any) => i.title)]
-    .some((v) => String(v || "").toLowerCase().includes(q));
-}
+/**
+ * Stripe already has the money but the verified webhook hasn't marked the order paid yet.
+ * Display only: the order stays unpaid (and unshippable) until the webhook settles it.
+ */
+export const awaitingWebhook = (o: any) =>
+  !!o?.reconciliationPending && !["paid", "refunded", "refund_pending"].includes(o.paymentStatus);
 
-export function deskOrders(orders: any[], view: DeskView, query = "", showTest = false): any[] {
-  const base = (orders || []).filter((o) => o && (showTest || o.isTest !== true) && matches(o, query));
+/** The desk's queue: fulfillment.queueOf, except money waiting on the webhook needs a look too. */
+export const deskQueue = (o: any) => (awaitingWebhook(o) ? "Needs attention" : queueOf(o));
+
+export function deskOrders(orders: any[], view: DeskView, query = "", showTest = false, catalog?: CatalogSearchIndex | null): any[] {
+  const base = (orders || []).filter((o) => o && (showTest || o.isTest !== true) && orderMatches(o, query, catalog));
   if (view === "needs") {
     return base
-      .filter((o) => NEEDS_ME_QUEUES.includes(queueOf(o)))
+      .filter((o) => NEEDS_ME_QUEUES.includes(deskQueue(o)))
       // Problems first, then oldest paid first (the order that has waited longest).
-      .sort((a, b) => NEEDS_ME_QUEUES.indexOf(queueOf(a)) - NEEDS_ME_QUEUES.indexOf(queueOf(b)) || time(a) - time(b));
+      .sort((a, b) => NEEDS_ME_QUEUES.indexOf(deskQueue(a)) - NEEDS_ME_QUEUES.indexOf(deskQueue(b)) || time(a) - time(b));
   }
   // Paid pre-orders waiting for their release date, soonest release first.
   if (view === "preorders") return base.filter((o) => queueOf(o) === "Awaiting release").sort((a, b) => (preorderShipDate(a) || "9999").localeCompare(preorderShipDate(b) || "9999") || time(a) - time(b));
@@ -38,7 +42,7 @@ export function deskCounts(orders: any[], showTest = false) {
     preorders: deskOrders(orders, "preorders", "", showTest).length,
     shipped: deskOrders(orders, "shipped", "", showTest).length,
     all: deskOrders(orders, "all", "", showTest).length,
-    waitingPayment: (orders || []).filter((o) => o && (showTest || o.isTest !== true) && queueOf(o) === "Unpaid" && o.paymentStatus === "pending").length,
+    waitingPayment: (orders || []).filter((o) => o && (showTest || o.isTest !== true) && deskQueue(o) === "Unpaid" && o.paymentStatus === "pending").length,
   };
 }
 
@@ -49,6 +53,36 @@ export function nextToOpen(list: any[], currentId?: string | null): string | nul
   return list[0].id;
 }
 
+/** j / k on the desk: the next (+1) or previous (-1) order in the list; the first when none is open. */
+export function stepOrder(ids: string[], currentId: string | null, step: 1 | -1): string | null {
+  if (!ids.length) return null;
+  const i = currentId ? ids.indexOf(currentId) : -1;
+  if (i < 0) return ids[0];
+  return ids[Math.min(ids.length - 1, Math.max(0, i + step))];
+}
+
+/** Puts a freshly loaded order (from the order page) into the list without reloading every order. */
+export function mergeOrder(list: any[] | null, order: any): any[] | null {
+  if (!list || !order?.id) return list;
+  const i = list.findIndex((o) => o?.id === order.id);
+  if (i < 0) return [order, ...list];
+  const next = list.slice();
+  next[i] = { ...order, operations: order.operations ?? list[i].operations };
+  return next;
+}
+
+/** Why an order sits in "Needs attention" before packing, in the shop's words. */
+export function attentionReason(o: any): string {
+  if (!o?.items?.length) return "⚠ No books on this order";
+  if (o.isTest) return "⚠ Test order — not for shipping";
+  if (o.operations?.hold) return `⚠ On hold: ${String(o.operations.hold).slice(0, 60)}`;
+  if (fulfillmentMethod(o) !== "pickup") {
+    if (addressIssues(o).length) return "⚠ Fix the address";
+    if (o.operations?.addressReviewed !== addressKey(o)) return "⚠ Confirm the address";
+  }
+  return "⚠ Check before packing";
+}
+
 /** One short status line for a list row: what the shop does next. */
 export function rowStatus(o: any): { tone: "danger" | "warning" | "info" | "success" | "neutral"; text: string } {
   const q = queueOf(o);
@@ -56,10 +90,12 @@ export function rowStatus(o: any): { tone: "danger" | "warning" | "info" | "succ
   if (o.paymentMismatch && !o.paymentMismatch.resolvedAt && o.paymentStatus !== "paid") return { tone: "danger", text: "⚠ Payment doesn't match" };
   if (o.giftCardConflict && !o.giftCardConflict.resolvedAt && o.paymentStatus !== "paid") return { tone: "danger", text: "⚠ Gift card couldn't cover its part" };
   if (o.customerRequest?.status === "open") return { tone: "danger", text: o.customerRequest.type === "cancel" ? "⚠ Customer asks to cancel" : "⚠ Customer asks to return" };
-  if (Array.isArray(o.duplicatePayments) && o.duplicatePayments.length) return { tone: "danger", text: "⚠ Paid twice — refund the extra" };
-  if (o.disputeStatus === "needs_response") return { tone: "danger", text: "⚠ Dispute — respond in Stripe" };
+  if (awaitingWebhook(o)) return { tone: "warning", text: "◷ Paid in Stripe — awaiting webhook" };
+  if (Array.isArray(o.duplicatePayments) && o.duplicatePayments.length) return { tone: "danger", text: "⚠ Paid twice — refund the extra in Stripe" };
+  if (o.disputeStatus === "needs_response" || o.disputeStatus === "warning_needs_response") return { tone: "danger", text: "⚠ Dispute — respond in Stripe" };
+  if (disputeOpen(o)) return { tone: "danger", text: SHIPPED_QUEUES.includes(q) ? "⚠ Dispute open — follow it in Stripe" : "⚠ Dispute open — hold the books" };
   if (o.partiallyRefunded) return { tone: "warning", text: "⚠ Partly refunded" };
-  if (q === "Needs attention") return { tone: "danger", text: "⚠ Check before packing" };
+  if (q === "Needs attention") return { tone: "danger", text: attentionReason(o) };
   if (q === "Ready to pack") return { tone: "warning", text: "● Pack" };
   if (q === "Ready to ship") return { tone: "warning", text: "● Label & ship" };
   if (q === "Ready for pickup") return { tone: "warning", text: "● Hand over at pickup" };
