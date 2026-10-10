@@ -3,7 +3,7 @@ import { Download } from "lucide-react";
 import toast from "react-hot-toast";
 import { adminApi } from "./api";
 import {
-  buildCustomers, customerStats, customersToCsv, SEGMENT_LABELS, type CustomerRow, type CustomerSegment,
+  buildCustomers, customerCountries, customerStats, customersToCsv, SEGMENT_LABELS, type CustomerRow, type CustomerSegment,
 } from "./customerInsights";
 import {
   DataTable, Dialog, EmptyState, ErrorState, FilterBar, LoadingState, MetricCard, Pagination, SearchField,
@@ -21,12 +21,13 @@ export function Customers() {
   const [seg, setSeg] = useState<"all" | CustomerSegment>("all");
   const [q, setQ] = useState("");
   const [sort, setSort] = useState<"spent" | "orders" | "recent" | "name">("spent");
+  const [country, setCountry] = useState("");
   const [page, setPage] = useState(1);
   const [open, setOpen] = useState<CustomerRow | null>(null);
 
   const load = async () => {
     setFailed(false); setLoading(true);
-    try { setOrders(await adminApi.getOrders(500)); }
+    try { setOrders(await adminApi.getAllOrders()); }
     catch (e) { console.error(e); setFailed(true); toast.error("Customers could not be loaded"); }
     finally { setLoading(false); }
   };
@@ -40,18 +41,20 @@ export function Customers() {
     return c;
   }, [all]);
 
+  const countries = useMemo(() => customerCountries(all), [all]);
+
   const rows = useMemo(() => {
     const s = q.trim().toLowerCase();
     return all
-      .filter((c) => (seg === "all" || c.segment === seg) && (!s || `${c.email} ${c.name} ${c.city}`.toLowerCase().includes(s)))
+      .filter((c) => (seg === "all" || c.segment === seg) && (!country || c.country === country) && (!s || `${c.email} ${c.name} ${c.city}`.toLowerCase().includes(s)))
       .sort((a, b) =>
         sort === "orders" ? b.orderCount - a.orderCount
         : sort === "recent" ? b.lastOrderAt - a.lastOrderAt
         : sort === "name" ? (a.name || a.email).localeCompare(b.name || b.email)
         : b.totalSpent - a.totalSpent);
-  }, [all, seg, q, sort]);
+  }, [all, seg, country, q, sort]);
 
-  useEffect(() => setPage(1), [seg, q, sort]);
+  useEffect(() => setPage(1), [seg, country, q, sort]);
   const pageCount = Math.max(1, Math.ceil(rows.length / PAGE_SIZE));
   const pageRows = rows.slice((Math.min(page, pageCount) - 1) * PAGE_SIZE, Math.min(page, pageCount) * PAGE_SIZE);
 
@@ -107,9 +110,15 @@ export function Customers() {
           <option value="recent">Most recent</option>
           <option value="name">Name A–Z</option>
         </SelectField>
+        {countries.length > 1 && (
+          <SelectField label="Filter by country" hideLabel value={country} onChange={(e) => setCountry(e.target.value)}>
+            <option value="">All countries</option>
+            {countries.map((c) => <option key={c.country} value={c.country}>{c.country} ({c.count})</option>)}
+          </SelectField>
+        )}
         <SecondaryButton icon={<Download size={16} aria-hidden />} onClick={exportCsv}>Export CSV</SecondaryButton>
       </FilterBar>
-      <SectionCard flush title="Customers" description={`${rows.length} customer${rows.length === 1 ? "" : "s"} · built from your ${orders.length} most recent orders (paid, non-test)`}>
+      <SectionCard flush title="Customers" description={`${rows.length} customer${rows.length === 1 ? "" : "s"} · built from all ${orders.length} orders (paid, non-test; spend is net of partial refunds)`}>
         <DataTable caption="Customers" columns={columns} rows={pageRows} rowKey={(c) => c.key}
           empty={<EmptyState title="No customers match" description="Customers appear after their first paid order." />} />
         {rows.length > PAGE_SIZE && <Pagination page={Math.min(page, pageCount)} pageCount={pageCount} onPage={setPage} />}

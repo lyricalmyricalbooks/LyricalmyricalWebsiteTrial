@@ -1,3 +1,5 @@
+import { refundedAmount } from "./overviewInsights";
+
 // Builds a customer directory from paid, non-test orders. Read-only: nothing here
 // writes to Firestore or affects charging.
 
@@ -51,7 +53,7 @@ export function buildCustomers(orders: any[], now = Date.now()): CustomerRow[] {
       map.set(key, c);
     }
     c.orderCount += 1;
-    c.totalSpent += Number(o.total) || 0;
+    c.totalSpent += Math.max(0, (Number(o.total) || 0) - refundedAmount(o)); // net of partial refunds
     c.orders.push(o);
     if (at && (!c.firstOrderAt || at < c.firstOrderAt)) c.firstOrderAt = at;
     if (at >= c.lastOrderAt) {
@@ -94,4 +96,11 @@ export function customersToCsv(rows: CustomerRow[]): string {
     c.lastOrderAt ? new Date(c.lastOrderAt).toISOString().slice(0, 10) : "", c.city, c.country,
   ].map(csvCell).join(","));
   return [head.map(csvCell).join(","), ...lines].join("\n");
+}
+
+/** Distinct countries across customers, most customers first. */
+export function customerCountries(rows: CustomerRow[]): { country: string; count: number }[] {
+  const m = new Map<string, number>();
+  for (const c of rows) if (c.country) m.set(c.country, (m.get(c.country) || 0) + 1);
+  return Array.from(m, ([country, count]) => ({ country, count })).sort((a, b) => b.count - a.count || a.country.localeCompare(b.country));
 }
