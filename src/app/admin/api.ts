@@ -1,3 +1,4 @@
+import { duplicateBookData } from "./catalogList";
 import { changedBookFields } from "./bookStockMerge";
 import { BOOK_FIELDS_DOC, cleanBookFields, type BookFieldDef } from "../features/site/bookFields";
 import { alternatesFor, type AltBase, type AlternateTemplate } from "../features/site/templateAlternates";
@@ -278,17 +279,11 @@ export const adminApi = {
     const snap = await getDoc(docRef);
     if (!snap.exists()) throw new Error("Original book not found");
     const data = snap.data();
-    const newDoc = await addDoc(collection(db, "books"), {
-      ...data,
-      title: `${data.title} (Copy)`,
-      // A copied slug would collide with the original and push its public URL to /books/<id>.
-      slug: "",
-      status: "draft",
-      createdAt: new Date().toISOString(),
-      updatedAt: new Date().toISOString(),
-    });
+    // No ISBN/SKU/slug/stock/featured flag/digital file: the copy must not pose as, or sell, the original.
+    const copy = duplicateBookData(data);
+    const newDoc = await addDoc(collection(db, "books"), copy);
     await adminApi.recordAuditLog("catalog", `Duplicated book: ${data.title}`);
-    return newDoc;
+    return { ...copy, id: newDoc.id };
   },
 
   addPhotos: async (bookId: string, photos: any[]) => {
