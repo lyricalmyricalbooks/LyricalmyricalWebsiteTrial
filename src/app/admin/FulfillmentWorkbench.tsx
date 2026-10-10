@@ -11,10 +11,11 @@ import {
   isOverdueInTransit,
   packingInfo,
   preorderShipDate,
+  blockingProblem,
 } from "./fulfillment";
 import { getTrackingUrl } from "../lib/tracking";
 import { formatReleaseDate } from "../features/site/preorder";
-import { addOnLines, bundlePartsText, giftCardLineText, isFreeGiftLine, isGiftCardLine } from "./orderLines";
+import { addOnLines, bundlePartsText, giftCardLineText, isFreeGiftLine, isGiftCardLine, linePricing, cad } from "./orderLines";
 import {
   Checkbox,
   PrimaryButton,
@@ -102,6 +103,14 @@ export function FulfillmentWorkbench({
           {queue}
         </StatusBadge>
       </div>
+      {blockingProblem(order) && !(hold && active) && (
+        <div className="fw-notice" role="alert">
+          <div>
+            <strong>What's blocking this</strong>
+            <p>{blockingProblem(order)}</p>
+          </div>
+        </div>
+      )}
       {hold && active && (
         <div className="fw-notice" role="status">
           <div>
@@ -305,7 +314,19 @@ export function FulfillmentWorkbench({
                   </>
                 );
               })()}
-              <span className="fw-quantity">× {item.quantity}</span>
+              <span className="fw-quantity">
+                × {item.quantity}
+                {(() => {
+                  const p = linePricing(item);
+                  return (
+                    <span className="rp-hint rp-mono" style={{ display: "block" }}>
+                      {cad(p.unit)} each{p.base != null && p.addOns.length ? ` (${cad(p.base)} + ${p.addOns.map((a) => `${a.label} ${cad(a.price)}`).join(" + ")})` : ""}
+                      <br />
+                      {cad(p.total)}
+                    </span>
+                  );
+                })()}
+              </span>
             </li>
           ))}
         </ul>

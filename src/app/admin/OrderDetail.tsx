@@ -9,9 +9,14 @@ import {
   defaultRestockOnRefund,
   matchesCustomerService,
   suggestedParcelWeightLb,
+  canMarkManualPaid,
+  lockedAddressFields,
+  packingTicksKey,
+  isDigitalItem,
+  disputeOpen,
 } from "./fulfillment";
 import { printOrders } from "./orderPrint";
-import { discountLabel, giftCardConflictOpen, giftCardPaid, issuedGiftCards } from "./orderLines";
+import { discountLabel, giftCardConflictOpen, giftCardPaid, issuedGiftCards, chargedOf, refundedMinor, refundableMinor, formatMinor, parseMoneyToMinor, customerMailto, telHref } from "./orderLines";
 import { useState, useEffect, useRef } from "react";
 import { ArrowLeft, Copy, ExternalLink } from "lucide-react";
 import { adminApi } from "./api";
@@ -48,7 +53,7 @@ export function OrderDetail({
   onClose: () => void;
   queueIds?: string[];
   onNavigate?: (id: string) => void;
-  /** Called whenever the order is (re)loaded — after any action or a Stripe sync — so a list beside it can refresh. */
+  /** Called after an action (or a Stripe sync) changed the order — not on the first load — so a list beside it can refresh. */
   onChanged?: (order: any) => void;
 }) {
   const queueIndex = queueIds.indexOf(orderId);
@@ -61,7 +66,16 @@ export function OrderDetail({
     return true;
   };
   const [order, setOrder] = useState<any>(null);
-  useEffect(() => { if (order) onChanged?.(order); }, [order]);
+  // Tell the list beside us only when the order really changed (an action, a Stripe sync that
+  // moved something) — never for the first load of an order, which made the desk reload every order.
+  const lastSeen = useRef<{ id: string; stamp: string } | null>(null);
+  useEffect(() => {
+    if (!order) return;
+    const stamp = JSON.stringify([order.updatedAt, order.paymentStatus, order.status, order.fulfillmentStatus, order.refundedAmountMinor, order.disputeStatus, order.returnProgress?.state]);
+    const prev = lastSeen.current;
+    lastSeen.current = { id: orderId, stamp };
+    if (prev && prev.id === orderId && prev.stamp !== stamp) onChanged?.(order);
+  }, [order]);
   // Catalog records for the order's books: current cover + shelf location on the packing checklist.
   const [books, setBooks] = useState<Record<string, any>>({});
   const bookIds = Array.from(new Set((order?.items || []).map((i: any) => i?.id).filter((id: any) => typeof id === "string" && id))).sort().join("|");
@@ -102,13 +116,32 @@ export function OrderDetail({
   });
   const parcelTouched = useRef(false);
   const [presetName, setPresetName] = useState("");
-  const [presets, setPresets] = useState<any[]>(() => {
-    try {
-      return JSON.parse(localStorage.getItem("publisher-parcels") || "[]");
-    } catch {
-      return [];
-    }
-  });
+  // Parcel presets live in settings/parcelPresets (shared by every browser). Presets saved in
+  // this browser's localStorage before that are copied across once, then removed locally.
+  const [presets, setPresets] = useState<any[]>([]);
+  useEffect(() => {
+    let alive = true;
+    let local: any[] = [];
+    try { local = JSON.parse(localStorage.getItem("publisher-parcels") || "[]"); } catch { local = []; }
+    if (!Array.isArray(local)) local = [];
+    adminApi.getParcelPresets().then(async (remote) => {
+      const merged = [...(remote || [])];
+      for (const p of local) if (p?.name && !merged.some((m) => m.name === p.name)) merged.push(p);
+      if (local.length && merged.length !== (remote || []).length) await adminApi.saveParcelPresets(merged);
+      if (local.length) { try { localStorage.removeItem("publisher-parcels"); } catch { /* ignore */ } }
+      if (alive) setPresets(merged);
+    }).catch(() => { if (alive) setPresets(local); });
+    return () => { alive = false; };
+  }, []);
+  const [emailLog, setEmailLog] = useState<any[] | null>(null);
+  useEffect(() => {
+    setEmailLog(null);
+    adminApi.getOrderEmailLog(orderId).then(setEmailLog).catch(() => setEmailLog([]));
+  }, [orderId]);
+  const [refundAmount, setRefundAmount] = useState("");
+  const [refundOther, setRefundOther] = useState("");
+  const [refundRestockLines, setRefundRestockLines] = useState<Record<number, number>>({});
+  const [confirmAction, setConfirmAction] = useState<null | "markPaid" | "mismatch" | "resendConfirmation">(null);
   const [timelineFilter, setTimelineFilter] = useState<
     "all" | "event" | "note"
   >("all");
@@ -117,7 +150,8 @@ export function OrderDetail({
   );
 
   useEffect(() => {
-    setChecked(new Set());
+    // Packing ticks are restored per order from sessionStorage once the order loads.
+    ticksLoaded.current = "";
     setLoading(true);
     loadOrder();
   }, [orderId]);
@@ -197,9 +231,26 @@ export function OrderDetail({
     setTrackingLink(data?.trackingUrl || "");
   }
 
+  // Packing ticks survive a reload or a trip to another order (this browser tab only).
+  const ticksKey = order ? packingTicksKey(order) : "";
+  const ticksLoaded = useRef("");
   useEffect(() => {
-    setChecked(new Set());
-  }, [order ? packingKey(order) : ""]);
+    if (!ticksKey) return;
+    let saved: number[] = [];
+    try { saved = JSON.parse(sessionStorage.getItem(ticksKey) || "[]"); } catch { saved = []; }
+    ticksLoaded.current = ticksKey;
+    skipTickSave.current = true; // this render still holds the previous order's ticks
+    setChecked(new Set(Array.isArray(saved) ? saved.filter((n) => Number.isInteger(n)) : []));
+  }, [ticksKey]);
+  const skipTickSave = useRef(false);
+  useEffect(() => {
+    if (skipTickSave.current) { skipTickSave.current = false; return; }
+    if (!ticksKey || ticksLoaded.current !== ticksKey) return;
+    try {
+      if (checked.size) sessionStorage.setItem(ticksKey, JSON.stringify([...checked]));
+      else sessionStorage.removeItem(ticksKey);
+    } catch { /* storage blocked: ticks just aren't remembered */ }
+  }, [checked, ticksKey]);
 
   const hasLabel = !!(order?.labelUrl && order?.trackingNumber);
   const markAsShipped = async () => {
@@ -324,8 +375,23 @@ export function OrderDetail({
     setConfirming(null);
     setIsVoiding(true);
     try {
+      const plan = refundAmountPlan();
+      const reasonText = refundReason === "Other" && refundOther.trim() ? `Other: ${refundOther.trim()}` : refundReason;
+      if (plan.partial) {
+        const result = await adminApi.refundOrder(orderId, {
+          reason: reasonText,
+          restock: false,
+          amountMinor: plan.minor,
+          restockLines: Object.entries(refundRestockLines).filter(([, q]) => q > 0).map(([index, quantity]) => ({ index: Number(index), quantity })),
+        });
+        toast.success(result?.provider === "manual"
+          ? `Partial refund of ${formatMinor(plan.minor, plan.currency)} recorded. Send the money back the way the customer paid.`
+          : `${result?.provider === "paypal" ? "PayPal" : "Stripe"} partial refund of ${formatMinor(plan.minor, plan.currency)} ${result?.status === "pending" ? "started" : "made"}. The order stays paid.`);
+        await loadOrder();
+        return;
+      }
       const result = await adminApi.refundOrder(orderId, {
-        reason: refundReason,
+        reason: reasonText,
         restock: restockOnRefund,
       });
       const pending = result?.status === "pending";
@@ -344,6 +410,43 @@ export function OrderDetail({
     } finally {
       voidingRef.current = false;
       setIsVoiding(false);
+    }
+  };
+
+  // What the Refund dialog's amount box means: blank / everything left = full refund.
+  function refundAmountPlan(): { partial: boolean; minor: number; currency: string; error: string } {
+    const charged = order ? chargedOf(order) : { minor: 0, currency: "CAD" };
+    const left = order ? refundableMinor(order) : 0;
+    if (!refundAmount.trim()) return { partial: false, minor: left, currency: charged.currency, error: "" };
+    const minor = parseMoneyToMinor(refundAmount);
+    if (minor == null || minor <= 0) return { partial: false, minor: 0, currency: charged.currency, error: "Enter an amount like 12.50." };
+    if (minor > left) return { partial: false, minor, currency: charged.currency, error: `At most ${formatMinor(left, charged.currency)} can be refunded.` };
+    return { partial: minor < left, minor, currency: charged.currency, error: "" };
+  }
+
+  const runConfirmed = async () => {
+    const action = confirmAction;
+    setConfirmAction(null);
+    if (!action || working) return;
+    setWorking(true);
+    try {
+      if (action === "markPaid") {
+        await adminApi.markOrderPaid(orderId);
+        toast.success("Payment recorded — the order is paid and ready to fulfil.");
+      } else if (action === "mismatch") {
+        await adminApi.resolvePaymentMismatch(orderId);
+        toast.success("Marked as refunded");
+      } else {
+        await adminApi.fulfillmentAction(orderId, "resend_confirmation_email");
+        toast.success(`Order confirmation sent again to ${order?.customer?.email || "the customer"}`);
+      }
+      await loadOrder();
+      adminApi.getOrderEmailLog(orderId).then(setEmailLog).catch(() => {});
+    } catch (err: any) {
+      // The server's own words (e.g. "Card and PayPal orders are marked paid only when…").
+      toast.error(err?.message || "Couldn't update the order.");
+    } finally {
+      setWorking(false);
     }
   };
 
@@ -519,6 +622,12 @@ export function OrderDetail({
               <ActionMenu
                 label="More order actions"
                 actions={[
+                  ...(canMarkManualPaid(order)
+                    ? [{ label: "Payment received — mark paid", onSelect: () => setConfirmAction("markPaid") }]
+                    : []),
+                  ...(paid && !order.isTest
+                    ? [{ label: "Resend order confirmation", onSelect: () => setConfirmAction("resendConfirmation") }]
+                    : []),
                   ...(paid &&
                   [
                     "Needs attention",
@@ -545,6 +654,9 @@ export function OrderDetail({
                           onSelect: () => {
                             // Default for this order: shipped/delivered books aren't back on the shelf.
                             setRestockOnRefund(defaultRestockOnRefund(order));
+                            setRefundAmount("");
+                            setRefundOther("");
+                            setRefundRestockLines({});
                             setShowRefund(true);
                           },
                         },
@@ -637,10 +749,46 @@ export function OrderDetail({
                   ? "The customer paid after this order was cancelled. Refund the payment in Stripe or PayPal, then mark it here."
                   : "The amount taken doesn't match this order. Refund or correct it in Stripe or PayPal, then mark it here."}
               </p>
-              <SecondaryButton onClick={async () => {
-                try { await adminApi.resolvePaymentMismatch(orderId); toast.success("Marked as refunded"); await loadOrder(); }
-                catch (err: any) { toast.error(err.message || "Couldn't update the order."); }
-              }}>Mark refunded</SecondaryButton>
+              <SecondaryButton disabled={working} onClick={() => setConfirmAction("mismatch")}>Mark refunded</SecondaryButton>
+            </SectionCard>
+          )}
+          {disputeOpen(order) && (
+            <SectionCard title="Payment disputed">
+              <p className="fw-summary">
+                The customer's bank opened a chargeback ({String(order.disputeStatus).replace(/_/g, " ")}). The money is held until the bank decides.
+                Packing, labels and dispatch are blocked until it is settled. Answer it in Stripe with your evidence (order details, tracking, messages) before its deadline.
+              </p>
+              {order.stripePaymentIntentId && (
+                <div className="fw-actions">
+                  <a className="rp-btn rp-btn-secondary rp-btn-sm" href={`https://dashboard.stripe.com/${order.stripeMode === "test" ? "test/" : ""}${order.disputeId ? `disputes/${order.disputeId}` : `payments/${order.stripePaymentIntentId}`}`} target="_blank" rel="noopener noreferrer">
+                    Open in Stripe <ExternalLink size={12} aria-hidden />
+                  </a>
+                </div>
+              )}
+            </SectionCard>
+          )}
+          {Array.isArray(order.duplicatePayments) && order.duplicatePayments.length > 0 && (
+            <SectionCard title="Paid twice">
+              <p className="fw-summary">Stripe took more than one payment for this order. Keep the first and refund the extra in the Stripe Dashboard:</p>
+              <ul className="fw-summary">
+                {order.duplicatePayments.map((d: any, i: number) => {
+                  const id = String(d?.paymentIntentId || d?.id || d || "");
+                  return (
+                    <li key={i}>
+                      <a href={`https://dashboard.stripe.com/${order.stripeMode === "test" ? "test/" : ""}payments/${encodeURIComponent(id)}`} target="_blank" rel="noopener noreferrer" className="rp-mono">{id}</a>
+                      {d?.amountMinor != null ? ` · ${formatMinor(Number(d.amountMinor), d.currency || "CAD")}` : ""}
+                    </li>
+                  );
+                })}
+              </ul>
+            </SectionCard>
+          )}
+          {refundedMinor(order) > 0 && order.paymentStatus === "paid" && (
+            <SectionCard title="Partly refunded">
+              <p className="fw-summary">
+                {formatMinor(refundedMinor(order), chargedOf(order).currency)} refunded so far of {formatMinor(chargedOf(order).minor, chargedOf(order).currency)}.
+                {" "}{formatMinor(refundableMinor(order), chargedOf(order).currency)} remains. The order stays paid — check what still needs to ship.
+              </p>
             </SectionCard>
           )}
           {giftCardConflictOpen(order) && (
@@ -692,9 +840,9 @@ export function OrderDetail({
           <SectionCard title="Customer">
             <strong>{order.customer?.name || "Guest customer"}</strong>
             <p className="fw-summary">
-              {order.customer?.email}
+              {customerMailto(order) ? <a href={customerMailto(order)}>{order.customer?.email}</a> : order.customer?.email}
               <br />
-              {order.customer?.phone || ""}
+              {telHref(order.customer?.phone) ? <a href={telHref(order.customer?.phone)}>{order.customer?.phone}</a> : order.customer?.phone || ""}
             </p>
             {order.orderNote && (
               <div className="fw-notice" style={{ marginTop: 16 }}>
@@ -709,6 +857,9 @@ export function OrderDetail({
               </div>
             )}
             <div className="fw-actions">
+              {customerMailto(order) && (
+                <a className="rp-btn rp-btn-secondary rp-btn-sm" href={customerMailto(order)}>Email customer</a>
+              )}
               <SecondaryButton
                 size="sm"
                 icon={<Copy size={14} aria-hidden />}
@@ -791,6 +942,18 @@ export function OrderDetail({
                   {money(order.total)}
                 </dd>
               </div>
+              {order.expectedAmountMinor != null && String(order.expectedCurrency || "CAD").toUpperCase() !== "CAD" && (
+                <div style={{ display: "flex", justifyContent: "space-between", gap: 12 }}>
+                  <dt>Charged in {String(order.expectedCurrency).toUpperCase()}</dt>
+                  <dd className="rp-mono" style={{ margin: 0 }}>{formatMinor(Number(order.expectedAmountMinor), order.expectedCurrency)}</dd>
+                </div>
+              )}
+              {refundedMinor(order) > 0 && (
+                <div style={{ display: "flex", justifyContent: "space-between", gap: 12 }}>
+                  <dt>Refunded</dt>
+                  <dd className="rp-mono" style={{ margin: 0 }}>− {formatMinor(refundedMinor(order), chargedOf(order).currency)}</dd>
+                </div>
+              )}
             </dl>
             {hasStripePayment(order) && (
               <div className="fw-actions">
@@ -896,6 +1059,27 @@ export function OrderDetail({
         ) : (
           <p className="rp-hint">No activity recorded yet.</p>
         )}
+        <h3 className="rp-label" style={{ marginTop: 16 }}>Emails about this order</h3>
+        {emailLog === null ? (
+          <p className="rp-hint">Loading delivery log…</p>
+        ) : emailLog.length ? (
+          <ol className="fw-activity" aria-label="Emails about this order">
+            {emailLog.map((row: any) => (
+              <li key={row.id}>
+                <time className="rp-hint" dateTime={row.at}>{row.at ? new Date(row.at).toLocaleString() : ""}</time>
+                <p>
+                  <StatusBadge tone={row.status === "sent" ? "success" : row.status === "failed" ? "danger" : "warning"}>
+                    {row.status === "sent" ? "Sent" : row.status === "failed" ? "Failed" : row.status === "queued" ? "Waiting to retry" : String(row.status || "")}
+                  </StatusBadge>{" "}
+                  {row.subject} → {row.to}
+                </p>
+                {row.error && <p className="rp-hint">{row.error}</p>}
+              </li>
+            ))}
+          </ol>
+        ) : (
+          <p className="rp-hint">No emails recorded for this order yet (emails sent before October 2026 aren't linked to orders).</p>
+        )}
       </details>
       <Dialog
         open={showParcel}
@@ -969,16 +1153,13 @@ export function OrderDetail({
               </div>
               <SecondaryButton
                 disabled={!presetName.trim() || !parcelValid}
-                onClick={() => {
+                onClick={async () => {
                   const next = [
                     ...presets.filter((p) => p.name !== presetName.trim()),
-                    { name: presetName.trim(), parcel },
-                  ];
+                    { name: presetName.trim().slice(0, 60), parcel },
+                  ].slice(-30);
                   try {
-                    localStorage.setItem(
-                      "publisher-parcels",
-                      JSON.stringify(next),
-                    );
+                    await adminApi.saveParcelPresets(next);
                     setPresets(next);
                     toast.success("Parcel preset saved");
                   } catch {
@@ -1214,6 +1395,7 @@ export function OrderDetail({
               Cancel
             </SecondaryButton>
             <DestructiveButton
+              disabled={!!refundAmountPlan().error || (refundReason === "Other" && !refundOther.trim())}
               onClick={() => {
                 setShowRefund(false);
                 setConfirming("refund");
@@ -1225,6 +1407,18 @@ export function OrderDetail({
         }
       >
         <div className="rp-stack">
+          <TextField
+            label={`Amount to refund (${chargedOf(order).currency})`}
+            inputMode="decimal"
+            value={refundAmount}
+            onChange={(e) => setRefundAmount(e.target.value)}
+            placeholder={(refundableMinor(order) / 100).toFixed(2)}
+            error={refundAmountPlan().error || undefined}
+            hint={`Leave blank to refund everything left: ${formatMinor(refundableMinor(order), chargedOf(order).currency)}${refundedMinor(order) ? ` (${formatMinor(refundedMinor(order), chargedOf(order).currency)} already refunded)` : ""}. A smaller amount is a partial refund: the order stays paid.`}
+          />
+          {refundReason === "Other" && (
+            <TextField label="Reason" value={refundOther} maxLength={300} onChange={(e) => setRefundOther(e.target.value)} placeholder="e.g. Price adjustment" />
+          )}
           <SelectField
             label="Refund reason"
             value={refundReason}
@@ -1241,11 +1435,32 @@ export function OrderDetail({
               <option key={r}>{r}</option>
             ))}
           </SelectField>
-          <Checkbox
-            label="Restock items"
-            checked={restockOnRefund}
-            onChange={(e) => setRestockOnRefund(e.target.checked)}
-          />
+          {refundAmountPlan().partial ? (
+            <fieldset style={{ margin: 0, padding: 0, border: 0 }} className="rp-stack">
+              <legend className="rp-label">Put copies back in stock (optional)</legend>
+              <p className="rp-hint" style={{ margin: 0 }}>Nothing goes back to stock unless you tick it.</p>
+              {(order.items || []).map((item: any, index: number) => isDigitalItem(item) ? null : (
+                <div key={index} style={{ display: "flex", gap: 12, alignItems: "flex-end", flexWrap: "wrap" }}>
+                  <Checkbox
+                    label={`${item.title}${item.variantName ? ` · ${item.variantName}` : ""}`}
+                    checked={(refundRestockLines[index] || 0) > 0}
+                    onChange={(e) => setRefundRestockLines((prev) => ({ ...prev, [index]: e.target.checked ? 1 : 0 }))}
+                  />
+                  {(refundRestockLines[index] || 0) > 0 && (
+                    <TextField label="Copies" type="number" min={1} max={item.quantity} step={1} style={{ width: 90 }}
+                      value={refundRestockLines[index]}
+                      onChange={(e) => setRefundRestockLines((prev) => ({ ...prev, [index]: Math.max(0, Math.min(Number(item.quantity) || 0, Math.floor(Number(e.target.value) || 0))) }))} />
+                  )}
+                </div>
+              ))}
+            </fieldset>
+          ) : (
+            <Checkbox
+              label="Restock items"
+              checked={restockOnRefund}
+              onChange={(e) => setRestockOnRefund(e.target.checked)}
+            />
+          )}
         </div>
       </Dialog>
       <Dialog
@@ -1269,9 +1484,12 @@ export function OrderDetail({
       >
         {editAddress && (
           <div className="rp-stack">
+            <p className="rp-hint" style={{ margin: 0 }}>{lockedAddressFields(order).reason}</p>
             {["street", "unit", "city", "state", "zip", "country"].map((k) => (
               <TextField
                 key={k}
+                readOnly={lockedAddressFields(order).fields.includes(k)}
+                hint={lockedAddressFields(order).fields.includes(k) ? "Can't change on a paid order" : undefined}
                 label={
                   k === "unit" ? "Apartment / unit (optional)" : k === "state"
                     ? "Province / state"
@@ -1406,9 +1624,37 @@ export function OrderDetail({
         open={confirming === "refund"}
         title="Refund this order?"
         confirmLabel="Refund order"
-        message={`${money(order.total)} — ${isManualPayment ? "Refund this paid manual order?" : "Refund this paid order through Stripe?"}${restockOnRefund ? " The purchased quantities will also be restocked." : ""} This action is irreversible.`}
+        message={refundAmountPlan().partial
+          ? `Refund ${formatMinor(refundAmountPlan().minor, refundAmountPlan().currency)} of this order${isManualPayment ? " (recorded only — send the money back yourself)" : order.paypalCaptureId ? " through PayPal" : " through Stripe"}? The order stays paid.${Object.values(refundRestockLines).some((q) => q > 0) ? ` ${Object.values(refundRestockLines).reduce((a, b) => a + b, 0)} ticked cop${Object.values(refundRestockLines).reduce((a, b) => a + b, 0) === 1 ? "y goes" : "ies go"} back to stock.` : " Nothing is restocked."} This can't be undone.`
+          : `${formatMinor(refundableMinor(order), chargedOf(order).currency)} — ${isManualPayment ? "Refund this paid manual order?" : order.paypalCaptureId ? "Refund this paid order through PayPal?" : "Refund this paid order through Stripe?"}${restockOnRefund ? " The purchased quantities will also be restocked." : ""} This action is irreversible.`}
         onConfirm={handleRefund}
         onCancel={() => setConfirming(null)}
+      />
+      <ConfirmDialog
+        open={confirmAction === "markPaid"}
+        title="Payment received?"
+        confirmLabel="Mark paid"
+        message={`Only continue once ${money(order.total)} has arrived by ${order.paymentMethod || "the manual method"}. The order becomes paid, its books come off stock and the customer gets their order confirmation email.`}
+        onConfirm={runConfirmed}
+        onCancel={() => setConfirmAction(null)}
+      />
+      <ConfirmDialog
+        open={confirmAction === "mismatch"}
+        title="Mark this payment refunded?"
+        confirmLabel="Mark refunded"
+        message="Only continue after you've refunded the unexpected payment in Stripe or PayPal. This clears the warning from Needs attention; it does not send any money."
+        onConfirm={runConfirmed}
+        onCancel={() => setConfirmAction(null)}
+      />
+      <ConfirmDialog
+        open={confirmAction === "resendConfirmation"}
+        title="Resend order confirmation?"
+        confirmLabel="Resend email"
+        message={emailOn("order_confirmation")
+          ? `Sends the Order confirmed email to ${order.customer?.email || "the customer"} again. The shop's new-order email is not repeated.`
+          : "The Order confirmation email is switched off in Settings › Notifications, so nothing will be sent."}
+        onConfirm={runConfirmed}
+        onCancel={() => setConfirmAction(null)}
       />
       <ConfirmDialog
         open={confirmClearLabelLock}
