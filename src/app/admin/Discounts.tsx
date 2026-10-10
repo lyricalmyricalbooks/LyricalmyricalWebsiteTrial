@@ -8,6 +8,7 @@ import { discountPerformance, duplicateDiscount, perfKey } from "./discountPerfo
 import { validateDiscountDraft } from "./discountValidation";
 import { describeDiscount, tierSummary } from "./discountDescribe";
 import { copyText } from "./clipboard";
+import { discountShareLink } from "../features/site/sharedDiscount";
 import { MAX_BATCH, batchCodes, cleanPrefix, codesCsv, randomCode } from "./discountCodes";
 import {
   ActionMenu, Checkbox, ConfirmDialog, DataTable, Dialog, EmptyState, ErrorState, FilterBar, IconButton, LoadingState,
@@ -451,7 +452,10 @@ export function Discounts() {
         { label: "Edit", onSelect: () => { setEditing(d); setDialogOpen(true); } },
         { label: d.isActive ? "Pause" : "Activate", onSelect: () => handleToggle(d) },
         { label: "Duplicate", onSelect: () => { setEditing(duplicateDiscount(d, discounts.filter(x => !isAutomatic(x)).map(x => x.code))); setDialogOpen(true); } },
-        ...(isAutomatic(d) ? [] : [{ label: "Copy code", onSelect: () => { void copyText(d.code); } }]),
+        ...(isAutomatic(d) ? [] : [
+          { label: "Copy code", onSelect: () => { void copyText(d.code); } },
+          { label: "Copy share link", onSelect: () => { void copyText(discountShareLink(d.code, window.location.origin, import.meta.env.BASE_URL), "Share link"); } },
+        ]),
         { label: "Delete", tone: "danger", onSelect: () => setDeleting(d) },
       ]} />
     ) },

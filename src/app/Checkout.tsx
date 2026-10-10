@@ -49,6 +49,7 @@ import { catalogFulfillmentItems, discountedPhysicalSubtotal, bogoPercent } from
 import { bagPreorder, linePreorderNote, formatReleaseDate } from "./features/site/preorder";
 import { discountAmountFor, discountableItems, pickAutomaticDiscount } from "./features/site/discountMath";
 import { expandDiscountCategories } from "./features/site/discountCategories";
+import { clearSharedDiscount, sharedDiscount } from "./features/site/sharedDiscount";
 import { isGiftCardProduct, bundleComponents } from "./features/site/promotions";
 import { isLiveBook } from "./features/site/liveBook";
 import { componentsSummary } from "./features/site/orderLineNotes";
@@ -1005,6 +1006,23 @@ export function Checkout() {
       setGiftCardApplying(false);
     }
   };
+
+  // A shared discount link (?discount=CODE) fills the box once, then checks it like a typed code;
+  // the existing applied/refused messages are all the shopper sees. The server re-checks at payment.
+  const sharedCode = useRef<"idle" | "filled" | "done">("idle");
+  useEffect(() => {
+    if (sharedCode.current !== "idle" || catalogState !== "ready" || !settings || appliedDiscount) return;
+    const code = sharedDiscount();
+    if (!code) return;
+    sharedCode.current = "filled";
+    setDiscountCode(code);
+  }, [catalogState, settings, appliedDiscount]);
+  useEffect(() => {
+    if (sharedCode.current !== "filled" || !discountCode || discountCode !== sharedDiscount()) return;
+    sharedCode.current = "done";
+    clearSharedDiscount();
+    void applyDiscount();
+  }, [discountCode]);
 
   const removeDiscount = () => {
     setAppliedDiscount(null);
