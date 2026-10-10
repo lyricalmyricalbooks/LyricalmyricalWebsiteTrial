@@ -40,6 +40,7 @@ const { optOutId, unsubscribeToken, tokenMatches, footerAddress, normEmail: norm
 const { checkoutCurrencyOf, paidAmountCheck, toMinor, discountDateState, purchaseProblem, paypalCreateRequestId, lateFailureMayMarkFailed, refundProviderOf, paypalReversalCaptureId, discountUsedUp, checkoutRefusal, manualPaidRefusal, stripeIntentKey, cancelRefusal, mismatchResolved, stripePaymentTaken, previousAttemptPaid, paypalRefundedTotalMinor } = require("./paymentGuards");
 const { canViewOrder, publicOrderView } = require("./orderAccess");
 const { returnTransition, publicReturn, returnRestockItems } = require("./returns");
+const { refundPlan, refundedSoFar, restockLinesFor, withoutRestocked, partialRefundKey } = require("./partialRefund");
 const { orderRequestProblem, orderRequestRecord, privacyRequestRecord } = require("./customerRequests");
 const { hitLimit, LIMITS, clientIpOf } = require("./rateLimit");
 const { reserveStock, releaseStock, releaseStockForOrder, StockHoldError, holdOwner } = require("./stockHolds");
@@ -359,7 +360,9 @@ async function sendEmail({ to, subject, html, secret, queue = "", outboxId = "",
   const recipientList = cleanRecipients(to);
   subject = cleanSubject(subject);
   const sourceHtml = html;
-  const logBase = { to: Array.isArray(to) ? to.join(", ") : String(to || ""), subject, ...(queue ? { kind: String(queue) } : {}), ...(outboxId ? { outboxId } : {}) };
+  // Order emails name their order, so Order detail › Activity can list its delivery attempts.
+  const aboutOrder = typeof about?.orderId === "string" && about.orderId ? { orderId: about.orderId } : {};
+  const logBase = { to: Array.isArray(to) ? to.join(", ") : String(to || ""), subject, ...(queue ? { kind: String(queue) } : {}), ...(outboxId ? { outboxId } : {}), ...aboutOrder };
   if (!recipientList) {
     // Permanent: no retry can fix an address, and a bad one may be an attempt to inject headers.
     const message = `${String(logBase.to).replace(/[\r\n]+/g, " ").slice(0, 120) || "(no address)"} is not a valid email address, so nothing was sent.`;
@@ -370,7 +373,7 @@ async function sendEmail({ to, subject, html, secret, queue = "", outboxId = "",
   // One id for this email across every try: the queue entry's id, and Resend's idempotency key,
   // so a reply lost after Resend accepted the message can't turn into a second copy.
   const queueId = outboxId || (queue ? crypto.randomBytes(12).toString("hex") : "");
-  const okExtra = { ...(queue ? { kind: String(queue) } : {}), ...(outboxId ? { outboxId } : {}), ...(attempt > 1 ? { attempt } : {}) };
+  const okExtra = { ...(queue ? { kind: String(queue) } : {}), ...(outboxId ? { outboxId } : {}), ...(attempt > 1 ? { attempt } : {}), ...aboutOrder };
   let apiKey = secret;
   let keySource = secret ? "secret" : "none";
   let fromName = "Lyricalmyrical Books";
@@ -458,12 +461,12 @@ async function sendEmail({ to, subject, html, secret, queue = "", outboxId = "",
     if (queue && !isPermanentEmailError(error)) {
       const queued = await enqueueEmail({ id: queueId, to: recipientList, subject, html: sourceHtml, kind: queue, error, claimId, about });
       if (queued) {
-        await logEmailAttempt({ to: recipients, subject, status: "queued", error: `${error} Saved to try again automatically.`, from: fromEmail, keySource, kind: String(queue), outboxId: queued.id, retryAt: queued.nextAttemptAt, ...extra });
+        await logEmailAttempt({ to: recipients, subject, status: "queued", error: `${error} Saved to try again automatically.`, from: fromEmail, keySource, kind: String(queue), outboxId: queued.id, retryAt: queued.nextAttemptAt, ...aboutOrder, ...extra });
         thrown.queued = queued.id;
         throw thrown;
       }
     }
-    await logEmailAttempt({ to: recipients, subject, status: "failed", error, from: fromEmail, keySource, ...(queue ? { kind: String(queue) } : {}), ...extra });
+    await logEmailAttempt({ to: recipients, subject, status: "failed", error, from: fromEmail, keySource, ...(queue ? { kind: String(queue) } : {}), ...aboutOrder, ...extra });
     throw thrown;
   };
 
@@ -574,7 +577,7 @@ async function sendQueuedEmail(id, { force = false } = {}) {
   }
   const attempt = (Number(entry.attempts) || 1) + 1;
   try {
-    await sendEmail({ to: entry.to, subject: entry.subject, html: entry.html, secret: resendSecretValue(), queue: entry.kind || "retry", outboxId: id, attempt });
+    await sendEmail({ to: entry.to, subject: entry.subject, html: entry.html, secret: resendSecretValue(), queue: entry.kind || "retry", outboxId: id, attempt, about: { orderId: entry.orderId || "" } });
   } catch (err) {
     const message = String(err?.message || err).slice(0, 1000);
     const at = new Date().toISOString();
@@ -2531,7 +2534,8 @@ async function applyOrderRefund(orderId, { provider, refundId = null, amountMino
     if (order.paymentStatus !== "paid") { alreadyRecorded = true; return; }
 
     const opsSnap = order.returnProgress ? await transaction.get(db.collection("order-operations").doc(orderId)) : null;
-    const itemList = returnRestockItems(order, opsSnap?.data()?.returnCase);
+    // Copies an earlier partial refund already put back are not restocked a second time.
+    const itemList = withoutRestocked(returnRestockItems(order, opsSnap?.data()?.returnCase), order);
     const sandboxPaid = order.sandboxPayment === true;
     const wantsRestock = restock !== undefined ? restock !== false : order.refundRequest?.restock !== false;
     const shouldRestock = !sandboxPaid && wantsRestock && itemList.length > 0 && order.inventoryRestockedAt == null;
@@ -2606,6 +2610,53 @@ async function applyOrderRefund(orderId, { provider, refundId = null, amountMino
       refundedRevenue: admin.firestore.FieldValue.increment(reversal.revenue || 0),
     }, { merge: true });
   }
+  return { alreadyRecorded };
+}
+
+// A partial refund the admin made (Order detail › Refund with a smaller amount, or a return where
+// only some books came back). The order stays paid with `partiallyRefunded` and a running
+// `refundedAmountMinor` — the same state a Stripe Dashboard partial refund leaves — and only the
+// lines the owner ticked (or the inspected resellable copies of a return) go back to stock.
+// Recorded once per provider refund id; discount use, gift cards and revenue are left alone.
+async function applyPartialRefund(orderId, { provider, refundId = null, amountMinor, already = 0, currency = null, status = "succeeded", restockLines = [], fromReturn = false, reason = "", actor = "system", claimedAt = null }) {
+  const orderRef = db.collection("orders").doc(orderId);
+  let alreadyRecorded = false;
+  await db.runTransaction(async transaction => {
+    alreadyRecorded = false;
+    const snap = await transaction.get(orderRef);
+    if (!snap.exists) { alreadyRecorded = true; return; }
+    const order = snap.data();
+    const records = Array.isArray(order.partialRefunds) ? order.partialRefunds : [];
+    if (order.paymentStatus !== "paid" || (refundId && records.some(r => r && r.id === refundId))) { alreadyRecorded = true; return; }
+    const now = new Date().toISOString();
+    // Sandbox payments never touch real stock.
+    const lines = order.sandboxPayment === true ? [] : restockLines;
+    const books = lines.length ? await readBooks(transaction, db, lines) : new Map();
+    if (lines.length) writeStock(transaction, db, lines, books, 1, now);
+    const label = provider === "stripe" ? "Stripe" : provider === "paypal" ? "PayPal" : "Manual";
+    const cur = String(currency || order.expectedCurrency || "CAD").toUpperCase();
+    // Stripe/PayPal may already have reported this refund (webhook first): never count it twice.
+    const total = Math.max(refundedSoFar(order), already + amountMinor);
+    const finishReturn = fromReturn && order.returnProgress?.state === "inspected";
+    transaction.update(orderRef, {
+      partiallyRefunded: true,
+      refundedAmountMinor: total,
+      partialRefunds: [...records, { id: refundId, provider, amountMinor, currency: cur, status, reason: String(reason || "").slice(0, 500), actor, createdAt: now,
+        restocked: lines.map(line => ({ index: line.index, quantity: line.quantity })) }],
+      ...(lines.length ? { partialRestockedItems: [...(Array.isArray(order.partialRestockedItems) ? order.partialRestockedItems : []),
+        ...lines.map(line => ({ index: line.index, id: line.id, variantId: line.variantId || null, quantity: line.quantity, at: now }))] } : {}),
+      ...(provider === "paypal" && refundId ? { paypalRefundIds: [...(Array.isArray(order.paypalRefundIds) ? order.paypalRefundIds : []), refundId] } : {}),
+      ...(!claimedAt || order.refundRequest?.at === claimedAt ? { refundRequest: null } : {}),
+      ...(finishReturn ? { returnProgress: { ...order.returnProgress, state: "completed", updatedAt: now }, customerRequest: { ...order.customerRequest, status: "handled" } } : {}),
+      updatedAt: now,
+      activity: [...(order.activity || []), {
+        type: "event",
+        message: `${label} partial refund ${status === "pending" ? "started" : "made"}: ${(amountMinor / 100).toFixed(2)} ${cur} (${(total / 100).toFixed(2)} ${cur} refunded so far)${lines.length ? `; ${lines.reduce((n, l) => n + l.quantity, 0)} cop${lines.reduce((n, l) => n + l.quantity, 0) === 1 ? "y" : "ies"} back in stock` : ""}${reason ? ` — ${String(reason).slice(0, 200)}` : ""}. The order stays paid.`,
+        createdAt: now,
+        actor,
+      }],
+    });
+  });
   return { alreadyRecorded };
 }
 
@@ -3444,7 +3495,7 @@ exports.refundOrder = onBrowserRequest(
     const adminUser = await requireAdmin(req, res);
     if (!adminUser) return;
 
-    const { orderId, reason, restock = true } = req.body || {};
+    const { orderId, reason, restock = true, amountMinor = null, restockLines = null } = req.body || {};
     if (!orderId || typeof orderId !== "string" || orderId.includes("/")) {
       res.status(400).json({ error: "Missing orderId" });
       return;
@@ -3467,6 +3518,7 @@ exports.refundOrder = onBrowserRequest(
     try {
       // Claim the refund first and save the admin's restock choice, so a Stripe/PayPal
       // refund webhook that lands before we finish follows the same choice.
+      let plan = null, partialLines = [], fromReturn = false;
       const order = await db.runTransaction(async transaction => {
         const snap = await transaction.get(orderRef);
         if (!snap.exists) { const e = new Error("Order not found"); e.status = 404; throw e; }
@@ -3480,8 +3532,19 @@ exports.refundOrder = onBrowserRequest(
         if (current.customerRequest?.type === "return" && current.customerRequest.status === "open" && ["approved", "received"].includes(current.returnProgress?.state)) {
           const error = new Error("Receive and inspect the returned books before refunding this return."); error.status = 409; throw error;
         }
+        // Never more than was charged; an amount reaching what is left is today's full refund.
+        plan = refundPlan(current, amountMinor);
+        partialLines = []; fromReturn = false;
+        if (plan.kind === "partial") {
+          fromReturn = current.returnProgress?.state === "inspected";
+          if (fromReturn && restock !== false) {
+            // A partial return: the inspected resellable copies go back, as for a full return refund.
+            const ops = (await transaction.get(db.collection("order-operations").doc(orderId))).data() || {};
+            partialLines = restockLinesFor(current, (ops.returnCase?.inspection || []).map(row => ({ index: row.index, quantity: row.restockQuantity ?? (row.condition === "resellable" ? row.quantity : 0) })));
+          } else if (!fromReturn) partialLines = restockLinesFor(current, restockLines);
+        }
         // A gift card this order bought that has since been spent can't be taken back by a refund.
-        const issued = Array.isArray(current.giftCardsIssued) ? current.giftCardsIssued : [];
+        const issued = plan.kind === "full" && Array.isArray(current.giftCardsIssued) ? current.giftCardsIssued : [];
         if (issued.length) {
           const cards = await Promise.all(issued.map(card => transaction.get(db.collection("giftCards").doc(card.id))));
           const spentMinor = cards.reduce((sum, cardSnap) => {
@@ -3493,7 +3556,9 @@ exports.refundOrder = onBrowserRequest(
             error.status = 409; throw error;
           }
         }
-        transaction.update(orderRef, { refundRequest: { restock: restock !== false, reason: reasonText, actor, at: claimedAt } });
+        transaction.update(orderRef, { refundRequest: plan.kind === "partial"
+          ? { restock: false, partial: true, amountMinor: plan.amountMinor, reason: reasonText, actor, at: claimedAt }
+          : { restock: restock !== false, reason: reasonText, actor, at: claimedAt } });
         return current;
       });
       claimed = true;
@@ -3511,9 +3576,10 @@ exports.refundOrder = onBrowserRequest(
         providerCalled = true;
         const refund = await stripe.refunds.create({
           payment_intent: order.stripePaymentIntentId,
+          ...(plan.kind === "partial" ? { amount: plan.amountMinor } : {}),
           reason: "requested_by_customer",
           metadata: { order_id: orderId, admin_email: adminUser.email || "", reason: reasonText },
-        }, { ...requestOptions, idempotencyKey: `order-refund-${orderId}-full` });
+        }, { ...requestOptions, idempotencyKey: plan.kind === "partial" ? partialRefundKey(orderId, plan.already, plan.amountMinor) : `order-refund-${orderId}-full` });
         if (!["succeeded", "pending"].includes(refund.status)) {
           throw new Error(`Stripe refund was not accepted (status: ${refund.status}).`);
         }
@@ -3525,8 +3591,9 @@ exports.refundOrder = onBrowserRequest(
         providerCalled = true;
         const refund = await paypalRequest(config, `/v2/payments/captures/${encodeURIComponent(order.paypalCaptureId)}/refund`, {
           method: "POST",
-          headers: { "PayPal-Request-Id": `refund-${orderId}-full` },
-          body: JSON.stringify({ note_to_payer: reasonText.slice(0, 255) }),
+          headers: { "PayPal-Request-Id": plan.kind === "partial" ? `refund-${orderId}-partial-${plan.already}-${plan.amountMinor}` : `refund-${orderId}-full` },
+          body: JSON.stringify({ note_to_payer: reasonText.slice(0, 255),
+            ...(plan.kind === "partial" ? { amount: { value: (plan.amountMinor / 100).toFixed(2), currency_code: String(order.paypalCurrency || plan.currency).toUpperCase() } } : {}) }),
         });
         const status = String(refund.status || "").toUpperCase();
         if (!["COMPLETED", "PENDING"].includes(status)) throw new Error(`PayPal refund was not accepted (status: ${refund.status}).`);
@@ -3538,10 +3605,21 @@ exports.refundOrder = onBrowserRequest(
         };
       } else {
         // e-Transfer, cash, pickup: the money goes back outside the shop; this records it.
-        outcome = { refundId: null, amountMinor: null, currency: null, status: "succeeded" };
+        outcome = { refundId: null, amountMinor: plan.kind === "partial" ? plan.amountMinor : null, currency: plan.kind === "partial" ? plan.currency : null, status: "succeeded" };
       }
 
       providerAccepted = true;
+      if (plan.kind === "partial") {
+        const result = await applyPartialRefund(orderId, {
+          provider, refundId: outcome.refundId, amountMinor: outcome.amountMinor ?? plan.amountMinor, already: plan.already,
+          currency: outcome.currency || plan.currency, status: outcome.status, restockLines: partialLines, fromReturn, reason: reasonText, actor, claimedAt,
+        });
+        res.status(200).json({ refundId: outcome.refundId, amount: (outcome.amountMinor ?? plan.amountMinor) / 100, currency: String(outcome.currency || plan.currency).toUpperCase(),
+          status: outcome.status, provider, partial: true, alreadyRecorded: result.alreadyRecorded });
+        return;
+      }
+      // After earlier partial refunds the provider refunds what is left; record the running total.
+      if (plan.already > 0 && outcome.amountMinor != null) outcome.amountMinor += plan.already;
       const result = await applyOrderRefund(orderId, {
         provider, ...outcome, restock: restock !== false, reason: reasonText, actor,
       });
@@ -4034,6 +4112,11 @@ exports.onOrderUpdated = onDocumentUpdated(
         }
       }
 
+    }
+    // Admin "Resend order confirmation" (Order detail › More order actions) stamps
+    // confirmationEmailRequestedAt; each stamp sends the customer's confirmation once more.
+    const resendConfirmation = !becamePaid && !!after.confirmationEmailRequestedAt && after.confirmationEmailRequestedAt !== before.confirmationEmailRequestedAt;
+    if ((becamePaid || resendConfirmation) && after.paymentStatus === "paid") {
       if (notificationSettings.order_confirmation?.enabled !== false) {
       const order = after;
 
@@ -4118,7 +4201,7 @@ exports.onOrderUpdated = onDocumentUpdated(
       `;
 
       try {
-        await sendOrderEmailOnce(orderId, "orderConfirmed", {
+        await sendOrderEmailOnce(orderId, becamePaid ? "orderConfirmed" : `orderConfirmedResend_${after.confirmationEmailRequestedAt}`, {
           to: order.customer.email,
           subject: compiled.subject,
           html: compiled.html,
@@ -4129,7 +4212,7 @@ exports.onOrderUpdated = onDocumentUpdated(
       }
       // The shop's one email per paid order (Settings › Notifications › new-order alert).
       // It goes out even when the customer's address is rejected.
-      if (notificationSettings.new_order_admin?.enabled !== false) try {
+      if (becamePaid && notificationSettings.new_order_admin?.enabled !== false) try {
         await sendOrderEmailOnce(orderId, "shopNewOrder", {
           to: ADMIN_TO,
           subject: `${order.sandboxPayment ? "[TEST] " : ""}[NEW ${preorderLines.length ? "PRE-ORDER" : "ORDER"}] ${order.orderId || orderId} · paid · ${chargedTotalFmt(order)} · ${order.customer.name}`,

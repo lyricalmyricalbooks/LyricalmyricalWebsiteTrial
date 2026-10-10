@@ -815,7 +815,7 @@ export const adminApi = {
     });
   },
 
-  fulfillmentAction: async (id: string, action: "review" | "pack" | "hold" | "release" | "release_preorder" | "dispatch" | "local_transition" | "edit_tracking" | "delivery_status" | "resend_shipping_email", payload: any = {}) => {
+  fulfillmentAction: async (id: string, action: "review" | "pack" | "hold" | "release" | "release_preorder" | "dispatch" | "local_transition" | "edit_tracking" | "delivery_status" | "resend_shipping_email" | "resend_confirmation_email", payload: any = {}) => {
     await runTransaction(db, async tx => {
       const ref = doc(db, "orders", id);
       const privateRef = doc(db, "order-operations", id);
@@ -871,6 +871,10 @@ export const adminApi = {
         if (!String(o.trackingNumber || "").trim()) throw new Error("Add tracking before resending the shipping email.");
         tx.update(ref, { shippingEmailRequestedAt: now, updatedAt: now });
         message = `Shipping email resent to ${o.customer?.email || "the customer"}.`;
+      } else if (action === "resend_confirmation_email") {
+        // The server's onOrderUpdated sends the customer's Order confirmed email once per stamp.
+        tx.update(ref, { confirmationEmailRequestedAt: now, updatedAt: now });
+        message = `Order confirmation resent to ${o.customer?.email || "the customer"}.`;
       } else if (action === "delivery_status") {
         if (fulfillmentMethod(o) !== "shipping" || queueOf(o) !== "In transit") throw new Error("Only shipped parcels in transit can be updated.");
         const next = String(payload.status || "");
@@ -1181,7 +1185,22 @@ export const adminApi = {
     return body;
   },
 
-  refundOrder: async (orderId: string, options?: { reason?: string; restock?: boolean }) => {
+  /** Admin-only delivery log rows for one order (sent / failed / queued, with the reason), newest first. */
+  getOrderEmailLog: async (orderId: string) => {
+    const snap = await getDocs(query(collection(db, "emailLog"), where("orderId", "==", orderId), limit(50)));
+    return snap.docs.map(d => ({ id: d.id, ...(d.data() as any) })).sort((a: any, b: any) => String(b.at || "").localeCompare(String(a.at || "")));
+  },
+
+  // Parcel presets (box sizes) for the label dialog. Not secret, so a settings doc is fine.
+  getParcelPresets: async (): Promise<any[] | null> => {
+    const snap = await getDoc(doc(db, "settings", "parcelPresets"));
+    return snap.exists() && Array.isArray((snap.data() as any).presets) ? (snap.data() as any).presets : null;
+  },
+  saveParcelPresets: async (presets: any[]) => {
+    await setDoc(doc(db, "settings", "parcelPresets"), { presets, updatedAt: new Date().toISOString() });
+  },
+
+  refundOrder: async (orderId: string, options?: { reason?: string; restock?: boolean; amountMinor?: number | null; restockLines?: { index: number; quantity: number }[] }) => {
     const idToken = await auth.currentUser?.getIdToken();
     if (!idToken) throw new Error("You must be signed in as admin to refund an order.");
 
@@ -1195,6 +1214,8 @@ export const adminApi = {
         orderId,
         reason: options?.reason || "Admin refund",
         restock: options?.restock !== false,
+        ...(options?.amountMinor != null ? { amountMinor: options.amountMinor } : {}),
+        ...(options?.restockLines ? { restockLines: options.restockLines } : {}),
       }),
     });
     const result = await response.json();

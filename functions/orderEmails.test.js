@@ -75,6 +75,18 @@ test('becoming paid sends exactly one customer email and one shop email', async 
   expect(toShop[0].html).toMatch(/href="[^"]*\/admin#orders\/o1"[^>]*>Fulfil this order/);
 });
 
+test('"Resend order confirmation" sends the customer one more copy per request, never the shop email', async () => {
+  const app = harness();
+  const paid = order({ paymentStatus: 'paid' });
+  const stamped = order({ paymentStatus: 'paid', confirmationEmailRequestedAt: '2026-10-10T10:00:00.000Z' });
+  await app.exports.onOrderUpdated(updated(paid, stamped));
+  await app.exports.onOrderUpdated(updated(stamped, stamped)); // unrelated later update: no resend
+  expect(app.sent.filter((m) => m.to === 'reader@example.com').length).toBe(1);
+  expect(app.sent.filter((m) => m.to === 'lyricalmyricalbooks@gmail.com').length).toBe(0);
+  await app.exports.onOrderUpdated(updated(order({ paymentStatus: 'unpaid' }), order({ paymentStatus: 'unpaid', confirmationEmailRequestedAt: 'x' })));
+  expect(app.sent.filter((m) => m.to === 'reader@example.com').length).toBe(1);
+});
+
 test('the customer email total is exactly what the card was charged, not total × rate', async () => {
   const app = harness();
   // 3.39 CAD × 0.7299 = 2.474… → "US$2.47", but the PaymentIntent (per-line rounding) was 248 cents.

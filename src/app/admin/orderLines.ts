@@ -75,3 +75,80 @@ export function lineDetailsSummary(order: any): string {
 }
 
 export { money as cad };
+
+// ── Money on one order (Order detail): line prices, what was charged and refunded ──────────
+
+/** Per-copy price (edition + paid add-ons), the line total, and the add-ons' own prices. */
+export function linePricing(item: any): { unit: number; total: number; base: number | null; addOns: { label: string; price: number }[] } {
+  const unit = Number(item?.price) || 0;
+  const quantity = Math.max(0, Number(item?.quantity) || 0);
+  const addOns = (Array.isArray(item?.addOns) ? item.addOns : [])
+    .filter((a: any) => a && a.label && Number(a.price) > 0)
+    .map((a: any) => ({ label: String(a.label), price: Number(a.price) }));
+  const base = item?.basePrice != null && Number.isFinite(Number(item.basePrice)) ? Number(item.basePrice) : null;
+  return { unit, total: Math.round(unit * quantity * 100) / 100, base, addOns };
+}
+
+/** What the payment was for, in minor units of its currency (mirrors functions/partialRefund.js). */
+export function chargedOf(order: any): { minor: number; currency: string } {
+  const expected = Number(order?.expectedAmountMinor);
+  if (Number.isInteger(expected) && expected > 0) return { minor: expected, currency: String(order.expectedCurrency || order.checkoutCurrency || "CAD").toUpperCase() };
+  return { minor: Math.max(0, Math.round((Number(order?.total) || 0) * 100)), currency: String(order?.checkoutCurrency || "CAD").toUpperCase() };
+}
+export const refundedMinor = (order: any) => Math.max(0, Math.floor(Number(order?.refundedAmountMinor) || 0));
+export const refundableMinor = (order: any) => Math.max(0, chargedOf(order).minor - refundedMinor(order));
+
+/** "CA$12.40", "US$9.00", "€5.00". */
+export function formatMinor(minor: number, currency = "CAD"): string {
+  const code = String(currency || "CAD").toUpperCase();
+  const amount = (Number(minor) || 0) / 100;
+  try { return new Intl.NumberFormat("en-CA", { style: "currency", currency: code }).format(amount); }
+  catch { return `${amount.toFixed(2)} ${code}`; }
+}
+
+/** "12.40" typed by the admin → 1240; anything else → null. */
+export function parseMoneyToMinor(text: string): number | null {
+  const t = String(text ?? "").trim().replace(/[$,\s]/g, "");
+  if (!/^\d+(\.\d{1,2})?$/.test(t)) return null;
+  return Math.round(Number(t) * 100);
+}
+
+/**
+ * Suggested refund for a partial return: the price of the copies that came back, in the
+ * payment's currency (CAD prices scaled by what the order was charged), capped at what is left.
+ */
+export function returnedValueMinor(order: any, received: Record<number, number>): number {
+  const items = Array.isArray(order?.items) ? order.items : [];
+  const valueCad = Object.entries(received || {}).reduce((sum, [index, qty]) => sum + (Number(items[Number(index)]?.price) || 0) * Math.max(0, Number(qty) || 0), 0);
+  const charged = chargedOf(order);
+  const totalCad = Number(order?.total) || 0;
+  const minor = charged.currency === "CAD" || !(totalCad > 0) ? Math.round(valueCad * 100) : Math.round(valueCad * charged.minor / totalCad);
+  return Math.min(minor, refundableMinor(order));
+}
+
+/** Plain step labels for the return workflow instead of raw state names. */
+export function returnStepLabel(state: string): string {
+  switch (state) {
+    case "requested": return "Step 1 of 4 — decide: approve with instructions, or decline";
+    case "approved": return "Step 2 of 4 — waiting for the parcel to come back";
+    case "received": return "Step 3 of 4 — inspect what came back";
+    case "inspected": return "Step 4 of 4 — refund the customer";
+    case "refund_pending": return "Refund sent — waiting for the payment provider";
+    case "completed": return "Done — refunded";
+    case "rejected": return "Declined — the customer has been told why";
+    default: return String(state || "").replace(/_/g, " ");
+  }
+}
+
+/** mailto: link with the order number in the subject (encoded), or "" without a usable email. */
+export function customerMailto(order: any): string {
+  const email = String(order?.customer?.email || "").trim();
+  if (!email || /[\s<>"?&]/.test(email)) return "";
+  return `mailto:${email}?subject=${encodeURIComponent(`Your order ${order?.orderId || order?.id || ""}`.trim())}`;
+}
+/** tel: link (digits and a leading +), or "" when the phone has too few digits. */
+export function telHref(phone: any): string {
+  const raw = String(phone || "").trim();
+  const cleaned = raw.replace(/[^\d+]/g, "").replace(/(?!^)\+/g, "");
+  return cleaned.replace(/\D/g, "").length >= 3 ? `tel:${cleaned}` : "";
+}
