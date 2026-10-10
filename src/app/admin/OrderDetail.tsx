@@ -15,7 +15,8 @@ import {
   isDigitalItem,
   disputeOpen,
 } from "./fulfillment";
-import { printOrders } from "./orderPrint";
+import { printOrders, type SlipShop } from "./orderPrint";
+import { getCopy } from "../features/site/storeCopy";
 import { discountLabel, giftCardConflictOpen, giftCardPaid, issuedGiftCards, chargedOf, refundedMinor, refundableMinor, formatMinor, parseMoneyToMinor, customerMailto, telHref } from "./orderLines";
 import { useState, useEffect, useRef } from "react";
 import { ArrowLeft, Copy, ExternalLink } from "lucide-react";
@@ -312,8 +313,14 @@ export function OrderDetail({
     }
   };
 
-  const handlePrintPackingSlip = () => {
-    printOrders([order]);
+  const handlePrintPackingSlip = async () => {
+    // Shop name (Text & labels › Site & sharing) and return address (Settings › General › Location).
+    let shop: SlipShop = {};
+    try {
+      const s: any = await adminApi.getPublicSettings();
+      shop = { name: getCopy(s?.design || {}, "siteName"), location: s?.location };
+    } catch { /* print without the shop block */ }
+    printOrders([order], false, shop);
   };
 
   const handlePushToShippo = async () => {
